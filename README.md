@@ -11,7 +11,7 @@ introducing a large runtime dependency stack.
 ## Features
 
 - One account with password setup and password changes.
-- Dashboard with recent work, content counts, quick capture actions, and a separate overdue/upcoming deadline view.
+- Dashboard with recent work, content counts, quick capture actions, an inbox queue, and a separate overdue/upcoming deadline view.
 - Separate spaces for notes, projects, papers, and work logs.
 - Markdown editing with a safe client-side preview.
 - Status, priority, due date, tags, and server-side search.

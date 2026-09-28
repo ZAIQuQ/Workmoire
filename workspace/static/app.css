@@ -20,3 +20,5 @@
 .trash-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.surface-count{min-width:24px;height:24px;border-radius:99px;background:#f0f3f7;color:#76859a;display:grid;place-items:center;font-size:11px}.trash-list{padding:5px 20px}.trash-row{display:grid;gap:12px;padding:14px 0;border-bottom:1px solid #f0f2f6}.trash-row:last-child{border-bottom:0}.trash-row-body{display:flex;align-items:center;gap:11px;min-width:0}.trash-actions{display:flex;justify-content:flex-end;gap:8px}.trash-actions .button{padding:6px 9px;font-size:11px}@media(max-width:760px){.trash-grid{grid-template-columns:1fr}.trash-list{padding:5px 15px}}
 
 .due-item.is-overdue{background:#fff8f8;margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:8px}.due-item.is-overdue .due-date{color:var(--red)}.due-item.is-overdue .recent-title{color:#9c3542}
+
+.inbox-list{padding:3px 20px}.inbox-item{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #f0f2f6;cursor:pointer}.inbox-item:last-child{border-bottom:0}.inbox-item:hover .recent-title{color:var(--blue)}.inbox-item .priority{margin-left:auto}
