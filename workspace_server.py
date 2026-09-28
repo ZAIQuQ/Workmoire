@@ -446,7 +446,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             status_counts = {row["status"]: row["count"] for row in con.execute("SELECT status, COUNT(*) AS count FROM items WHERE deleted_at='' GROUP BY status")}
             recent = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY pinned DESC, updated_at DESC LIMIT 8")]
             pinned = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND pinned=1 ORDER BY updated_at DESC LIMIT 6")]
-            upcoming = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND due_date != '' ORDER BY due_date ASC, updated_at DESC LIMIT 8")]
+            today = date.today().isoformat()
+            overdue = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND due_date != '' AND due_date < ? AND status != 'done' ORDER BY due_date ASC, updated_at DESC LIMIT 8", (today,))]
+            upcoming = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND due_date != '' AND due_date >= ? AND status != 'done' ORDER BY due_date ASC, updated_at DESC LIMIT 8", (today,))]
             activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY created_at DESC LIMIT 8")]
             file_bytes = con.execute("SELECT COALESCE(SUM(size),0) FROM files WHERE deleted_at='' ").fetchone()[0]
             trash_counts = {
@@ -454,7 +456,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 "files": con.execute("SELECT COUNT(*) FROM files WHERE deleted_at!=''").fetchone()[0],
             }
             con.close()
-            self.json_response({"counts": counts, "status_counts": status_counts, "recent": recent, "pinned": pinned, "upcoming": upcoming, "activity": activity, "file_bytes": file_bytes, "trash_counts": trash_counts})
+            self.json_response({"counts": counts, "status_counts": status_counts, "recent": recent, "pinned": pinned, "overdue": overdue, "upcoming": upcoming, "activity": activity, "file_bytes": file_bytes, "trash_counts": trash_counts})
             return
         if path == "/api/trash":
             if not self.require_user():

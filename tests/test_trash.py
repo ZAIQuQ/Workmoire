@@ -3,6 +3,7 @@ import sqlite3
 import tempfile
 import threading
 import unittest
+from datetime import date, timedelta
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -63,6 +64,26 @@ class TrashHttpTests(unittest.TestCase):
             raw = error.read()
         self.assertEqual(status, expected)
         return json.loads(raw.decode("utf-8"))
+
+    def test_z_dashboard_splits_overdue_and_upcoming_open_items(self):
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        overdue = self.request(
+            "/api/items", "POST", {"kind": "project", "title": "Overdue synthetic", "due_date": yesterday}, expected=201
+        )["item"]
+        upcoming = self.request(
+            "/api/items", "POST", {"kind": "paper", "title": "Upcoming synthetic", "due_date": tomorrow}, expected=201
+        )["item"]
+        completed = self.request(
+            "/api/items", "POST", {"kind": "log", "title": "Completed synthetic", "due_date": yesterday, "status": "done"}, expected=201
+        )["item"]
+        stats = self.request("/api/stats")
+        self.assertEqual([item["id"] for item in stats["overdue"]], [overdue["id"]])
+        self.assertEqual([item["id"] for item in stats["upcoming"]], [upcoming["id"]])
+        self.assertNotIn(completed["id"], [item["id"] for item in stats["overdue"] + stats["upcoming"]])
+        for item in (overdue, upcoming, completed):
+            self.request("/api/items/%d" % item["id"], "DELETE")
+            self.request("/api/trash/items/%d" % item["id"], "DELETE")
 
     def test_items_can_be_restored_and_permanently_removed(self):
         self.request("/api/setup", "POST", {"username": "tester", "password": "a-long-test-password"})
