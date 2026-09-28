@@ -23,7 +23,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 ## Database and data
 
 - Make a copy or backup of the production data directory before a schema migration.
-- When scheduled backups are enabled, run `backup.sh` once, verify both the SQLite snapshot and file archive exist, and confirm the retention setting is applied.
+- When scheduled backups are enabled, run `backup.sh` once, verify both the SQLite snapshot and file archive exist, run `PRAGMA integrity_check` on the snapshot, list the archive contents, and confirm the retention setting is applied.
 - Verify migrations are additive or have a tested rollback path.
 - Keep production data in the configured data directory, outside the Git checkout.
 - Never use a production password or personal document as a test fixture.

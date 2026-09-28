@@ -54,6 +54,7 @@ class BackupScriptTests(unittest.TestCase):
             self.assertTrue(snapshot_files.exists())
             with sqlite3.connect(snapshot_db) as db:
                 self.assertEqual(db.execute("select value from marker").fetchone()[0], "synthetic")
+                self.assertEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
             with tarfile.open(snapshot_files, "r:gz") as archive:
                 self.assertIn("files/example.txt", archive.getnames())
 

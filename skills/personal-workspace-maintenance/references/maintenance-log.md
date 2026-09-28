@@ -57,3 +57,4 @@ changes belong in normal commit history.
 - Made the local assistant explicitly pass a configurable bounded reasoning setting (default `low`) after the private CLI timed out at its profile default; documented model/reasoning overrides and kept the server-only configuration boundary.
 
 - Extended GitHub CI with an explicit Node client syntax check, browser smoke-script compilation, and diff validation so frontend changes receive a reproducible public-repository gate before deployment.
+- Added post-write backup validation: SQLite snapshots must pass `PRAGMA integrity_check` and file archives must be listable before retention pruning. Updated `backup.sh`, its synthetic test, the release checklist, and this skill so a successful backup command also proves recoverable artifacts.

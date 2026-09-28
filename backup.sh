@@ -19,10 +19,16 @@ fi
 
 stamp="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$out"
+db_snapshot="$out/workspace-$stamp.db"
+files_snapshot="$out/files-$stamp.tgz"
+cleanup_failed() {
+  rm -f "$db_snapshot" "$files_snapshot"
+}
+trap cleanup_failed ERR
 if command -v sqlite3 >/dev/null 2>&1; then
-  sqlite3 "$data/workspace.db" ".backup '$out/workspace-$stamp.db'"
+  sqlite3 "$data/workspace.db" ".backup '$db_snapshot'"
 else
-  python3 - "$data/workspace.db" "$out/workspace-$stamp.db" <<'PY'
+  python3 - "$data/workspace.db" "$db_snapshot" <<'PY'
 import sqlite3
 import sys
 
@@ -36,12 +42,24 @@ src.close()
 PY
 fi
 
+python3 - "$db_snapshot" <<'PY'
+import sqlite3
+import sys
+
+with sqlite3.connect(sys.argv[1]) as db:
+    result = db.execute("PRAGMA integrity_check").fetchone()[0]
+if result != "ok":
+    raise SystemExit("backup integrity check failed: %s" % result)
+PY
+
 if [ -d "$data/files" ]; then
-  tar -C "$data" -czf "$out/files-$stamp.tgz" files
+  tar -C "$data" -czf "$files_snapshot" files
 else
   # Keep the backup format stable for a new installation with no uploads yet.
-  tar -czf "$out/files-$stamp.tgz" --files-from /dev/null
+  tar -czf "$files_snapshot" --files-from /dev/null
 fi
+tar -tzf "$files_snapshot" >/dev/null
+trap - ERR
 
 # Prune only the two files produced by this script, and only after both new
 # snapshots have been written successfully. mtime is intentionally used here:
@@ -49,4 +67,4 @@ fi
 find "$out" -maxdepth 1 -type f -name 'workspace-*.db' -mtime "+$retention_days" -delete
 find "$out" -maxdepth 1 -type f -name 'files-*.tgz' -mtime "+$retention_days" -delete
 
-printf '%s\n' "$out/workspace-$stamp.db" "$out/files-$stamp.tgz"
+printf '%s\n' "$db_snapshot" "$files_snapshot"
