@@ -102,7 +102,7 @@ async function goPage(page){
   else{await loadItems();renderContentPage()}
   $(".sidebar").classList.remove("is-open");
 }
-$(".nav-item").forEach(item=>item.onclick=()=>goPage(item.dataset.page));
+$$(".nav-item").forEach(item=>item.onclick=()=>goPage(item.dataset.page));
 async function loadStats(){state.stats=await api("/api/stats")}
 async function loadItems(query=""){
   const params=new URLSearchParams({kind:state.page,limit:"500"});

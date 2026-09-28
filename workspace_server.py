@@ -419,7 +419,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if not self.require_user():
                 return
             con = open_db()
-            items = [as_item(row) for row in con.execute("SELECT * FROM items ORDER BY id")]
+            items = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY id")]
             files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,created_at FROM files WHERE deleted_at='' ORDER BY id")]
             activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY id")]
             con.close()

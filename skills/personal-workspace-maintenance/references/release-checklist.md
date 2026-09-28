@@ -7,6 +7,8 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - Check git status and review the complete staged file list.
 - Confirm data/, databases, uploads, backups, logs, .env, SSH files, server addresses, and personal content are ignored or absent.
 - Run make compile and make test.
+- For browser changes, run tests/browser_smoke.py in an isolated Playwright environment against synthetic temporary data. Syntax checks alone do not prove that navigation or page startup works.
+- After restarting, allow a bounded startup interval and retry health probes before deciding that the deployment failed; never treat systemd active state alone as proof of readiness.
 - Run an HTTP smoke test for /healthz, /api/session, login/setup, content CRUD, and file upload when applicable.
 - When import/export changes, test a synthetic export with relationships and verify the import is transactional and excludes credentials and file binaries.
 - When deletion behavior changes, test the full trash lifecycle: active queries hide deleted rows, restore returns them, and permanent deletion removes the row and file bytes.

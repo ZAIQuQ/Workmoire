@@ -40,3 +40,6 @@ changes belong in normal commit history.
 - Added a reversible trash workflow for items and files, with an HTTP lifecycle
   test and explicit permanent-deletion verification to reduce accidental data
   loss during daily organization.
+- Added real-browser startup, navigation, and trash lifecycle checks using an
+  isolated synthetic workspace after discovering a selector error that passed
+  syntax checks. Deployment health probes now allow a bounded startup interval.

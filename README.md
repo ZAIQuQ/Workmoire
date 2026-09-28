@@ -17,6 +17,7 @@ introducing a large runtime dependency stack.
 - Status, priority, due date, tags, and server-side search.
 - Hierarchical relationships between related notes, projects, papers, and logs.
 - Recoverable deletion with a private trash area for content and uploaded files.
+- Trashed items stay out of search, active statistics, and item exports until restored.
 - Private file storage with a 64 MB per-file limit.
 - One-click JSON export of notes, metadata, and activity history (without passwords).
 - Transactional JSON import that rebuilds item relationships without importing credentials or file binaries.

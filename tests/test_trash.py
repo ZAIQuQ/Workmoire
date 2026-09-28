@@ -80,6 +80,9 @@ class TrashHttpTests(unittest.TestCase):
         self.assertIsNone(active[0]["parent_id"])
         trash = self.request("/api/trash")
         self.assertEqual([item["id"] for item in trash["items"]], [parent["id"]])
+        self.assertEqual([item["id"] for item in self.request("/api/export")["items"]], [child["id"]])
+        self.assertNotIn("project", self.request("/api/stats")["counts"])
+        self.assertEqual(self.request("/api/items?q=Parent")["items"], [])
 
         file_id = "synthetic-file"
         stored_name = "synthetic-file.txt"
@@ -94,6 +97,7 @@ class TrashHttpTests(unittest.TestCase):
         self.request("/api/files/%s" % file_id, "DELETE")
         self.assertFalse(any(file["id"] == file_id for file in self.request("/api/files")["files"]))
         self.assertTrue(any(file["id"] == file_id for file in self.request("/api/trash")["files"]))
+        self.assertEqual(self.request("/api/export")["files"], [])
         self.request("/api/trash/files/%s/restore" % file_id, "POST")
         self.assertTrue(any(file["id"] == file_id for file in self.request("/api/files")["files"]))
         self.request("/api/files/%s" % file_id, "DELETE")

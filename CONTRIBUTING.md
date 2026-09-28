@@ -12,3 +12,15 @@ Before opening a pull request:
 
 The application intentionally uses Python's standard library and a small
 browser client so it can run on a modest single-user server.
+
+For frontend changes, also run the optional browser smoke test in a development
+environment with Python 3.12 and Playwright:
+
+```sh
+python -m pip install playwright
+python -m playwright install chromium
+python tests/browser_smoke.py
+```
+
+The test starts its own loopback server and uses only temporary, synthetic data.
+Playwright is a development dependency; production needs no browser packages.
