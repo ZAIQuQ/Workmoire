@@ -1,7 +1,7 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",trash:"回收站"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",listTag:"",setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,searchController:null};
+const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",listTag:"",listSort:"updated",setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,searchController:null};
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
 const draftKey=(kind,id=null)=>"workmoire:draft:"+kind+":"+(id==null?"new":id);
@@ -110,7 +110,7 @@ function editorHasChanges(){
 function confirmEditorLeave(){return !editorHasChanges()||window.confirm("当前内容尚未保存，确定离开吗？")}
 async function goPage(page){
   if(state.page!==page&&!confirmEditorLeave())return;
-  state.page=page;state.selected=null;state.savedSnapshot=null;state.listTag="";state.editorTab="write";
+  state.page=page;state.selected=null;state.savedSnapshot=null;state.listTag="";state.listSort="updated";state.editorTab="write";
   $$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===page));
   $("#page-heading").textContent=page==="dashboard"?"总览":page==="files"?"文件空间":labels[page];
   if(page==="dashboard"){await loadStats();renderDashboard()}
@@ -158,13 +158,13 @@ function defaultContent(kind){
 }
 function createItem(kind){
   if(!confirmEditorLeave())return;
-  state.page=kind;state.listTag="";state.selected={id:null,...defaultContent(kind),...(readLocalDraft(kind)||{})};state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
+  state.page=kind;state.listTag="";state.listSort="updated";state.selected={id:null,...defaultContent(kind),...(readLocalDraft(kind)||{})};state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
 }
 function renderContentPage(){
   const item=state.selected;
   $("#page-content").innerHTML='<div class="page-title-row"><div><h1>'+esc(labels[state.page])+'</h1><p>'+({note:"把碎片知识收拢起来，形成可以复用的脉络。",project:"让每一个项目都有清晰的目标和下一步。",paper:"从研究问题出发，把论文结构逐步搭起来。",log:"记录过程，让进展和思考可回看。"}[state.page])+'</p></div><div class="page-title-actions"><button class="button button-primary" id="new-content">新建'+esc(labels[state.page].replace("空间",""))+'</button></div></div>'+
-  '<div class="content-layout"><section class="surface list-surface"><div class="list-toolbar"><div class="input-with-icon"><span>⌕</span><input id="list-search" class="control-input" placeholder="搜索当前空间"></div><select id="list-status" class="control-input"><option value="">全部状态</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select><div id="list-tags" class="tag-filter" aria-label="标签筛选"></div></div><div id="item-list" class="item-list"></div></section><section id="editor" class="surface editor-surface"></section></div>';
-  $("#new-content").onclick=()=>createItem(state.page);$("#list-search").oninput=drawItemList;$("#list-status").onchange=drawItemList;drawItemList();drawEditor();
+  '<div class="content-layout"><section class="surface list-surface"><div class="list-toolbar"><div class="input-with-icon"><span>⌕</span><input id="list-search" class="control-input" placeholder="搜索当前空间"></div><select id="list-status" class="control-input"><option value="">全部状态</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select><select id="list-sort" class="control-input" aria-label="排序"><option value="updated">最近更新</option><option value="priority">优先级最高</option><option value="due">截止日期</option><option value="title">标题</option></select><div id="list-tags" class="tag-filter" aria-label="标签筛选"></div></div><div id="item-list" class="item-list"></div></section><section id="editor" class="surface editor-surface"></section></div>';
+  $("#new-content").onclick=()=>createItem(state.page);$("#list-search").oninput=drawItemList;$("#list-status").onchange=drawItemList;$("#list-sort").onchange=drawItemList;drawItemList();drawEditor();
 }
 async function renderTrash(){
   const data=await api("/api/trash");
@@ -179,14 +179,21 @@ async function renderTrash(){
   $$(".purge-file").forEach(button=>button.onclick=async()=>{if(window.confirm("永久删除后无法恢复，确定继续吗？")){await api("/api/trash/files/"+encodeURIComponent(button.dataset.id),{method:"DELETE"});await renderTrash()}});
 }
 function drawItemList(){
-  const query=($("#list-search")?.value||"").toLowerCase(),status=$("#list-status")?.value||"";
+  const query=$("#list-search")?.value.toLowerCase()||"",status=$("#list-status")?.value||"",sort=$("#list-sort")?.value||state.listSort;state.listSort=sort;
   drawTagFilter();
-  const items=state.items.filter(item=>(!status||item.status===status)&&(!state.listTag||item.tags_list?.includes(state.listTag)||item.tags?.split(",").includes(state.listTag))&&(!query||(item.title+" "+item.summary+" "+item.tags+" "+item.content).toLowerCase().includes(query)));
+  const items=state.items.filter(item=>(!status||item.status===status)&&(!state.listTag||item.tags_list?.includes(state.listTag)||item.tags?.split(",").includes(state.listTag))&&(!query||(item.title+" "+item.summary+" "+item.tags+" "+item.content).toLowerCase().includes(query))).sort((a,b)=>compareItems(a,b,sort));
   const box=$("#item-list");
   if(!items.length){box.innerHTML='<div class="empty-state"><strong>这里还没有内容</strong><p>点击右上角，先创建第一条。</p></div>';return}
   box.innerHTML=items.map(item=>'<div class="content-item '+(state.selected&&String(state.selected.id)===String(item.id)?"is-selected":"")+'" data-id="'+item.id+'"><div class="content-item-head"><div class="content-item-title">'+esc(item.title||"未命名")+'</div><button class="pin-toggle '+(item.pinned?"is-pinned":"")+'" data-id="'+item.id+'" title="'+(item.pinned?"取消置顶":"置顶内容")+'" aria-label="'+(item.pinned?"取消置顶":"置顶内容")+'">★</button></div><div class="content-item-summary">'+esc(item.summary||"暂无摘要")+'</div><div class="content-item-meta">'+priorityMarkup(item.priority||2)+'<span>'+relativeDate(item.updated_at)+'</span><span class="spacer"></span>'+statusPill(item.status)+'</div></div>').join("");
   $$(".content-item").forEach(row=>row.onclick=()=>{if(!confirmEditorLeave())return;state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";drawItemList();drawEditor()});
   $$(".pin-toggle").forEach(button=>button.onclick=async event=>{event.stopPropagation();if(!confirmEditorLeave())return;const item=state.items.find(candidate=>String(candidate.id)===button.dataset.id);if(!item)return;try{const result=await api("/api/items/"+item.id+"/pin",{method:"POST",body:JSON.stringify({pinned:!item.pinned})});Object.assign(item,result.item);const all=state.allItems.find(candidate=>String(candidate.id)===button.dataset.id);if(all)Object.assign(all,result.item);if(state.selected&&String(state.selected.id)===button.dataset.id){Object.assign(state.selected,result.item);state.savedSnapshot=editorSnapshot(result.item);drawEditor()}drawItemList()}catch(error){window.alert(error.message)}});
+}
+function compareItems(a,b,sort){
+  const updated=(b.updated_at||"").localeCompare(a.updated_at||"");
+  if(sort==="priority")return Number(b.priority||0)-Number(a.priority||0)||updated;
+  if(sort==="due")return (a.due_date||"9999-12-31").localeCompare(b.due_date||"9999-12-31")||updated;
+  if(sort==="title")return String(a.title||"").localeCompare(String(b.title||""),"zh-CN")||updated;
+  return Number(b.pinned||0)-Number(a.pinned||0)||updated;
 }
 function drawTagFilter(){
   const box=$("#list-tags");
