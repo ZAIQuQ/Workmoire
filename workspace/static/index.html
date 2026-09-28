@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1726">
+  <title>Workmoire · 拾序</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <section id="auth-view" class="auth-view is-hidden">
+    <div class="auth-orbit orbit-a"></div><div class="auth-orbit orbit-b"></div>
+    <div class="auth-card">
+      <div class="mark mark-large">W</div>
+      <div class="eyebrow">PRIVATE WORKSPACE</div>
+      <h1 id="auth-title">欢迎回来</h1>
+      <p id="auth-subtitle">把论文、项目和日常思路放在同一个安静的空间里。</p>
+      <form id="auth-form" autocomplete="on">
+        <label class="form-field"><span>账号</span><input id="auth-username" autocomplete="username" required></label>
+        <label class="form-field"><span>密码</span><input id="auth-password" type="password" autocomplete="current-password" required></label>
+        <label id="auth-confirm-row" class="form-field is-hidden"><span>确认密码</span><input id="auth-confirm" type="password" autocomplete="new-password"></label>
+        <button id="auth-submit" class="button button-primary button-block" type="submit">登录</button>
+        <p id="auth-error" class="form-error" role="alert"></p>
+      </form>
+      <p class="auth-foot">仅允许一个账号访问 · 数据保存在当前服务器</p>
+    </div>
+  </section>
+
+  <div id="app-view" class="app-shell is-hidden">
+    <aside class="sidebar">
+      <div class="brand"><div class="mark">W</div><div><strong>Workmoire</strong><span>论文 · 项目 · 思路</span></div></div>
+      <nav class="main-nav" aria-label="主导航">
+        <button class="nav-item is-active" data-page="dashboard"><span class="nav-icon">⌂</span>总览</button>
+        <div class="nav-label">整理空间</div>
+        <button class="nav-item" data-page="note"><span class="nav-icon">▤</span>知识库</button>
+        <button class="nav-item" data-page="project"><span class="nav-icon">◈</span>项目空间</button>
+        <button class="nav-item" data-page="paper"><span class="nav-icon">▧</span>论文大纲</button>
+        <button class="nav-item" data-page="log"><span class="nav-icon">◷</span>工作日志</button>
+        <div class="nav-label">资源</div>
+        <button class="nav-item" data-page="files"><span class="nav-icon">⌁</span>文件空间</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <button id="settings-button" class="account-button"><span class="avatar">U</span><span id="account-name">个人账号</span><span class="dots">···</span></button>
+        <div id="settings-menu" class="settings-menu is-hidden"><button id="change-password">修改密码</button><button id="logout">退出登录</button></div>
+        <div class="server-status"><i></i><span>本地服务在线</span></div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="mobile-brand"><div class="mark">W</div><strong>Workmoire</strong></div>
+        <div class="breadcrumbs"><span>拾序工作空间</span><b>/</b><strong id="page-heading">总览</strong></div>
+        <div class="top-actions"><button id="global-search-trigger" class="search-trigger"><span>⌕</span><span>搜索内容</span><kbd>Ctrl K</kbd></button><button id="mobile-menu" class="icon-button" aria-label="打开菜单">☰</button></div>
+      </header>
+      <div id="page-content" class="page-content"></div>
+    </main>
+  </div>
+
+  <dialog id="password-dialog" class="dialog"><form method="dialog" id="password-form" class="dialog-card"><div class="dialog-head"><h2>修改密码</h2><button class="icon-button" value="cancel" aria-label="关闭">×</button></div><label class="form-field"><span>当前密码</span><input id="old-password" type="password" required></label><label class="form-field"><span>新密码</span><input id="new-password" type="password" minlength="10" required></label><p id="password-message" class="form-error"></p><div class="dialog-actions"><button class="button button-secondary" value="cancel">取消</button><button id="password-submit" class="button button-primary" value="default">更新密码</button></div></form></dialog>
+  <dialog id="search-dialog" class="dialog"><div class="dialog-card search-dialog-card"><div class="search-box"><span>⌕</span><input id="global-search" placeholder="搜索标题、摘要、标签和正文…" autocomplete="off"><kbd>ESC</kbd></div><div id="search-results" class="search-results"><div class="search-empty">输入关键词开始搜索</div></div></div></dialog>
+  <script src="/static/app.js"></script>
+</body>
+</html>

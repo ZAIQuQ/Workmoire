@@ -1,0 +1,34 @@
+# Release and deployment checklist
+
+Use this checklist for a source release or a Tencent Cloud deployment.
+
+## Source
+
+- Check git status and review the complete staged file list.
+- Confirm data/, databases, uploads, backups, logs, .env, SSH files, server addresses, and personal content are ignored or absent.
+- Run make compile and make test.
+- Run an HTTP smoke test for /healthz, /api/session, login/setup, content CRUD, and file upload when applicable.
+- Update the README when the user-visible behavior or deployment contract changes.
+- Update the project skill and maintenance log when the workflow or an operational invariant changes.
+
+## Database and data
+
+- Make a copy or backup of the production data directory before a schema migration.
+- Verify migrations are additive or have a tested rollback path.
+- Keep production data in the configured data directory, outside the Git checkout.
+- Never use a production password or personal document as a test fixture.
+
+## Deployment
+
+- Transfer only the intended source files and static assets.
+- Check the port and existing services before restarting.
+- Run systemctl is-active personal-workspace.service.
+- Check /healthz, /api/session, ss -lntp, and recent journalctl output.
+- Record the deployed commit and any cloud security-group or HTTPS requirement.
+
+## GitHub
+
+- Use a private-safe commit and a focused message.
+- Push only after the remote owner and repository are known.
+- Never put credentials in the remote URL or commit history.
+- If a repository secret was exposed, rotate it before continuing.

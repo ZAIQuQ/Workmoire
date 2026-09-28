@@ -1,0 +1,17 @@
+services:
+  workspace:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "5200:5200"
+    env_file:
+      - .env
+    environment:
+      # Keep the named volume as the source of truth even when .env is shared
+      # with a local non-Docker run.
+      WORKSPACE_DATA_DIR: /var/lib/personal-workspace/data
+    volumes:
+      - workspace-data:/var/lib/personal-workspace/data
+
+volumes:
+  workspace-data:

@@ -1,0 +1,58 @@
+# Workmoire · 拾序
+
+A private, single-user web workspace for collecting research notes, paper
+outlines, project plans, work logs, and related files.
+
+The first release is deliberately small and self-hostable. It uses Python's
+standard library, SQLite, and a browser client with no build step. The
+application is suitable for a personal server and can be extended without
+introducing a large runtime dependency stack.
+
+## Features
+
+- One account with password setup and password changes.
+- Dashboard with recent work, content counts, and quick capture actions.
+- Separate spaces for notes, projects, papers, and work logs.
+- Markdown editing with a safe client-side preview.
+- Status, priority, due date, tags, and server-side search.
+- Private file storage with a 64 MB per-file limit.
+- Signed, expiring login cookies and basic login rate limiting.
+- SQLite WAL mode and a small activity trail.
+- Docker and systemd friendly deployment.
+
+## Run locally
+
+Copy .env.example to .env, set a long random session secret, and run:
+
+    python3 workspace_server.py
+
+Open http://127.0.0.1:5200. The first visit asks you to create the only
+account. The optional `.env` file is loaded automatically and must stay private.
+
+## Docker
+
+Copy .env.example to .env and run:
+
+    docker compose up -d --build
+
+The named volume stores the database and uploaded files. Back up that volume
+before upgrading or moving the service.
+
+## Project maintenance
+
+The repository includes a Codex maintenance skill at `skills/personal-workspace-maintenance`. It defines the public/private data boundary, testing gates, deployment checks, and GitHub release workflow. When a maintenance rule changes, update the skill and its maintenance log in the same commit, then run `make skill-sync`.
+
+## Production notes
+
+The service binds to the configured host and port. If it is reachable from
+the public internet, put it behind HTTPS or a private network and restrict
+the inbound security-group rule to trusted addresses. Do not commit your
+production .env, data/, database, uploads, logs, or backups.
+
+The project is intentionally independent of any existing service on the
+machine. Choose a free port and data directory when deploying beside another
+application.
+
+## License
+
+MIT. See LICENSE.
