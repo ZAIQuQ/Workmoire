@@ -516,10 +516,12 @@ async function searchGlobal(query){
   if(!query){box.innerHTML='<div class="search-empty">输入关键词开始搜索</div>';return}
   const controller=new AbortController();state.searchController=controller;box.innerHTML='<div class="search-empty">搜索中…</div>';
   try{
-    const result=await api("/api/search?q="+encodeURIComponent(query)+"&limit=30",{signal:controller.signal});
+    const kind=$("#global-search-kind").value,status=$("#global-search-status").value;
+    const params=new URLSearchParams({q:query,limit:"30"});if(kind)params.set("kind",kind);if(status)params.set("status",status);
+    const result=await api("/api/search?"+params.toString(),{signal:controller.signal});
     if(controller.signal.aborted)return;
     const items=result.items||[],files=result.files||[];
-    const itemMarkup=items.map(item=>'<div class="search-result search-item-result" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div><strong>'+esc(item.title)+'</strong><div class="recent-meta">'+esc(labels[item.kind])+" · "+esc(item.summary||"暂无摘要")+'</div></div></div>').join("");
+    const itemMarkup=items.map(item=>'<div class="search-result search-item-result" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="search-result-body"><strong>'+esc(item.title)+'</strong><div class="search-snippet">'+esc(item.snippet||item.summary||"暂无摘要")+'</div><div class="recent-meta">'+esc(labels[item.kind])+" · "+esc(statusLabels[item.status]||item.status)+" · "+relativeDate(item.updated_at)+'</div></div></div>').join("");
     const fileMarkup=files.map(file=>'<div class="search-result search-file-result" data-id="'+esc(file.id)+'"><span class="file-symbol">↧</span><div><strong>'+esc(file.name)+'</strong><div class="recent-meta">文件 · '+formatBytes(file.size)+(file.item_title?" · "+esc(file.item_title):"")+'</div></div></div>').join("");
     box.innerHTML=itemMarkup||fileMarkup?((itemMarkup?'<div class="search-section-label">内容</div>'+itemMarkup:"")+(fileMarkup?'<div class="search-section-label">文件</div>'+fileMarkup:"")):'<div class="search-empty">没有找到匹配内容或文件</div>';
     $$("#search-results .search-item-result").forEach(row=>row.onclick=async()=>{if(!await goPage(row.dataset.kind))return;$("#search-dialog").close();state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
@@ -527,6 +529,8 @@ async function searchGlobal(query){
   }catch(error){if(error.name!=="AbortError")box.innerHTML='<div class="search-empty">搜索暂时不可用，请稍后重试</div>'}
 }
 $("#global-search").oninput=()=>searchGlobal($("#global-search").value.trim());
+$("#global-search-kind").onchange=()=>searchGlobal($("#global-search").value.trim());
+$("#global-search-status").onchange=()=>searchGlobal($("#global-search").value.trim());
 document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.shiftKey&&event.key.toLowerCase()==="n"){event.preventDefault();openCapture()}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();$("#search-dialog").showModal();$("#global-search").focus()}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="s"&&state.selected){event.preventDefault();saveItem()}if((event.ctrlKey||event.metaKey)&&event.key==="Enter"&&state.selected){event.preventDefault();saveItem()}if(event.key==="Escape"){$("#settings-menu")?.classList.add("is-hidden")}});
 $("#mobile-menu").onclick=()=>$(".sidebar").classList.toggle("is-open");
 refreshServiceStatus();setInterval(refreshServiceStatus,60000);

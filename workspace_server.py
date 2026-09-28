@@ -325,6 +325,31 @@ def as_item(row: sqlite3.Row) -> dict:
     return result
 
 
+def search_snippet(row: sqlite3.Row, query: str) -> str:
+    """Return a short preview around the first search hit."""
+    fields = (row["title"], row["summary"], row["content"], row["tags"])
+    text = " ".join(str(value or "").replace("\n", " ") for value in fields).strip()
+    if not text:
+        return ""
+    terms = [part for part in query.split() if part]
+    needle = query.strip().casefold()
+    folded = text.casefold()
+    position = folded.find(needle) if needle else -1
+    matched_length = len(query.strip())
+    if position < 0:
+        for term in terms:
+            position = folded.find(term.casefold())
+            if position >= 0:
+                matched_length = len(term)
+                break
+    if position < 0:
+        return text[:160] + ("…" if len(text) > 160 else "")
+    start = max(0, position - 72)
+    end = min(len(text), position + max(matched_length, 1) + 88)
+    preview = text[start:end].strip()
+    return ("…" if start else "") + preview + ("…" if end < len(text) else "")
+
+
 def log_activity(con: sqlite3.Connection, action: str, target_type: str, target_id: object, label: str) -> None:
     con.execute(
         "INSERT INTO activity(action,target_type,target_id,label,created_at) VALUES(?,?,?,?,?)",
@@ -541,6 +566,14 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 return
             params = parse_qs(parsed.query)
             query = params.get("q", [""])[0].strip()[:120]
+            kind = params.get("kind", [""])[0]
+            status = params.get("status", [""])[0]
+            if kind and kind not in KINDS:
+                self.error("无效的内容类型", 400)
+                return
+            if status and status not in STATUSES:
+                self.error("无效的内容状态", 400)
+                return
             try:
                 limit = min(max(int(params.get("limit", ["30"])[0]), 1), 50)
             except ValueError:
@@ -551,13 +584,34 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 return
             pattern = "%" + query + "%"
             con = open_db()
-            items = [as_item(row) for row in con.execute(
-                "SELECT * FROM items WHERE deleted_at='' AND (title LIKE ? OR summary LIKE ? OR content LIKE ? OR tags LIKE ?) ORDER BY pinned DESC, updated_at DESC LIMIT ?",
-                (pattern, pattern, pattern, pattern, limit),
-            ).fetchall()]
+            item_clauses = ["deleted_at=''", "(title LIKE ? OR summary LIKE ? OR content LIKE ? OR tags LIKE ?)"]
+            item_values: list[object] = [pattern, pattern, pattern, pattern]
+            if kind:
+                item_clauses.append("kind=?")
+                item_values.append(kind)
+            if status:
+                item_clauses.append("status=?")
+                item_values.append(status)
+            item_rows = con.execute(
+                "SELECT * FROM items WHERE %s ORDER BY pinned DESC, updated_at DESC LIMIT ?" % " AND ".join(item_clauses),
+                item_values + [limit],
+            ).fetchall()
+            items = []
+            for row in item_rows:
+                item = as_item(row)
+                item["snippet"] = search_snippet(row, query)
+                items.append(item)
+            file_clauses = ["f.deleted_at=''", "(f.name LIKE ? OR COALESCE(i.title,'') LIKE ?)"]
+            file_values: list[object] = [pattern, pattern]
+            if kind:
+                file_clauses.append("i.kind=?")
+                file_values.append(kind)
+            if status:
+                file_clauses.append("i.status=?")
+                file_values.append(status)
             files = [dict(row) for row in con.execute(
-                "SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE f.deleted_at='' AND (f.name LIKE ? OR COALESCE(i.title,'') LIKE ?) ORDER BY f.created_at DESC LIMIT ?",
-                (pattern, pattern, limit),
+                "SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s ORDER BY f.created_at DESC LIMIT ?" % " AND ".join(file_clauses),
+                file_values + [limit],
             ).fetchall()]
             con.close()
             self.json_response({"items": items, "files": files})

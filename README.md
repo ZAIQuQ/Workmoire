@@ -24,6 +24,7 @@ introducing a large runtime dependency stack.
 - Markdown editing with a safe client-side preview, including headings, task lists, inline code, emphasis, and HTTPS links.
 - Status, priority, due date, tags, and server-side search.
 - Global search covers content and uploaded files, including a file's associated content title.
+- Global search shows a matching context preview and can be narrowed by content type or status.
 - Hierarchical relationships between related notes, projects, papers, and logs.
 - Clickable parent and child links make those relationships navigable from the editor.
 - Add reversible many-to-many links between any active notes, projects, papers, and logs to connect ideas across the hierarchy.

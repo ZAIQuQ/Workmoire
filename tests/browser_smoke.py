@@ -66,6 +66,12 @@ def main():
                 expect(page.locator("#edit-content")).to_have_value("A recoverable thought.\n\nSynthetic assistant output")
                 page.locator("#save-content").click()
                 expect(page.locator("#save-indicator")).to_contain_text("已保存")
+                page.locator("#global-search-trigger").click()
+                page.locator("#global-search").fill("recoverable")
+                expect(page.locator(".search-item-result")).to_contain_text("A recoverable thought.")
+                page.locator("#global-search-kind").select_option("note")
+                expect(page.locator(".search-item-result")).to_have_count(1)
+                page.locator("#search-dialog").press("Escape")
                 # Create a synthetic project to exercise links across spaces.
                 response = page.context.request.post(
                     "http://127.0.0.1:%d/api/items" % server.server_port,
