@@ -184,9 +184,9 @@ function renderDashboard(){
   '<div class="section-label">工作流</div><div class="dashboard-columns"><section class="surface"><div class="surface-head"><h2>最近编辑</h2><a id="view-all">查看全部</a></div><div class="recent-list">'+(recent.length?recent.map(item=>'<div class="recent-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+" · "+relativeDate(item.updated_at)+'</div></div>'+statusPill(item.status)+'</div>').join(""):'<div class="empty-state"><strong>还没有内容</strong><p>从一条知识卡片开始，给自己的思考留个位置。</p></div>')+'</div></section>'+
   '<section class="surface"><div class="surface-head"><h2>快速开始</h2></div><div class="quick-actions"><button class="quick-button" data-create-kind="note">'+kindMark("note")+'<span><strong>捕捉一个想法</strong><small>把还没成形的念头先记下来</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="paper">'+kindMark("paper")+'<span><strong>搭一份论文大纲</strong><small>从问题、方法和实验开始</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="project">'+kindMark("project")+'<span><strong>拆解一个项目</strong><small>明确目标、下一步和截止日期</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="log">'+kindMark("log")+'<span><strong>写今天的工作日志</strong><small>留下过程，也留下进展</small></span><span class="quick-plus">＋</span></button></div></section></div>'+
   '<div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>置顶内容</h2></div><div class="pinned-list">'+(pinned.length?pinned.map(item=>'<div class="pinned-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+relativeDate(item.updated_at)+'</div></div><span class="pin-mark">★</span></div>').join(""):'<div class="empty-state"><strong>还没有置顶内容</strong><p>把正在推进的项目或重要知识置顶，它们会一直出现在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>下一步期限</h2></div><div class="due-list">'+(dueItems.length?dueItems.map(dueItemMarkup).join(""):'<div class="empty-state"><strong>暂时没有待处理的截止日期</strong><p>在项目或论文中加上日期，下一步会出现在这里。</p></div>')+'</div></section></div><div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>待整理</h2><span class="surface-count">'+inbox.length+'</span></div><div class="inbox-list">'+(inbox.length?inbox.map(inboxItemMarkup).join(""):'<div class="empty-state"><strong>待整理箱是空的</strong><p>捕捉到的想法会先停在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>最近活动</h2></div><div class="activity-list">'+(activity.length?activity.map(entry=>'<div class="activity-item"><span class="activity-dot"></span><div><div class="recent-title">'+esc(entry.label)+'</div><div class="recent-meta">'+esc(formatDate(entry.created_at,true))+'</div></div></div>').join(""):'<div class="empty-state"><strong>还没有活动</strong><p>保存第一条内容后，这里会留下轨迹。</p></div>')+'</div></section></div>';
-  $("#quick-note").onclick=openCapture;$("#quick-log").onclick=()=>createItem("log");
+  $("#quick-note").onclick=openCapture;$("#quick-log").onclick=openTodayLog;
   $("#view-all").onclick=()=>goPage("note");
-  $$(".quick-button").forEach(button=>button.onclick=()=>button.dataset.createKind==="note"?openCapture():createItem(button.dataset.createKind));
+  $$(".quick-button").forEach(button=>button.onclick=()=>button.dataset.createKind==="note"?openCapture():button.dataset.createKind==="log"?openTodayLog():createItem(button.dataset.createKind));
   $$(".recent-item").forEach(row=>row.onclick=async()=>{await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
   $$(".due-item").forEach(row=>row.onclick=async()=>{await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
   $$(".pinned-item,.inbox-item").forEach(row=>row.onclick=async()=>{await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
@@ -205,6 +205,17 @@ function defaultContent(kind){
 function createItem(kind){
   if(!confirmEditorLeave())return;
   state.page=kind;state.listTag="";state.listSort="updated";state.selected={id:null,...defaultContent(kind),...(readLocalDraft(kind)||{})};state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
+}
+async function openTodayLog(){
+  const title=formatDate(new Date().toISOString());
+  try{
+    const result=await api("/api/items?kind=log&limit=50");
+    const existing=(result.items||[]).find(item=>item.title===title);
+    if(!existing){createItem("log");return}
+    await goPage("log");
+    state.selected=state.items.find(item=>String(item.id)===String(existing.id));
+    state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
+  }catch(error){window.alert(error.message)}
 }
 function renderContentPage(){
   const item=state.selected;
