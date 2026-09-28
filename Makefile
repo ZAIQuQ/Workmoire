@@ -8,6 +8,7 @@ test:
 
 compile:
 	python3 -m py_compile workspace_server.py
+	bash -n backup.sh
 
 skill-sync:
 	python3 scripts/sync_skill.py

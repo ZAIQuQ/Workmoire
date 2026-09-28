@@ -6,7 +6,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 
 - Check git status and review the complete staged file list.
 - Confirm data/, databases, uploads, backups, logs, .env, SSH files, server addresses, and personal content are ignored or absent.
-- Run make compile, make test, and node --check workspace/static/app.js.
+- Run make compile (including `bash -n backup.sh`), make test, and node --check workspace/static/app.js.
 - Compile tests/browser_smoke.py even when a Chromium binary is unavailable; syntax validation keeps the browser gate executable in CI.
 - For browser changes, run tests/browser_smoke.py in an isolated Playwright environment against synthetic temporary data. Syntax checks alone do not prove that navigation or page startup works.
 - After restarting, allow a bounded startup interval and retry health probes before deciding that the deployment failed; never treat systemd active state alone as proof of readiness.
