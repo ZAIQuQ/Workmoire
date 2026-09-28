@@ -1,7 +1,7 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],selected:null,stats:null,editorTab:"write",setup:false,assistant:null,draftTimer:null};
+const state={page:"dashboard",items:[],allItems:[],selected:null,stats:null,editorTab:"write",setup:false,authenticated:false,assistant:null,draftTimer:null};
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
 const draftKey=kind=>"workmoire:draft:"+kind;
@@ -38,6 +38,9 @@ async function api(path,options={}){
   const response=await fetch(path,{credentials:"same-origin",...options,headers:{...headers,...(options.headers||{})}});
   let body={};
   try{body=await response.json()}catch(_){}
+  if(response.status===401&&state.authenticated){
+    state.authenticated=false;showApp(false);setAuthMode(false);$("#auth-error").textContent="登录已失效，请重新登录";
+  }
   if(!response.ok)throw new Error(body.error||"请求失败");
   return body;
 }
@@ -68,7 +71,7 @@ async function boot(){
   try{
     const session=await api("/api/session");
     if(session.setup){showApp(false);setAuthMode(true,session.setup_token_required)}
-    else if(session.authenticated){$("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await loadAssistantStatus();await goPage("dashboard")}
+    else if(session.authenticated){state.authenticated=true;$("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await loadAssistantStatus();await goPage("dashboard")}
     else{showApp(false);setAuthMode(false)}
   }catch(error){showApp(false);setAuthMode(false);$("#auth-error").textContent=error.message}
 }
@@ -79,7 +82,7 @@ $("#auth-form").addEventListener("submit",async event=>{
   try{
     const payload={username,password};if(state.setup&&!$("#auth-setup-token-row").classList.contains("is-hidden"))payload.setup_token=$("#auth-setup-token").value;
     const session=await api(state.setup?"/api/setup":"/api/login",{method:"POST",body:JSON.stringify(payload)});
-    $("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await loadAssistantStatus();await goPage("dashboard");
+    state.authenticated=true;$("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await loadAssistantStatus();await goPage("dashboard");
   }catch(error){$("#auth-error").textContent=error.message}
 });
 function editorHasChanges(){
@@ -192,11 +195,12 @@ async function runAssistant(){
 async function saveItem(){
   const data=collectEditor(),indicator=$("#save-indicator");
   if(!data.title){indicator.textContent="请先填写标题";return}
-  indicator.textContent="保存中…";
+  const button=$("#save-content");button.disabled=true;indicator.textContent="保存中…";
   try{
     const result=state.selected.id?await api("/api/items/"+state.selected.id,{method:"PUT",body:JSON.stringify(data)}):await api("/api/items",{method:"POST",body:JSON.stringify(data)});
     state.selected=result.item;clearLocalDraft(state.page);await loadItems();drawItemList();drawEditor();$("#save-indicator").textContent="已保存 · "+new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
   }catch(error){indicator.textContent=error.message}
+  finally{if($("#save-content"))$("#save-content").disabled=false}
 }
 async function deleteItem(){
   if(!state.selected.id||!window.confirm("确定删除这条内容吗？删除后无法恢复。"))return;
@@ -221,12 +225,12 @@ $("#settings-button").onclick=()=>$("#settings-menu").classList.toggle("is-hidde
 $("#export-data").onclick=()=>{$("#settings-menu").classList.add("is-hidden");const link=document.createElement("a");link.href="/api/export";link.download="workmoire-export.json";document.body.appendChild(link);link.click();link.remove()};
 $("#import-data").onclick=()=>{$("#settings-menu").classList.add("is-hidden");$("#import-input").click()};
 $("#import-input").onchange=async()=>{const file=$("#import-input").files[0];if(!file)return;try{const payload=JSON.parse(await file.text());const count=Array.isArray(payload.items)?payload.items.length:0;if(!window.confirm("将追加导入 "+count+" 条内容，已有内容不会被覆盖。继续吗？")){$("#import-input").value="";return}const result=await api("/api/import",{method:"POST",body:JSON.stringify(payload)});window.alert("已导入 "+result.imported_items+" 条内容。文件附件元数据已跳过，请使用备份包恢复文件。");$("#import-input").value="";await goPage("dashboard")}catch(error){window.alert(error.message);$("#import-input").value=""}};
-$("#logout").onclick=async()=>{await api("/api/logout",{method:"POST"});showApp(false);setAuthMode(false)};
+$("#logout").onclick=async()=>{await api("/api/logout",{method:"POST"});state.authenticated=false;showApp(false);setAuthMode(false)};
 $("#change-password").onclick=()=>{$("#settings-menu").classList.add("is-hidden");$("#password-message").textContent="";$("#password-dialog").showModal()};
 $("#password-form").addEventListener("submit",async event=>{if(event.submitter?.value==="cancel")return;event.preventDefault();$("#password-message").textContent="";try{await api("/api/password",{method:"POST",body:JSON.stringify({old_password:$("#old-password").value,new_password:$("#new-password").value})});$("#password-message").textContent="密码已更新";setTimeout(()=>$("#password-dialog").close(),500)}catch(error){$("#password-message").textContent=error.message}});
 $("#assistant-close").onclick=()=>$("#assistant-dialog").close();$("#assistant-run").onclick=runAssistant;
 $("#global-search-trigger").onclick=()=>{$("#search-dialog").showModal();$("#global-search").focus()};
 $("#global-search").oninput=async()=>{const query=$("#global-search").value.trim(),box=$("#search-results");if(!query){box.innerHTML='<div class="search-empty">输入关键词开始搜索</div>';return}const result=await api("/api/items?q="+encodeURIComponent(query)+"&limit=30");box.innerHTML=result.items.length?result.items.map(item=>'<div class="search-result" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div><strong>'+esc(item.title)+'</strong><div class="recent-meta">'+esc(labels[item.kind])+" · "+esc(item.summary||"暂无摘要")+'</div></div></div>').join(""):'<div class="search-empty">没有找到匹配内容</div>';$$("#search-results .search-result").forEach(row=>row.onclick=async()=>{$("#search-dialog").close();await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);renderContentPage()})};
-document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();$("#search-dialog").showModal();$("#global-search").focus()}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="s"&&state.selected){event.preventDefault();saveItem()}if(event.key==="Escape"){$("#settings-menu")?.classList.add("is-hidden")}});
+document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();$("#search-dialog").showModal();$("#global-search").focus()}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="s"&&state.selected){event.preventDefault();saveItem()}if((event.ctrlKey||event.metaKey)&&event.key==="Enter"&&state.selected){event.preventDefault();saveItem()}if(event.key==="Escape"){$("#settings-menu")?.classList.add("is-hidden")}});
 $("#mobile-menu").onclick=()=>$(".sidebar").classList.toggle("is-open");
 boot();
