@@ -162,6 +162,32 @@ def main():
                     "http://127.0.0.1:%d/api/trash/items/%d" % (server.server_port, task_id),
                 )
                 assert task_purge.status == 200
+                bulk_items = []
+                for title in ("Synthetic bulk one", "Synthetic bulk two"):
+                    bulk_response = page.context.request.post(
+                        "http://127.0.0.1:%d/api/items" % server.server_port,
+                        data={"kind": "note", "title": title, "status": "inbox"},
+                    )
+                    assert bulk_response.status == 201
+                    bulk_items.append(bulk_response.json()["item"]["id"])
+                page.locator('[data-page="note"]').click()
+                for title in ("Synthetic bulk one", "Synthetic bulk two"):
+                    page.locator(".content-item").filter(has_text=title).locator("input[type=checkbox]").check()
+                expect(page.locator("#bulk-toolbar")).to_be_visible()
+                expect(page.locator("#bulk-count")).to_contain_text("2")
+                page.locator("#bulk-status").select_option("active")
+                page.locator("#bulk-apply-status").click()
+                expect(page.locator(".content-item").filter(has_text="Synthetic bulk one").locator(".status-pill")).to_have_class("status-pill active")
+                bulk_cleanup = page.context.request.post(
+                    "http://127.0.0.1:%d/api/items/bulk" % server.server_port,
+                    data={"ids": bulk_items, "action": "trash"},
+                )
+                assert bulk_cleanup.status == 200
+                for bulk_id in bulk_items:
+                    bulk_purge = page.context.request.delete(
+                        "http://127.0.0.1:%d/api/trash/items/%d" % (server.server_port, bulk_id),
+                    )
+                    assert bulk_purge.status == 200
                 page.locator('[data-page="files"]').click()
                 page.locator("#file-input").set_input_files({
                     "name": "synthetic.txt", "mimeType": "text/plain", "buffer": b"file payload",

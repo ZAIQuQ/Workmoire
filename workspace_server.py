@@ -1192,6 +1192,63 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self.request_error(exc)
             return
+        if path == "/api/items/bulk":
+            user = self.require_user()
+            if not user:
+                return
+            try:
+                data = parse_json(self)
+                raw_ids = data.get("ids")
+                if not isinstance(raw_ids, list) or not raw_ids or len(raw_ids) > 100:
+                    raise ValueError("批量操作一次需要选择 1 到 100 条内容")
+                item_ids = []
+                for raw_id in raw_ids:
+                    if type(raw_id) is not int or raw_id <= 0:
+                        raise ValueError("批量操作的内容 ID 无效")
+                    if raw_id not in item_ids:
+                        item_ids.append(raw_id)
+                action = str(data.get("action", "")).strip()
+                status = str(data.get("status", "")).strip()
+                if action == "status":
+                    if status not in STATUSES:
+                        raise ValueError("批量状态无效")
+                elif action != "trash":
+                    raise ValueError("批量操作无效")
+                placeholders = ",".join("?" for _ in item_ids)
+                with closing(open_db()) as con, con:
+                    con.execute("BEGIN IMMEDIATE")
+                    rows = con.execute(
+                        "SELECT * FROM items WHERE id IN (%s) AND deleted_at='' ORDER BY id" % placeholders,
+                        item_ids,
+                    ).fetchall()
+                    if len(rows) != len(item_ids):
+                        raise ValueError("只能批量操作当前工作空间中的内容")
+                    stamp = utc_now()
+                    updated_ids = []
+                    if action == "status":
+                        for row in rows:
+                            if row["status"] == status:
+                                continue
+                            record_revision(con, row)
+                            con.execute("UPDATE items SET status=?,updated_at=? WHERE id=?", (status, stamp, row["id"]))
+                            log_activity(con, "update", "item", row["id"], row["title"])
+                            updated_ids.append(row["id"])
+                    else:
+                        con.execute(
+                            "UPDATE items SET deleted_at=?,updated_at=?,parent_id=NULL WHERE id IN (%s)" % placeholders,
+                            [stamp, stamp, *item_ids],
+                        )
+                        con.execute(
+                            "UPDATE items SET parent_id=NULL WHERE parent_id IN (%s) AND deleted_at=''" % placeholders,
+                            item_ids,
+                        )
+                        for row in rows:
+                            log_activity(con, "trash", "item", row["id"], row["title"])
+                        updated_ids = item_ids
+                self.json_response({"ok": True, "action": action, "status": status if action == "status" else None, "updated": len(updated_ids), "ids": updated_ids})
+            except Exception as exc:
+                self.request_error(exc)
+            return
         if path == "/api/items":
             user = self.require_user()
             if not user:
