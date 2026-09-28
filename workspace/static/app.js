@@ -1,7 +1,7 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",trash:"回收站"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null};
+const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",listTag:"",setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null};
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
 const draftKey=(kind,id=null)=>"workmoire:draft:"+kind+":"+(id==null?"new":id);
@@ -98,7 +98,7 @@ function editorHasChanges(){
 function confirmEditorLeave(){return !editorHasChanges()||window.confirm("当前内容尚未保存，确定离开吗？")}
 async function goPage(page){
   if(state.page!==page&&!confirmEditorLeave())return;
-  state.page=page;state.selected=null;state.savedSnapshot=null;state.editorTab="write";
+  state.page=page;state.selected=null;state.savedSnapshot=null;state.listTag="";state.editorTab="write";
   $$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===page));
   $("#page-heading").textContent=page==="dashboard"?"总览":page==="files"?"文件空间":labels[page];
   if(page==="dashboard"){await loadStats();renderDashboard()}
@@ -144,12 +144,12 @@ function defaultContent(kind){
 }
 function createItem(kind){
   if(!confirmEditorLeave())return;
-  state.page=kind;state.selected={id:null,...defaultContent(kind),...(readLocalDraft(kind)||{})};state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
+  state.page=kind;state.listTag="";state.selected={id:null,...defaultContent(kind),...(readLocalDraft(kind)||{})};state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
 }
 function renderContentPage(){
   const item=state.selected;
   $("#page-content").innerHTML='<div class="page-title-row"><div><h1>'+esc(labels[state.page])+'</h1><p>'+({note:"把碎片知识收拢起来，形成可以复用的脉络。",project:"让每一个项目都有清晰的目标和下一步。",paper:"从研究问题出发，把论文结构逐步搭起来。",log:"记录过程，让进展和思考可回看。"}[state.page])+'</p></div><div class="page-title-actions"><button class="button button-primary" id="new-content">新建'+esc(labels[state.page].replace("空间",""))+'</button></div></div>'+
-  '<div class="content-layout"><section class="surface list-surface"><div class="list-toolbar"><div class="input-with-icon"><span>⌕</span><input id="list-search" class="control-input" placeholder="搜索当前空间"></div><select id="list-status" class="control-input"><option value="">全部状态</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></div><div id="item-list" class="item-list"></div></section><section id="editor" class="surface editor-surface"></section></div>';
+  '<div class="content-layout"><section class="surface list-surface"><div class="list-toolbar"><div class="input-with-icon"><span>⌕</span><input id="list-search" class="control-input" placeholder="搜索当前空间"></div><select id="list-status" class="control-input"><option value="">全部状态</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select><div id="list-tags" class="tag-filter" aria-label="标签筛选"></div></div><div id="item-list" class="item-list"></div></section><section id="editor" class="surface editor-surface"></section></div>';
   $("#new-content").onclick=()=>createItem(state.page);$("#list-search").oninput=drawItemList;$("#list-status").onchange=drawItemList;drawItemList();drawEditor();
 }
 async function renderTrash(){
@@ -166,12 +166,21 @@ async function renderTrash(){
 }
 function drawItemList(){
   const query=($("#list-search")?.value||"").toLowerCase(),status=$("#list-status")?.value||"";
-  const items=state.items.filter(item=>(!status||item.status===status)&&(!query||(item.title+" "+item.summary+" "+item.tags+" "+item.content).toLowerCase().includes(query)));
+  drawTagFilter();
+  const items=state.items.filter(item=>(!status||item.status===status)&&(!state.listTag||item.tags_list?.includes(state.listTag)||item.tags?.split(",").includes(state.listTag))&&(!query||(item.title+" "+item.summary+" "+item.tags+" "+item.content).toLowerCase().includes(query)));
   const box=$("#item-list");
   if(!items.length){box.innerHTML='<div class="empty-state"><strong>这里还没有内容</strong><p>点击右上角，先创建第一条。</p></div>';return}
   box.innerHTML=items.map(item=>'<div class="content-item '+(state.selected&&String(state.selected.id)===String(item.id)?"is-selected":"")+'" data-id="'+item.id+'"><div class="content-item-head"><div class="content-item-title">'+esc(item.title||"未命名")+'</div><button class="pin-toggle '+(item.pinned?"is-pinned":"")+'" data-id="'+item.id+'" title="'+(item.pinned?"取消置顶":"置顶内容")+'" aria-label="'+(item.pinned?"取消置顶":"置顶内容")+'">★</button></div><div class="content-item-summary">'+esc(item.summary||"暂无摘要")+'</div><div class="content-item-meta">'+priorityMarkup(item.priority||2)+'<span>'+relativeDate(item.updated_at)+'</span><span class="spacer"></span>'+statusPill(item.status)+'</div></div>').join("");
   $$(".content-item").forEach(row=>row.onclick=()=>{if(!confirmEditorLeave())return;state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";drawItemList();drawEditor()});
   $$(".pin-toggle").forEach(button=>button.onclick=async event=>{event.stopPropagation();if(!confirmEditorLeave())return;const item=state.items.find(candidate=>String(candidate.id)===button.dataset.id);if(!item)return;try{const result=await api("/api/items/"+item.id+"/pin",{method:"POST",body:JSON.stringify({pinned:!item.pinned})});Object.assign(item,result.item);const all=state.allItems.find(candidate=>String(candidate.id)===button.dataset.id);if(all)Object.assign(all,result.item);if(state.selected&&String(state.selected.id)===button.dataset.id){Object.assign(state.selected,result.item);state.savedSnapshot=editorSnapshot(result.item);drawEditor()}drawItemList()}catch(error){window.alert(error.message)}});
+}
+function drawTagFilter(){
+  const box=$("#list-tags");
+  if(!box)return;
+  const counts={};state.items.forEach(item=>(item.tags_list||String(item.tags||"").split(",").filter(Boolean)).forEach(tag=>{counts[tag]=(counts[tag]||0)+1}));
+  const tags=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a.localeCompare(b)).slice(0,18);
+  box.innerHTML=tags.length?'<button class="tag-chip '+(!state.listTag?"is-active":"")+'" data-tag="">全部</button>'+tags.map(tag=>'<button class="tag-chip '+(state.listTag===tag?"is-active":"")+'" data-tag="'+esc(tag)+'">'+esc(tag)+' <small>'+counts[tag]+'</small></button>').join(""):'';
+  $$(".tag-chip").forEach(button=>button.onclick=()=>{state.listTag=button.dataset.tag;drawItemList()});
 }
 function drawEditor(){
   const editor=$("#editor");
