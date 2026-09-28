@@ -32,3 +32,5 @@ changes belong in normal commit history.
   discovering that basic monitors can probe without a response body.
 - Added persisted session versions so password changes revoke prior cookies
   immediately while keeping the SQLite migration additive.
+- Added a startup guard that refuses the public example session secret, reducing
+  the chance of deploying a copy of `.env.example` as production configuration.

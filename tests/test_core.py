@@ -40,6 +40,9 @@ class WorkspaceCoreTests(unittest.TestCase):
                 "due_date": "2026-02-30",
             })
 
+    def test_session_secret_example_is_not_accepted(self):
+        self.assertNotEqual(app.SESSION_SECRET, "replace-with-a-long-random-secret")
+
 
 if __name__ == "__main__":
     unittest.main()

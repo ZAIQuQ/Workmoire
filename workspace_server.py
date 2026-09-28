@@ -57,6 +57,8 @@ PORT = int(os.environ.get("WORKSPACE_PORT", "5200"))
 SESSION_SECRET = os.environ.get("WORKSPACE_SESSION_SECRET", "")
 if not SESSION_SECRET:
     SESSION_SECRET = secrets.token_urlsafe(48)
+if SESSION_SECRET == "replace-with-a-long-random-secret":
+    raise RuntimeError("WORKSPACE_SESSION_SECRET 仍是示例值，请先替换为随机密钥")
 
 CODEX_BIN = os.environ.get("WORKSPACE_CODEX_BIN", "").strip()
 SETUP_TOKEN = os.environ.get("WORKSPACE_SETUP_TOKEN", "").strip()
