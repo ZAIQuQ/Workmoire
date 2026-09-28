@@ -23,6 +23,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 - Treat imports as user-data migrations: accept only the versioned Workmoire export format, run them in one transaction, rebuild relationships through an ID map, and never import credentials or file binaries.
 - Back up the configured data directory before schema or deployment changes. Use `backup.sh` (or an equivalent SQLite backup API) for the database and archive uploaded files; keep backups outside the checkout and apply an explicit retention policy.
 - Treat a backup as valid only after the SQLite snapshot passes `PRAGMA integrity_check` and the uploaded-file archive can be listed successfully; perform those checks before retention pruning.
+- Keep automated public-boundary checks generic: never embed a real deployment address, personal domain, or other private identifier as a denylist fixture. Use synthetic patterns in CI and review actual addresses, emails, and paths before publishing.
 
 ## Working workflow
 
