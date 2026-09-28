@@ -13,7 +13,7 @@ introducing a large runtime dependency stack.
 - One account with password setup and password changes.
 - Dashboard with recent work, content counts, quick capture actions, an inbox queue with one-click promotion, and a separate overdue/upcoming deadline view.
 - Separate spaces for notes, projects, papers, and work logs.
-- Markdown editing with a safe client-side preview.
+- Markdown editing with a safe client-side preview, including headings, task lists, inline code, emphasis, and HTTPS links.
 - Status, priority, due date, tags, and server-side search.
 - Global search covers content and uploaded files, including a file's associated content title.
 - Hierarchical relationships between related notes, projects, papers, and logs.

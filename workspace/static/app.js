@@ -83,8 +83,10 @@ async function promoteInboxItem(event){
 function parseMarkdown(source){
   let safe=esc(source||"");
   safe=safe.replace(/^### (.+)$/gm,"<h3>$1</h3>").replace(/^## (.+)$/gm,"<h2>$1</h2>").replace(/^# (.+)$/gm,"<h1>$1</h1>");
-  safe=safe.replace(/^\- (.+)$/gm,"<li>$1</li>").replace(/(<li>.*<\/li>\n?)+/g,m=>"<ul>"+m+"</ul>");
+  safe=safe.replace(/^\- \[([ xX])\] (.+)$/gm,(_,mark,text)=>'<li class="task-item"><input type="checkbox" disabled '+(mark.toLowerCase()==="x"?"checked":"")+'><span>'+text+'</span></li>');
+  safe=safe.replace(/^\- (.+)$/gm,"<li>$1</li>").replace(/((?:<li(?: [^>]*)?>.*<\/li>\n?)+)/g,m=>"<ul>"+m+"</ul>");
   safe=safe.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\`(.+?)\`/g,"<code>$1</code>");
+  safe=safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   return safe.split(/\n{2,}/).map(block=>/^<(h|ul)/.test(block.trim())?block:"<p>"+block.replace(/\n/g,"<br>")+"</p>").join("");
 }
 function setAuthMode(setup,tokenRequired=false){
