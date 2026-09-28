@@ -552,6 +552,28 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             con.close()
             self.json_response({"generated_at": utc_now(), "inbox": inbox, "overdue": overdue, "today": today_items, "stale": stale})
             return
+        if path == "/api/calendar":
+            if not self.require_user():
+                return
+            params = parse_qs(parsed.query)
+            raw_year = params.get("year", [str(date.today().year)])[0]
+            raw_month = params.get("month", [str(date.today().month)])[0]
+            try:
+                year, month = int(raw_year), int(raw_month)
+                first_day = date(year, month, 1)
+            except (TypeError, ValueError):
+                self.error("日历月份无效", 400)
+                return
+            next_first = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+            con = open_db()
+            items = [as_item(row) for row in con.execute(
+                "SELECT * FROM items WHERE deleted_at='' AND due_date >= ? AND due_date < ? "
+                "ORDER BY due_date ASC, pinned DESC, priority DESC, updated_at DESC LIMIT 500",
+                (first_day.isoformat(), next_first.isoformat()),
+            )]
+            con.close()
+            self.json_response({"year": year, "month": month, "items": items})
+            return
         if path == "/api/trash":
             if not self.require_user():
                 return

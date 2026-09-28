@@ -6,6 +6,7 @@ Run with a Python environment containing Playwright and its Chromium browser:
 import sys
 import tempfile
 import threading
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -66,6 +67,14 @@ def main():
                 expect(page.locator("#edit-content")).to_have_value("A recoverable thought.\n\nSynthetic assistant output")
                 page.locator("#save-content").click()
                 expect(page.locator("#save-indicator")).to_contain_text("已保存")
+                calendar_response = page.context.request.post(
+                    "http://127.0.0.1:%d/api/items" % server.server_port,
+                    data={"kind": "project", "title": "Synthetic calendar project", "due_date": date.today().isoformat(), "status": "active"},
+                )
+                assert calendar_response.status == 201
+                page.locator('[data-page="calendar"]').click()
+                expect(page.locator("#page-content h1")).to_have_text("计划日历")
+                expect(page.locator(".calendar-item")).to_contain_text("Synthetic calendar project")
                 page.locator("#global-search-trigger").click()
                 page.locator("#global-search").fill("recoverable")
                 expect(page.locator(".search-item-result")).to_contain_text("A recoverable thought.")

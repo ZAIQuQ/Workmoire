@@ -1,7 +1,7 @@
-const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",review:"今日复盘",trash:"回收站"};
-const icons={note:"▤",project:"◈",paper:"▧",log:"◷",review:"✦",trash:"♲"};
+const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",review:"今日复盘",calendar:"计划日历",trash:"回收站"};
+const icons={note:"▤",project:"◈",paper:"▧",log:"◷",review:"✦",calendar:"▦",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,reviewData:null,editorTab:"write",listTag:"",listSort:"updated",fileSearch:"",fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null};
+const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,reviewData:null,calendarDate:new Date(),editorTab:"write",listTag:"",listSort:"updated",fileSearch:"",fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null};
 const captureDraftKey="workmoire:capture-draft";
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
@@ -172,6 +172,7 @@ async function goPage(page){
   $("#page-heading").textContent=page==="dashboard"?"总览":page==="files"?"文件空间":labels[page];
   if(page==="dashboard"){await loadStats();renderDashboard()}
   else if(page==="review"){await renderReview()}
+  else if(page==="calendar"){await renderCalendar()}
   else if(page==="files"){await renderFiles()}
   else if(page==="trash"){await renderTrash()}
   else{await loadItems();renderContentPage()}
@@ -243,6 +244,35 @@ async function renderReview(){
   $$(".review-done").forEach(button=>button.onclick=event=>updateReviewStatus(event,"done"));
   $$(".review-promote").forEach(button=>button.onclick=event=>updateReviewStatus(event,"active"));
   $$(".review-row").forEach(row=>row.onclick=openReviewItem);
+}
+function calendarDateKey(year,month,day){return year+"-"+String(month+1).padStart(2,"0")+"-"+String(day).padStart(2,"0")}
+async function openCalendarItem(event){
+  event.stopPropagation();
+  try{
+    const result=await api("/api/items/"+encodeURIComponent(event.currentTarget.dataset.id));
+    if(!await goPage(result.item.kind))return;
+    state.selected=state.items.find(item=>String(item.id)===String(result.item.id))||result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
+  }catch(error){window.alert(error.message)}
+}
+async function renderCalendar(){
+  const year=state.calendarDate.getFullYear(),month=state.calendarDate.getMonth();
+  const data=await api("/api/calendar?year="+year+"&month="+(month+1));
+  const items=data.items||[],byDay={};items.forEach(item=>{(byDay[item.due_date] ||= []).push(item)});
+  const firstDay=new Date(year,month,1),offset=(firstDay.getDay()+6)%7,days=new Date(year,month+1,0).getDate(),cellCount=Math.ceil((offset+days)/7)*7;
+  const today=new Date(),todayKey=calendarDateKey(today.getFullYear(),today.getMonth(),today.getDate());
+  const weekdayLabels=["一","二","三","四","五","六","日"];
+  let cells="";
+  for(let index=0;index<cellCount;index++){
+    const day=index-offset+1,inside=day>=1&&day<=days,key=inside?calendarDateKey(year,month,day):"";
+    const dayItems=inside?(byDay[key]||[]):[];
+    cells+='<div class="calendar-cell '+(inside?"":"is-muted")+(key===todayKey?" is-today":"")+'">'+(inside?'<div class="calendar-day-number">'+day+'</div>':'')+(dayItems.length?'<div class="calendar-items">'+dayItems.slice(0,4).map(item=>'<button class="calendar-item '+esc(item.status||"")+'" data-id="'+item.id+'" data-kind="'+item.kind+'" title="'+esc(item.title)+'"><span class="calendar-item-mark '+esc(item.kind)+'"></span><span>'+esc(item.title||"未命名")+'</span></button>').join("")+(dayItems.length>4?'<span class="calendar-more">还有 '+(dayItems.length-4)+' 项</span>':"")+'</div>':"")+'</div>';
+  }
+  const doneCount=items.filter(item=>item.status==="done").length;
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>计划日历</h1><p>把项目、论文和工作日志的截止日期放到同一条时间线上。</p></div><div class="page-title-actions"><button id="calendar-today" class="button button-secondary">回到今天</button></div></div><section class="surface calendar-surface"><div class="calendar-toolbar"><button id="calendar-prev" class="icon-button" aria-label="上个月">‹</button><h2>'+year+'年'+(month+1)+'月</h2><button id="calendar-next" class="icon-button" aria-label="下个月">›</button><span class="spacer"></span><span class="calendar-summary">'+items.length+' 项安排 · '+doneCount+' 项已完成</span></div><div class="calendar-weekdays">'+weekdayLabels.map(day=>'<span>'+day+'</span>').join("")+'</div><div class="calendar-grid">'+cells+'</div></section>';
+  $("#calendar-prev").onclick=()=>{state.calendarDate=new Date(year,month-1,1);renderCalendar()};
+  $("#calendar-next").onclick=()=>{state.calendarDate=new Date(year,month+1,1);renderCalendar()};
+  $("#calendar-today").onclick=()=>{state.calendarDate=new Date();renderCalendar()};
+  $$(".calendar-item").forEach(button=>button.onclick=openCalendarItem);
 }
 async function openActivity(event){
   const row=event.currentTarget,type=row.dataset.targetType,id=row.dataset.targetId;
