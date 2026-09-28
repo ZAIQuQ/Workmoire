@@ -304,8 +304,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Referrer-Policy", "same-origin")
+        self.add_security_headers()
         self.send_header("Content-Length", str(len(raw)))
         for key, value in headers or []:
             self.send_header(key, value)
@@ -320,10 +319,20 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Disposition", "attachment; filename=\"%s\"" % filename)
-        self.send_header("X-Content-Type-Options", "nosniff")
+        self.add_security_headers()
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
+
+    def add_security_headers(self) -> None:
+        for name, value in (
+            ("X-Content-Type-Options", "nosniff"),
+            ("Referrer-Policy", "same-origin"),
+            ("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"),
+            ("Cross-Origin-Resource-Policy", "same-origin"),
+            ("Permissions-Policy", "camera=(), microphone=(), geolocation=()"),
+        ):
+            self.send_header(name, value)
 
     def request_error(self, exc: Exception, fallback: str = "请求无法处理", status: int = 500) -> None:
         if isinstance(exc, ValueError):
@@ -471,7 +480,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", row["content_type"] or "application/octet-stream")
             # Uploaded files are untrusted; do not execute HTML/SVG in this origin.
             self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + quote(row["name"]))
-            self.send_header("X-Content-Type-Options", "nosniff")
+            self.add_security_headers()
             self.send_header("Content-Length", str(target.stat().st_size))
             self.end_headers()
             with target.open("rb") as stream:
@@ -489,6 +498,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", content_type or mimetypes.guess_type(name)[0] or "application/octet-stream")
         self.send_header("Cache-Control", "public, max-age=300")
+        self.add_security_headers()
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
@@ -520,6 +530,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 payload = json.dumps({"username": username}, ensure_ascii=False).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.add_security_headers()
                 self.set_login_cookie(username)
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
@@ -548,6 +559,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 payload = json.dumps({"username": row["username"]}, ensure_ascii=False).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.add_security_headers()
                 self.set_login_cookie(row["username"])
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
