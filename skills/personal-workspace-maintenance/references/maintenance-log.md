@@ -37,3 +37,6 @@ changes belong in normal commit history.
 - Added a retention-aware SQLite/file backup workflow, generic systemd timer
   examples, and a synthetic backup test so scheduled backups can be enabled on
   a private deployment without putting server paths or data in the repository.
+- Added a reversible trash workflow for items and files, with an HTTP lifecycle
+  test and explicit permanent-deletion verification to reduce accidental data
+  loss during daily organization.

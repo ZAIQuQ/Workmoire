@@ -78,6 +78,12 @@ ACTIVITY_LABELS = {
     "delete": "删除内容",
     "upload": "上传文件",
     "delete_file": "删除文件",
+    "trash": "移入回收站",
+    "trash_file": "文件移入回收站",
+    "restore": "恢复内容",
+    "restore_file": "恢复文件",
+    "purge": "永久删除内容",
+    "purge_file": "永久删除文件",
 }
 LOGIN_FAILURES: dict[str, list[float]] = {}
 ASSISTANT_TASKS = {
@@ -124,6 +130,7 @@ def init_db() -> None:
           priority INTEGER NOT NULL DEFAULT 2,
           due_date TEXT NOT NULL DEFAULT '',
           parent_id INTEGER,
+          deleted_at TEXT NOT NULL DEFAULT '',
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
           FOREIGN KEY(parent_id) REFERENCES items(id) ON DELETE SET NULL
@@ -134,6 +141,7 @@ def init_db() -> None:
           stored_name TEXT NOT NULL UNIQUE,
           size INTEGER NOT NULL,
           content_type TEXT NOT NULL,
+          deleted_at TEXT NOT NULL DEFAULT '',
           created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS activity(
@@ -154,9 +162,13 @@ def init_db() -> None:
         ("priority", "INTEGER NOT NULL DEFAULT 2"),
         ("due_date", "TEXT NOT NULL DEFAULT ''"),
         ("parent_id", "INTEGER"),
+        ("deleted_at", "TEXT NOT NULL DEFAULT ''"),
     ):
         if name not in columns:
             con.execute("ALTER TABLE items ADD COLUMN %s %s" % (name, definition))
+    file_columns = {row["name"] for row in con.execute("PRAGMA table_info(files)")}
+    if "deleted_at" not in file_columns:
+        con.execute("ALTER TABLE files ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''")
     con.commit()
     con.close()
 
@@ -408,7 +420,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 return
             con = open_db()
             items = [as_item(row) for row in con.execute("SELECT * FROM items ORDER BY id")]
-            files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,created_at FROM files ORDER BY id")]
+            files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,created_at FROM files WHERE deleted_at='' ORDER BY id")]
             activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY id")]
             con.close()
             self.json_download(
@@ -420,14 +432,27 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if not self.require_user():
                 return
             con = open_db()
-            counts = {row["kind"]: row["count"] for row in con.execute("SELECT kind, COUNT(*) AS count FROM items GROUP BY kind")}
-            status_counts = {row["status"]: row["count"] for row in con.execute("SELECT status, COUNT(*) AS count FROM items GROUP BY status")}
-            recent = [as_item(row) for row in con.execute("SELECT * FROM items ORDER BY updated_at DESC LIMIT 8")]
-            upcoming = [as_item(row) for row in con.execute("SELECT * FROM items WHERE due_date != '' ORDER BY due_date ASC, updated_at DESC LIMIT 8")]
+            counts = {row["kind"]: row["count"] for row in con.execute("SELECT kind, COUNT(*) AS count FROM items WHERE deleted_at='' GROUP BY kind")}
+            status_counts = {row["status"]: row["count"] for row in con.execute("SELECT status, COUNT(*) AS count FROM items WHERE deleted_at='' GROUP BY status")}
+            recent = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY updated_at DESC LIMIT 8")]
+            upcoming = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND due_date != '' ORDER BY due_date ASC, updated_at DESC LIMIT 8")]
             activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY created_at DESC LIMIT 8")]
-            file_bytes = con.execute("SELECT COALESCE(SUM(size),0) FROM files").fetchone()[0]
+            file_bytes = con.execute("SELECT COALESCE(SUM(size),0) FROM files WHERE deleted_at='' ").fetchone()[0]
+            trash_counts = {
+                "items": con.execute("SELECT COUNT(*) FROM items WHERE deleted_at!=''").fetchone()[0],
+                "files": con.execute("SELECT COUNT(*) FROM files WHERE deleted_at!=''").fetchone()[0],
+            }
             con.close()
-            self.json_response({"counts": counts, "status_counts": status_counts, "recent": recent, "upcoming": upcoming, "activity": activity, "file_bytes": file_bytes})
+            self.json_response({"counts": counts, "status_counts": status_counts, "recent": recent, "upcoming": upcoming, "activity": activity, "file_bytes": file_bytes, "trash_counts": trash_counts})
+            return
+        if path == "/api/trash":
+            if not self.require_user():
+                return
+            con = open_db()
+            items = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at!='' ORDER BY deleted_at DESC LIMIT 200")]
+            files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,created_at,deleted_at FROM files WHERE deleted_at!='' ORDER BY deleted_at DESC LIMIT 200")]
+            con.close()
+            self.json_response({"items": items, "files": files})
             return
         if path == "/api/items":
             if not self.require_user():
@@ -441,7 +466,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             except ValueError:
                 self.error("无效的数量限制", 400)
                 return
-            clauses, values = [], []
+            clauses, values = ["deleted_at=''"], []
             if kind in KINDS:
                 clauses.append("kind=?")
                 values.append(kind)
@@ -467,7 +492,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 self.error("无效的内容 ID", 400)
                 return
             con = open_db()
-            row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+            row = con.execute("SELECT * FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
             con.close()
             if not row:
                 self.error("内容不存在", 404)
@@ -478,7 +503,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if not self.require_user():
                 return
             con = open_db()
-            rows = con.execute("SELECT id,name,size,content_type,created_at FROM files ORDER BY created_at DESC").fetchall()
+            rows = con.execute("SELECT id,name,size,content_type,created_at FROM files WHERE deleted_at='' ORDER BY created_at DESC").fetchall()
             con.close()
             self.json_response({"files": [dict(row) for row in rows]})
             return
@@ -487,7 +512,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 return
             file_id = unquote(path.split("/", 2)[2])
             con = open_db()
-            row = con.execute("SELECT * FROM files WHERE id=?", (file_id,)).fetchone()
+            row = con.execute("SELECT * FROM files WHERE id=? AND deleted_at=''", (file_id,)).fetchone()
             con.close()
             if not row:
                 self.send_error(404)
@@ -623,6 +648,46 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/logout":
             self.json_response({"ok": True}, 200, [("Set-Cookie", "workspace_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0")])
+            return
+        if path.startswith("/api/trash/items/") and path.endswith("/restore"):
+            user = self.require_user()
+            if not user:
+                return
+            try:
+                item_id = int(path.split("/")[4])
+                con = open_db()
+                row = con.execute("SELECT * FROM items WHERE id=? AND deleted_at!=''", (item_id,)).fetchone()
+                if not row:
+                    con.close()
+                    self.error("回收站中不存在这条内容", 404)
+                    return
+                stamp = utc_now()
+                con.execute("UPDATE items SET deleted_at='', updated_at=? WHERE id=?", (stamp, item_id))
+                log_activity(con, "restore", "item", item_id, row["title"])
+                con.commit()
+                restored = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+                con.close()
+                self.json_response({"item": as_item(restored)})
+            except Exception as exc:
+                self.request_error(exc)
+            return
+        if path.startswith("/api/trash/files/") and path.endswith("/restore"):
+            user = self.require_user()
+            if not user:
+                return
+            file_id = unquote(path.split("/")[4])
+            con = open_db()
+            row = con.execute("SELECT * FROM files WHERE id=? AND deleted_at!=''", (file_id,)).fetchone()
+            if not row:
+                con.close()
+                self.error("回收站中不存在这个文件", 404)
+                return
+            con.execute("UPDATE files SET deleted_at='' WHERE id=?", (file_id,))
+            log_activity(con, "restore_file", "file", file_id, row["name"])
+            con.commit()
+            restored = con.execute("SELECT id,name,size,content_type,created_at FROM files WHERE id=?", (file_id,)).fetchone()
+            con.close()
+            self.json_response({"file": dict(restored)})
             return
         if path == "/api/assistant":
             if not self.require_user():
@@ -817,7 +882,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if current in seen or len(seen) > 1000:
                 raise ValueError("内容层级关系存在循环")
             seen.add(current)
-            row = con.execute("SELECT id,parent_id FROM items WHERE id=?", (current,)).fetchone()
+            row = con.execute("SELECT id,parent_id FROM items WHERE id=? AND deleted_at=''", (current,)).fetchone()
             if not row:
                 raise ValueError("上级内容不存在")
             if item_id is not None and row["id"] == item_id:
@@ -835,7 +900,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 data = self.normalized_item(parse_json(self))
                 stamp = utc_now()
                 con = open_db()
-                exists = con.execute("SELECT 1 FROM items WHERE id=?", (item_id,)).fetchone()
+                exists = con.execute("SELECT 1 FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
                 if not exists:
                     con.close()
                     self.error("内容不存在", 404)
@@ -860,6 +925,39 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         user = self.require_user()
         if not user:
             return
+        if path.startswith("/api/trash/items/"):
+            try:
+                item_id = int(path.rsplit("/", 1)[1])
+            except ValueError:
+                self.error("无效的内容 ID")
+                return
+            con = open_db()
+            row = con.execute("SELECT title FROM items WHERE id=? AND deleted_at!=''", (item_id,)).fetchone()
+            if not row:
+                con.close()
+                self.error("回收站中不存在这条内容", 404)
+                return
+            con.execute("DELETE FROM items WHERE id=?", (item_id,))
+            log_activity(con, "purge", "item", item_id, row["title"])
+            con.commit()
+            con.close()
+            self.json_response({"ok": True})
+            return
+        if path.startswith("/api/trash/files/"):
+            file_id = unquote(path.rsplit("/", 1)[1])
+            con = open_db()
+            row = con.execute("SELECT name,stored_name FROM files WHERE id=? AND deleted_at!=''", (file_id,)).fetchone()
+            if not row:
+                con.close()
+                self.error("回收站中不存在这个文件", 404)
+                return
+            con.execute("DELETE FROM files WHERE id=?", (file_id,))
+            log_activity(con, "purge_file", "file", file_id, row["name"])
+            con.commit()
+            con.close()
+            (FILES_DIR / row["stored_name"]).unlink(missing_ok=True)
+            self.json_response({"ok": True})
+            return
         if path.startswith("/api/items/"):
             try:
                 item_id = int(path.rsplit("/", 1)[1])
@@ -867,10 +965,13 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 self.error("无效的内容 ID")
                 return
             con = open_db()
-            row = con.execute("SELECT title FROM items WHERE id=?", (item_id,)).fetchone()
+            row = con.execute("SELECT title FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
             if row:
-                con.execute("DELETE FROM items WHERE id=?", (item_id,))
-                log_activity(con, "delete", "item", item_id, row["title"])
+                stamp = utc_now()
+                con.execute("BEGIN IMMEDIATE")
+                con.execute("UPDATE items SET deleted_at=?, updated_at=?, parent_id=NULL WHERE id=?", (stamp, stamp, item_id))
+                con.execute("UPDATE items SET parent_id=NULL WHERE parent_id=? AND deleted_at=''", (item_id,))
+                log_activity(con, "trash", "item", item_id, row["title"])
                 con.commit()
             con.close()
             self.json_response({"ok": True})
@@ -878,12 +979,11 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/files/"):
             file_id = unquote(path.rsplit("/", 1)[1])
             con = open_db()
-            row = con.execute("SELECT name,stored_name FROM files WHERE id=?", (file_id,)).fetchone()
+            row = con.execute("SELECT name FROM files WHERE id=? AND deleted_at=''", (file_id,)).fetchone()
             if row:
-                con.execute("DELETE FROM files WHERE id=?", (file_id,))
-                log_activity(con, "delete_file", "file", file_id, row["name"])
+                con.execute("UPDATE files SET deleted_at=? WHERE id=?", (utc_now(), file_id))
+                log_activity(con, "trash_file", "file", file_id, row["name"])
                 con.commit()
-                (FILES_DIR / row["stored_name"]).unlink(missing_ok=True)
             con.close()
             self.json_response({"ok": True})
             return

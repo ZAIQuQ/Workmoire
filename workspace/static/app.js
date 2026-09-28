@@ -1,5 +1,5 @@
-const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志"};
-const icons={note:"▤",project:"◈",paper:"▧",log:"◷"};
+const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",trash:"回收站"};
+const icons={note:"▤",project:"◈",paper:"▧",log:"◷",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
 const state={page:"dashboard",items:[],allItems:[],selected:null,stats:null,editorTab:"write",setup:false,authenticated:false,assistant:null,draftTimer:null};
 const $=sel=>document.querySelector(sel);
@@ -98,6 +98,7 @@ async function goPage(page){
   $("#page-heading").textContent=page==="dashboard"?"总览":page==="files"?"文件空间":labels[page];
   if(page==="dashboard"){await loadStats();renderDashboard()}
   else if(page==="files"){await renderFiles()}
+  else if(page==="trash"){await renderTrash()}
   else{await loadItems();renderContentPage()}
   $(".sidebar").classList.remove("is-open");
 }
@@ -144,6 +145,18 @@ function renderContentPage(){
   $("#page-content").innerHTML='<div class="page-title-row"><div><h1>'+esc(labels[state.page])+'</h1><p>'+({note:"把碎片知识收拢起来，形成可以复用的脉络。",project:"让每一个项目都有清晰的目标和下一步。",paper:"从研究问题出发，把论文结构逐步搭起来。",log:"记录过程，让进展和思考可回看。"}[state.page])+'</p></div><div class="page-title-actions"><button class="button button-primary" id="new-content">新建'+esc(labels[state.page].replace("空间",""))+'</button></div></div>'+
   '<div class="content-layout"><section class="surface list-surface"><div class="list-toolbar"><div class="input-with-icon"><span>⌕</span><input id="list-search" class="control-input" placeholder="搜索当前空间"></div><select id="list-status" class="control-input"><option value="">全部状态</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></div><div id="item-list" class="item-list"></div></section><section id="editor" class="surface editor-surface"></section></div>';
   $("#new-content").onclick=()=>createItem(state.page);$("#list-search").oninput=drawItemList;$("#list-status").onchange=drawItemList;drawItemList();drawEditor();
+}
+async function renderTrash(){
+  const data=await api("/api/trash");
+  const items=data.items||[],files=data.files||[];
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>回收站</h1><p>误删的内容会暂时保留在这里，恢复后会回到原来的工作空间。</p></div></div><div class="trash-grid"><section class="surface"><div class="surface-head"><h2>内容</h2><span class="surface-count">'+items.length+'</span></div><div id="trash-items" class="trash-list"></div></section><section class="surface"><div class="surface-head"><h2>文件</h2><span class="surface-count">'+files.length+'</span></div><div id="trash-files" class="trash-list"></div></section></div>';
+  const itemBox=$("#trash-items"),fileBox=$("#trash-files");
+  itemBox.innerHTML=items.length?items.map(item=>'<div class="trash-row"><div class="trash-row-body">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · 删除于 '+formatDate(item.deleted_at,true)+'</div></div></div><div class="trash-actions"><button class="button button-secondary restore-item" data-id="'+item.id+'">恢复</button><button class="button button-danger purge-item" data-id="'+item.id+'">永久删除</button></div></div>').join(""):'<div class="empty-state"><strong>回收站是空的</strong><p>最近删除的内容会在这里暂存。</p></div>';
+  fileBox.innerHTML=files.length?files.map(file=>'<div class="trash-row"><div class="trash-row-body"><span class="file-symbol">↧</span><div class="recent-body"><div class="recent-title">'+esc(file.name)+'</div><div class="recent-meta">'+formatBytes(file.size)+' · 删除于 '+formatDate(file.deleted_at,true)+'</div></div></div><div class="trash-actions"><button class="button button-secondary restore-file" data-id="'+esc(file.id)+'">恢复</button><button class="button button-danger purge-file" data-id="'+esc(file.id)+'">永久删除</button></div></div>').join(""):'<div class="empty-state"><strong>没有已删除文件</strong><p>上传文件后，删除的附件会在这里暂存。</p></div>';
+  $$(".restore-item").forEach(button=>button.onclick=async()=>{await api("/api/trash/items/"+button.dataset.id+"/restore",{method:"POST"});await renderTrash()});
+  $$(".purge-item").forEach(button=>button.onclick=async()=>{if(window.confirm("永久删除后无法恢复，确定继续吗？")){await api("/api/trash/items/"+button.dataset.id,{method:"DELETE"});await renderTrash()}});
+  $$(".restore-file").forEach(button=>button.onclick=async()=>{await api("/api/trash/files/"+encodeURIComponent(button.dataset.id)+"/restore",{method:"POST"});await renderTrash()});
+  $$(".purge-file").forEach(button=>button.onclick=async()=>{if(window.confirm("永久删除后无法恢复，确定继续吗？")){await api("/api/trash/files/"+encodeURIComponent(button.dataset.id),{method:"DELETE"});await renderTrash()}});
 }
 function drawItemList(){
   const query=($("#list-search")?.value||"").toLowerCase(),status=$("#list-status")?.value||"";
@@ -203,7 +216,7 @@ async function saveItem(){
   finally{if($("#save-content"))$("#save-content").disabled=false}
 }
 async function deleteItem(){
-  if(!state.selected.id||!window.confirm("确定删除这条内容吗？删除后无法恢复。"))return;
+  if(!state.selected.id||!window.confirm("确定把这条内容移入回收站吗？之后仍可恢复。"))return;
   await api("/api/items/"+state.selected.id,{method:"DELETE"});state.selected=null;await loadItems();drawItemList();drawEditor()
 }
 async function renderFiles(){
@@ -213,7 +226,7 @@ async function renderFiles(){
   const list=$("#file-list");
   if(!data.files.length){list.innerHTML='<div class="empty-state"><strong>还没有文件</strong><p>上传第一份资料，让它和你的思路放在一起。</p></div>';return}
   list.innerHTML=data.files.map(file=>'<div class="file-row"><span class="file-symbol">↧</span><div><a href="/files/'+encodeURIComponent(file.id)+'" target="_blank">'+esc(file.name)+'</a><div class="file-size">'+formatBytes(file.size)+" · "+formatDate(file.created_at,true)+'</div></div><span class="spacer"></span><button class="file-delete" data-id="'+file.id+'" title="删除">×</button></div>').join("");
-  $$(".file-delete").forEach(button=>button.onclick=async()=>{if(window.confirm("删除这个文件吗？")){await api("/api/files/"+button.dataset.id,{method:"DELETE"});renderFiles()}});
+  $$(".file-delete").forEach(button=>button.onclick=async()=>{if(window.confirm("把这个文件移入回收站吗？之后仍可恢复。")){await api("/api/files/"+button.dataset.id,{method:"DELETE"});renderFiles()}});
 }
 function formatBytes(bytes){if(bytes<1024)return bytes+" B";if(bytes<1024*1024)return (bytes/1024).toFixed(1)+" KB";return (bytes/1024/1024).toFixed(1)+" MB"}
 async function uploadFile(file){

@@ -11,6 +11,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 
 - The Git repository is public-safe source. Never commit personal notes, papers, work logs, uploaded files, SQLite databases, backups, production .env files, server addresses, usernames, SSH material, access tokens, cookies, logs, or generated runtime state.
 - Runtime data stays outside the checkout in the configured WORKSPACE_DATA_DIR. Treat the database and file directory as user data and back them up before schema changes or destructive operations.
+- Keep normal content and file deletion reversible through the authenticated trash area. Permanent deletion must be a separate, explicit operation and must remove the corresponding file bytes.
 - Keep the application single-user unless the user explicitly changes that product decision. Passwords are set through the first-run page and are never placed in source, documentation, chat, or deployment commands.
 - Protect first-run setup with `WORKSPACE_SETUP_TOKEN` whenever the service is reachable beyond localhost. Keep the token in the private environment file and never commit or print it in deployment logs.
 - Keep the service independent of other applications on the server. Discover a free port before changing it, preserve existing services, and verify the service health after every deployment.
@@ -22,7 +23,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 ## Working workflow
 
 1. Read the repository instructions and inspect the current branch, service unit, data path, port, and resource headroom before editing.
-2. Work in the Git checkout. Keep production data in a separate ignored directory. Make schema changes backward-compatible and test them against a copy of the database before touching production.
+2. Work in the Git checkout. Keep production data in a separate ignored directory. Make schema changes backward-compatible and test them against a copy of the database before touching production. Verify that deleted content is hidden from active queries and can be restored.
 3. Treat the repository skill at skills/personal-workspace-maintenance/SKILL.md as the source of truth for this workflow. If a workflow invariant or repeatable operational lesson changes, update this skill and its relevant reference in the same change.
 4. Run the project's checks before deployment: make compile, make test, and an HTTP smoke test covering health, first-run session state, authentication, content CRUD, file upload, and assistant-disabled behavior when those paths changed.
 5. Run a public-repository scan before staging and again before pushing. Check for IP addresses, personal email addresses, private paths, credentials, private keys, tokens, cookies, database files, uploads, logs, and non-placeholder production settings. Review the staged file list manually.
