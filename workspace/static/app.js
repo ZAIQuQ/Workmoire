@@ -85,7 +85,7 @@ $("#auth-form").addEventListener("submit",async event=>{
 function editorHasChanges(){
   if(!state.selected||!$("#edit-title"))return false;
   const draft=collectEditor();
-  return ["title","summary","content","tags","status","priority","due_date"].some(key=>String(draft[key]??"")!==String(state.selected[key]??""));
+  return ["title","summary","content","tags","status","priority","due_date","parent_id"].some(key=>String(draft[key]??"")!==String(state.selected[key]??""));
 }
 function confirmEditorLeave(){return !editorHasChanges()||window.confirm("当前内容尚未保存，确定离开吗？")}
 async function goPage(page){
@@ -124,10 +124,10 @@ function renderDashboard(){
 }
 function defaultContent(kind){
   const templates={
-    note:{title:"",summary:"",content:"",tags:"",status:"inbox",priority:2,due_date:""},
-    project:{title:"",summary:"目标：\n下一步：\n",content:"## 背景\n\n## 目标\n\n## 下一步\n\n## 记录\n",tags:"",status:"active",priority:2,due_date:""},
-    paper:{title:"",summary:"研究问题：",content:"# 论文大纲\n\n## 研究问题\n\n## 核心假设\n\n## 方法\n\n## 实验与验证\n\n## 预期贡献\n",tags:"",status:"inbox",priority:2,due_date:""},
-    log:{title:formatDate(new Date().toISOString()),summary:"",content:"## 今天完成\n\n## 遇到的问题\n\n## 明天继续\n",tags:"日志",status:"active",priority:2,due_date:""}
+    note:{title:"",summary:"",content:"",tags:"",status:"inbox",priority:2,due_date:"",parent_id:null},
+    project:{title:"",summary:"目标：\n下一步：\n",content:"## 背景\n\n## 目标\n\n## 下一步\n\n## 记录\n",tags:"",status:"active",priority:2,due_date:"",parent_id:null},
+    paper:{title:"",summary:"研究问题：",content:"# 论文大纲\n\n## 研究问题\n\n## 核心假设\n\n## 方法\n\n## 实验与验证\n\n## 预期贡献\n",tags:"",status:"inbox",priority:2,due_date:"",parent_id:null},
+    log:{title:formatDate(new Date().toISOString()),summary:"",content:"## 今天完成\n\n## 遇到的问题\n\n## 明天继续\n",tags:"日志",status:"active",priority:2,due_date:"",parent_id:null}
   };
   return {...templates[kind],kind};
 }
@@ -153,8 +153,9 @@ function drawEditor(){
   const editor=$("#editor");
   if(!state.selected){editor.innerHTML='<div class="editor-empty"><div><div class="empty-icon">✎</div><strong>选择一条内容开始整理</strong><p>也可以点击右上角新建一条。</p></div></div>';return}
   const item=state.selected;
-  editor.innerHTML='<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><textarea id="edit-content" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label></div></div><div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span><button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
-  $("#edit-status").value=item.status||"inbox";$("#edit-priority").value=String(item.priority||2);
+  const parentOptions=state.items.filter(candidate=>String(candidate.id)!==String(item.id)).map(candidate=>'<option value="'+candidate.id+'">'+esc(candidate.title||"未命名")+'</option>').join("");
+  editor.innerHTML='<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><textarea id="edit-content" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label><label class="form-field"><span>上级内容</span><select id="edit-parent"><option value="">无上级内容</option>'+parentOptions+'</select></label></div></div><div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span><button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
+  $("#edit-status").value=item.status||"inbox";$("#edit-priority").value=String(item.priority||2);$("#edit-parent").value=item.parent_id==null?"":String(item.parent_id);
   $$(".editor-tab").forEach(tab=>tab.onclick=()=>{collectEditorIntoState();state.editorTab=tab.dataset.tab;drawEditor()});
   $("#edit-content").oninput=()=>{if(state.editorTab==="preview"){$("#content-preview").innerHTML=parseMarkdown($("#edit-content").value)}};
   $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#assistant-content").onclick=openAssistant;
@@ -162,7 +163,7 @@ function drawEditor(){
   $("#edit-title").focus();
 }
 function collectEditor(){
-  return {kind:state.page,title:$("#edit-title").value.trim(),summary:$("#edit-summary").value.trim(),content:$("#edit-content").value,tags:$("#edit-tags").value,status:$("#edit-status").value,priority:Number($("#edit-priority").value),due_date:$("#edit-due").value};
+  return {kind:state.page,title:$("#edit-title").value.trim(),summary:$("#edit-summary").value.trim(),content:$("#edit-content").value,tags:$("#edit-tags").value,status:$("#edit-status").value,priority:Number($("#edit-priority").value),due_date:$("#edit-due").value,parent_id:$("#edit-parent").value?Number($("#edit-parent").value):null};
 }
 function collectEditorIntoState(){
   if(!state.selected||!$("#edit-title"))return;

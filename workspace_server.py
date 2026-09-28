@@ -623,6 +623,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 data = self.normalized_item(parse_json(self))
                 stamp = utc_now()
                 con = open_db()
+                self.validate_parent(con, data["parent_id"])
                 cursor = con.execute(
                     "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,parent_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                     (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["parent_id"], stamp, stamp),
@@ -738,6 +739,24 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             "parent_id": parent_id,
         }
 
+    def validate_parent(self, con: sqlite3.Connection, parent_id: int | None, item_id: int | None = None) -> None:
+        if parent_id is None:
+            return
+        if item_id is not None and parent_id == item_id:
+            raise ValueError("内容不能作为自己的上级")
+        seen = set()
+        current = parent_id
+        while current is not None:
+            if current in seen or len(seen) > 1000:
+                raise ValueError("内容层级关系存在循环")
+            seen.add(current)
+            row = con.execute("SELECT id,parent_id FROM items WHERE id=?", (current,)).fetchone()
+            if not row:
+                raise ValueError("上级内容不存在")
+            if item_id is not None and row["id"] == item_id:
+                raise ValueError("内容层级关系不能形成循环")
+            current = row["parent_id"]
+
     def do_PUT(self) -> None:
         path = urlparse(self.path).path
         user = self.require_user()
@@ -754,6 +773,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     con.close()
                     self.error("内容不存在", 404)
                     return
+                self.validate_parent(con, data["parent_id"], item_id)
                 con.execute(
                     "UPDATE items SET kind=?,title=?,summary=?,content=?,tags=?,status=?,priority=?,due_date=?,parent_id=?,updated_at=? WHERE id=?",
                     (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["parent_id"], stamp, item_id),
