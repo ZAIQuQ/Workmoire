@@ -244,7 +244,7 @@ def run_assistant(task: str, title: str, kind: str, content: str) -> str:
         result = subprocess.run(
             command + [
                 "exec", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only",
-                "--ask-for-approval", "never", "-",
+                "--color", "never", "-",
             ],
             cwd=ROOT,
             input=prompt,
