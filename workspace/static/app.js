@@ -154,7 +154,7 @@ function editorHasChanges(){
 }
 function confirmEditorLeave(){return !editorHasChanges()||window.confirm("当前内容尚未保存，确定离开吗？")}
 async function goPage(page){
-  if(state.page!==page&&!confirmEditorLeave())return;
+  if(state.page!==page&&!confirmEditorLeave())return false;
   state.page=page;state.selected=null;state.savedSnapshot=null;state.listTag="";state.listSort="updated";state.editorTab="write";
   $$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===page));
   $("#page-heading").textContent=page==="dashboard"?"总览":page==="files"?"文件空间":labels[page];
@@ -163,6 +163,7 @@ async function goPage(page){
   else if(page==="trash"){await renderTrash()}
   else{await loadItems();renderContentPage()}
   $(".sidebar").classList.remove("is-open");
+  return true;
 }
 $$(".nav-item").forEach(item=>item.onclick=()=>goPage(item.dataset.page));
 async function loadStats(){state.stats=await api("/api/stats")}
@@ -183,15 +184,25 @@ function renderDashboard(){
   '<div class="stats-grid"><div class="stat-card"><span class="stat-icon">◒</span><b>'+total+'</b><span>全部内容 <em>持续积累</em></span></div><div class="stat-card"><span class="stat-icon">▧</span><b>'+count("paper")+'</b><span>论文大纲</span></div><div class="stat-card"><span class="stat-icon">◈</span><b>'+count("project")+'</b><span>项目空间</span></div><div class="stat-card"><span class="stat-icon">◷</span><b>'+count("log")+'</b><span>工作日志</span></div></div>'+
   '<div class="section-label">工作流</div><div class="dashboard-columns"><section class="surface"><div class="surface-head"><h2>最近编辑</h2><a id="view-all">查看全部</a></div><div class="recent-list">'+(recent.length?recent.map(item=>'<div class="recent-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+" · "+relativeDate(item.updated_at)+'</div></div>'+statusPill(item.status)+'</div>').join(""):'<div class="empty-state"><strong>还没有内容</strong><p>从一条知识卡片开始，给自己的思考留个位置。</p></div>')+'</div></section>'+
   '<section class="surface"><div class="surface-head"><h2>快速开始</h2></div><div class="quick-actions"><button class="quick-button" data-create-kind="note">'+kindMark("note")+'<span><strong>捕捉一个想法</strong><small>把还没成形的念头先记下来</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="paper">'+kindMark("paper")+'<span><strong>搭一份论文大纲</strong><small>从问题、方法和实验开始</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="project">'+kindMark("project")+'<span><strong>拆解一个项目</strong><small>明确目标、下一步和截止日期</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="log">'+kindMark("log")+'<span><strong>写今天的工作日志</strong><small>留下过程，也留下进展</small></span><span class="quick-plus">＋</span></button></div></section></div>'+
-  '<div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>置顶内容</h2></div><div class="pinned-list">'+(pinned.length?pinned.map(item=>'<div class="pinned-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+relativeDate(item.updated_at)+'</div></div><span class="pin-mark">★</span></div>').join(""):'<div class="empty-state"><strong>还没有置顶内容</strong><p>把正在推进的项目或重要知识置顶，它们会一直出现在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>下一步期限</h2></div><div class="due-list">'+(dueItems.length?dueItems.map(dueItemMarkup).join(""):'<div class="empty-state"><strong>暂时没有待处理的截止日期</strong><p>在项目或论文中加上日期，下一步会出现在这里。</p></div>')+'</div></section></div><div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>待整理</h2><span class="surface-count">'+inbox.length+'</span></div><div class="inbox-list">'+(inbox.length?inbox.map(inboxItemMarkup).join(""):'<div class="empty-state"><strong>待整理箱是空的</strong><p>捕捉到的想法会先停在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>最近活动</h2></div><div class="activity-list">'+(activity.length?activity.map(entry=>'<div class="activity-item"><span class="activity-dot"></span><div><div class="recent-title">'+esc(entry.label)+'</div><div class="recent-meta">'+esc(formatDate(entry.created_at,true))+'</div></div></div>').join(""):'<div class="empty-state"><strong>还没有活动</strong><p>保存第一条内容后，这里会留下轨迹。</p></div>')+'</div></section></div>';
+  '<div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>置顶内容</h2></div><div class="pinned-list">'+(pinned.length?pinned.map(item=>'<div class="pinned-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+relativeDate(item.updated_at)+'</div></div><span class="pin-mark">★</span></div>').join(""):'<div class="empty-state"><strong>还没有置顶内容</strong><p>把正在推进的项目或重要知识置顶，它们会一直出现在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>下一步期限</h2></div><div class="due-list">'+(dueItems.length?dueItems.map(dueItemMarkup).join(""):'<div class="empty-state"><strong>暂时没有待处理的截止日期</strong><p>在项目或论文中加上日期，下一步会出现在这里。</p></div>')+'</div></section></div><div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>待整理</h2><span class="surface-count">'+inbox.length+'</span></div><div class="inbox-list">'+(inbox.length?inbox.map(inboxItemMarkup).join(""):'<div class="empty-state"><strong>待整理箱是空的</strong><p>捕捉到的想法会先停在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>最近活动</h2></div><div class="activity-list">'+(activity.length?activity.map(entry=>'<div class="activity-item '+(entry.target_type==="item"||entry.target_type==="file"?"is-clickable":"")+'" data-target-type="'+esc(entry.target_type||"")+'" data-target-id="'+esc(entry.target_id||"")+'" title="'+(entry.target_type==="item"||entry.target_type==="file"?"打开关联内容":"")+'"><span class="activity-dot"></span><div><div class="recent-title">'+esc(entry.label)+'</div><div class="recent-meta">'+esc(formatDate(entry.created_at,true))+'</div></div></div>').join(""):'<div class="empty-state"><strong>还没有活动</strong><p>保存第一条内容后，这里会留下轨迹。</p></div>')+'</div></section></div>';
   $("#quick-note").onclick=openCapture;$("#quick-log").onclick=openTodayLog;
   $("#view-all").onclick=()=>goPage("note");
   $$(".quick-button").forEach(button=>button.onclick=()=>button.dataset.createKind==="note"?openCapture():button.dataset.createKind==="log"?openTodayLog():createItem(button.dataset.createKind));
-  $$(".recent-item").forEach(row=>row.onclick=async()=>{await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
-  $$(".due-item").forEach(row=>row.onclick=async()=>{await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
-  $$(".pinned-item,.inbox-item").forEach(row=>row.onclick=async()=>{await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
+  $$(".recent-item,.due-item,.pinned-item,.inbox-item").forEach(row=>row.onclick=async()=>{if(!await goPage(row.dataset.kind))return;state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
   $$(".inbox-start").forEach(button=>button.onclick=promoteInboxItem);
   $$(".due-complete").forEach(button=>button.onclick=completeDueItem);
+  $$(".activity-item.is-clickable").forEach(row=>row.onclick=openActivity);
+}
+async function openActivity(event){
+  const row=event.currentTarget,type=row.dataset.targetType,id=row.dataset.targetId;
+  if(!id)return;
+  if(type==="file"){window.open("/files/"+encodeURIComponent(id),"_blank","noopener");return}
+  if(type!=="item")return;
+  try{
+    const result=await api("/api/items/"+encodeURIComponent(id));
+    if(!await goPage(result.item.kind))return;
+    state.selected=state.items.find(item=>String(item.id)===String(id));state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
+  }catch(_){row.title="这条内容已移入回收站或不存在"}
 }
 function defaultContent(kind){
   const templates={
@@ -212,7 +223,7 @@ async function openTodayLog(){
     const result=await api("/api/items?kind=log&limit=50");
     const existing=(result.items||[]).find(item=>item.title===title);
     if(!existing){createItem("log");return}
-    await goPage("log");
+    if(!await goPage("log"))return;
     state.selected=state.items.find(item=>String(item.id)===String(existing.id));
     state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
   }catch(error){window.alert(error.message)}
@@ -282,7 +293,7 @@ function drawEditor(){
     $("#restore-draft").onclick=()=>{Object.assign(state.selected,localDraft);clearLocalDraft(state.page,state.selected.id);drawEditor();$("#save-indicator").textContent="草稿已恢复，请保存内容"};
     $("#dismiss-draft").onclick=()=>{clearLocalDraft(state.page,state.selected.id);drawEditor()};
   }
-  $$(".related-link").forEach(link=>link.onclick=async()=>{if(!confirmEditorLeave())return;await goPage(link.dataset.relatedKind);state.selected=state.items.find(candidate=>String(candidate.id)===link.dataset.relatedId);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
+  $$(".related-link").forEach(link=>link.onclick=async()=>{if(!await goPage(link.dataset.relatedKind))return;state.selected=state.items.find(candidate=>String(candidate.id)===link.dataset.relatedId);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
   if(item.id)renderItemFiles(item.id);
   $("#edit-title").focus();
 }
@@ -406,7 +417,7 @@ async function searchGlobal(query){
     const itemMarkup=items.map(item=>'<div class="search-result search-item-result" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div><strong>'+esc(item.title)+'</strong><div class="recent-meta">'+esc(labels[item.kind])+" · "+esc(item.summary||"暂无摘要")+'</div></div></div>').join("");
     const fileMarkup=files.map(file=>'<div class="search-result search-file-result" data-id="'+esc(file.id)+'"><span class="file-symbol">↧</span><div><strong>'+esc(file.name)+'</strong><div class="recent-meta">文件 · '+formatBytes(file.size)+(file.item_title?" · "+esc(file.item_title):"")+'</div></div></div>').join("");
     box.innerHTML=itemMarkup||fileMarkup?((itemMarkup?'<div class="search-section-label">内容</div>'+itemMarkup:"")+(fileMarkup?'<div class="search-section-label">文件</div>'+fileMarkup:"")):'<div class="search-empty">没有找到匹配内容或文件</div>';
-    $$("#search-results .search-item-result").forEach(row=>row.onclick=async()=>{$("#search-dialog").close();await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
+    $$("#search-results .search-item-result").forEach(row=>row.onclick=async()=>{if(!await goPage(row.dataset.kind))return;$("#search-dialog").close();state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
     $$("#search-results .search-file-result").forEach(row=>row.onclick=()=>{window.open("/files/"+encodeURIComponent(row.dataset.id),"_blank","noopener")});
   }catch(error){if(error.name!=="AbortError")box.innerHTML='<div class="search-empty">搜索暂时不可用，请稍后重试</div>'}
 }

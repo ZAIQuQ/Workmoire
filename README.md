@@ -14,6 +14,7 @@ introducing a large runtime dependency stack.
 - Dashboard with recent work, content counts, quick capture actions, an inbox queue with one-click promotion, and deadline cards that can be marked complete in place.
 - Global quick capture via the dashboard or Ctrl/⌘ + Shift + N puts a thought directly into the inbox.
 - The daily log action reopens the current day's log when one already exists, avoiding duplicate daily entries.
+- The dashboard activity timeline links back to active content and uploaded files.
 - Separate spaces for notes, projects, papers, and work logs.
 - Markdown editing with a safe client-side preview, including headings, task lists, inline code, emphasis, and HTTPS links.
 - Status, priority, due date, tags, and server-side search.
