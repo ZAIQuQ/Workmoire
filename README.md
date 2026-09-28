@@ -23,6 +23,7 @@ introducing a large runtime dependency stack.
 - Pin important papers, projects, or notes so they stay visible in lists and the dashboard.
 - Keep unsaved edits as browser-local drafts, with an explicit restore or ignore action.
 - Private file storage with a 64 MB per-file limit and optional links from files to notes, projects, papers, or logs.
+- Search the file space by filename or the title of its associated note, project, paper, or log.
 - One-click JSON export of notes, metadata, and activity history (without passwords).
 - Transactional JSON import that rebuilds item relationships without importing credentials or file binaries.
 - Signed, expiring login cookies and basic login rate limiting.

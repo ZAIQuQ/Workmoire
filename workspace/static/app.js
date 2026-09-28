@@ -1,7 +1,7 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",trash:"回收站"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",listTag:"",listSort:"updated",setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,searchController:null};
+const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",listTag:"",listSort:"updated",fileSearch:"",fileSearchTimer:null,fileSearchController:null,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,searchController:null};
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
 const draftKey=(kind,id=null)=>"workmoire:draft:"+kind+":"+(id==null?"new":id);
@@ -313,14 +313,28 @@ async function uploadItemFile(file,itemId){
   const form=new FormData();form.append("file",file);form.append("item_id",String(itemId));
   try{await api("/api/files",{method:"POST",body:form});await renderItemFiles(itemId)}catch(error){window.alert(error.message)}
 }
+function renderFileList(files){
+  const list=$("#file-list"),count=$("#file-count");
+  if(count)count.textContent=files.length+" 个文件";
+  if(!files.length){list.innerHTML=state.fileSearch?'<div class="empty-state"><strong>没有匹配文件</strong><p>试试文件名或关联内容标题中的其他关键词。</p></div>':'<div class="empty-state"><strong>还没有文件</strong><p>上传第一份资料，让它和你的思路放在一起。</p></div>';return}
+  list.innerHTML=files.map(file=>'<div class="file-row"><span class="file-symbol">↧</span><div><a href="/files/'+encodeURIComponent(file.id)+'" target="_blank">'+esc(file.name)+'</a><div class="file-size">'+formatBytes(file.size)+" · "+formatDate(file.created_at,true)+(file.item_title?" · "+esc(file.item_title):"")+'</div></div><span class="spacer"></span><button class="file-delete" data-id="'+file.id+'" title="删除">×</button></div>').join("");
+  $$(".file-delete").forEach(button=>button.onclick=async()=>{if(window.confirm("把这个文件移入回收站吗？之后仍可恢复。")){await api("/api/files/"+button.dataset.id,{method:"DELETE"});await loadFileList()}});
+}
+async function loadFileList(){
+  if(state.fileSearchController)state.fileSearchController.abort();
+  const controller=new AbortController();state.fileSearchController=controller;
+  const query=state.fileSearch.trim(),suffix=query?"?q="+encodeURIComponent(query):"";
+  try{
+    const data=await api("/api/files"+suffix,{signal:controller.signal});
+    if(!controller.signal.aborted&&state.page==="files")renderFileList(data.files||[]);
+  }catch(error){if(error.name!=="AbortError"&&$("#file-list"))$("#file-list").innerHTML='<div class="empty-state"><strong>文件列表暂时不可用</strong><p>请稍后重试。</p></div>'}
+}
 async function renderFiles(){
-  const data=await api("/api/files");
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>文件空间</h1><p>把论文、数据和项目资料放在一个可回看的位置。</p></div></div><section class="surface file-surface"><label id="upload-zone" class="upload-zone"><strong>拖拽文件到这里，或点击选择文件</strong><span>文件会保存在当前服务器的私有数据目录</span><small>单个文件最大 64 MB</small><input id="file-input" class="file-input" type="file"></label><div id="file-list" class="file-list"></div></section>';
+  state.fileSearch="";
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>文件空间</h1><p>把论文、数据和项目资料放在一个可回看的位置。</p></div></div><section class="surface file-surface"><label id="upload-zone" class="upload-zone"><strong>拖拽文件到这里，或点击选择文件</strong><span>文件会保存在当前服务器的私有数据目录</span><small>单个文件最大 64 MB</small><input id="file-input" class="file-input" type="file"></label><div class="file-toolbar"><label class="input-with-icon file-search"><span>⌕</span><input id="file-search" class="control-input" type="search" placeholder="搜索文件名或关联内容" autocomplete="off"></label><span id="file-count" class="file-count"></span></div><div id="file-list" class="file-list"></div></section>';
   const zone=$("#upload-zone"),input=$("#file-input");input.onchange=()=>uploadFile(input.files[0]);["dragenter","dragover"].forEach(event=>zone.addEventListener(event,e=>{e.preventDefault();zone.classList.add("dragover")}));["dragleave","drop"].forEach(event=>zone.addEventListener(event,e=>{e.preventDefault();zone.classList.remove("dragover")}));zone.addEventListener("drop",e=>uploadFile(e.dataTransfer.files[0]));
-  const list=$("#file-list");
-  if(!data.files.length){list.innerHTML='<div class="empty-state"><strong>还没有文件</strong><p>上传第一份资料，让它和你的思路放在一起。</p></div>';return}
-  list.innerHTML=data.files.map(file=>'<div class="file-row"><span class="file-symbol">↧</span><div><a href="/files/'+encodeURIComponent(file.id)+'" target="_blank">'+esc(file.name)+'</a><div class="file-size">'+formatBytes(file.size)+" · "+formatDate(file.created_at,true)+(file.item_title?" · "+esc(file.item_title):"")+'</div></div><span class="spacer"></span><button class="file-delete" data-id="'+file.id+'" title="删除">×</button></div>').join("");
-  $$(".file-delete").forEach(button=>button.onclick=async()=>{if(window.confirm("把这个文件移入回收站吗？之后仍可恢复。")){await api("/api/files/"+button.dataset.id,{method:"DELETE"});renderFiles()}});
+  $("#file-search").oninput=event=>{state.fileSearch=event.target.value;clearTimeout(state.fileSearchTimer);state.fileSearchTimer=setTimeout(loadFileList,160)};
+  await loadFileList();
 }
 function formatBytes(bytes){if(bytes<1024)return bytes+" B";if(bytes<1024*1024)return (bytes/1024).toFixed(1)+" KB";return (bytes/1024/1024).toFixed(1)+" MB"}
 async function uploadFile(file){

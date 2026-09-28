@@ -135,6 +135,8 @@ class TrashHttpTests(unittest.TestCase):
         self.assertEqual(linked["item_id"], parent["id"])
         linked_files = self.request("/api/files?item_id=%d" % parent["id"])["files"]
         self.assertEqual([file["id"] for file in linked_files], [linked["id"]])
+        self.assertEqual([file["id"] for file in self.request("/api/files?q=linked")["files"]], [linked["id"]])
+        self.assertEqual([file["id"] for file in self.request("/api/files?q=Parent")["files"]], [linked["id"]])
         self.request("/api/files/%s" % linked["id"], "DELETE")
         self.request("/api/trash/files/%s" % linked["id"], "DELETE")
 

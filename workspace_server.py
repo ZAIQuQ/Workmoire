@@ -524,6 +524,11 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             raw_item_id = params.get("item_id", [""])[0]
             clauses = ["f.deleted_at=''"]
             values = []
+            query = params.get("q", [""])[0].strip()
+            if query:
+                clauses.append("(f.name LIKE ? OR COALESCE(i.title,'') LIKE ?)")
+                pattern = "%" + query[:120] + "%"
+                values.extend([pattern, pattern])
             if raw_item_id:
                 try:
                     item_id = int(raw_item_id)
