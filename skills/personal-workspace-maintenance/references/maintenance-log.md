@@ -22,3 +22,6 @@ changes belong in normal commit history.
   verification workflow.
 - Added a private bootstrap token boundary so a fresh public instance cannot be
   initialized by the first unauthenticated visitor.
+- Installed the optional Codex CLI as a user-local dependency on the server and
+  verified Workmoire's assistant endpoint with synthetic input only; the path
+  and CLI authentication remain private service configuration.

@@ -68,6 +68,14 @@ read-only mode, passes the selected document through standard input, and does
 not save the response. The server must have its own Codex authentication if
 this option is enabled; the public repository contains no credentials.
 
+On a Linux server without root package access, install it for the service user:
+
+    npm install --prefix "$HOME/.local" @openai/codex@alpha
+    export WORKSPACE_CODEX_BIN="$HOME/.local/node_modules/.bin/codex"
+
+Keep the CLI's own authentication files in that user's home directory and
+outside the repository.
+
 ## License
 
 MIT. See LICENSE.
