@@ -1,0 +1,30 @@
+name: quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile and test
+        run: |
+          make compile
+          make test
+      - name: Check public source boundary
+        shell: bash
+        run: |
+          if grep -RInE --exclude-dir=.git --exclude=legacy_app.py \
+            '(BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]|github_pat_[A-Za-z0-9]|@example\.invalid|203\.0\.113\.42)' .; then
+            echo "possible private value found"
+            exit 1
+          fi

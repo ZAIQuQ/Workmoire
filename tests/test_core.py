@@ -20,6 +20,18 @@ class WorkspaceCoreTests(unittest.TestCase):
         self.assertEqual(tags.split(",")[0:2], ["论文", "研究"])
         self.assertLessEqual(len(tags.split(",")), 12)
 
+    def test_assistant_is_disabled_without_explicit_binary(self):
+        previous = app.CODEX_BIN
+        try:
+            app.CODEX_BIN = ""
+            status = app.assistant_status()
+            self.assertFalse(status["configured"])
+            self.assertFalse(status["available"])
+            with self.assertRaises(RuntimeError):
+                app.run_assistant("summarize", "标题", "note", "正文")
+        finally:
+            app.CODEX_BIN = previous
+
 
 if __name__ == "__main__":
     unittest.main()

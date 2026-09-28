@@ -14,13 +14,14 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 - Keep the application single-user unless the user explicitly changes that product decision. Passwords are set through the first-run page and are never placed in source, documentation, chat, or deployment commands.
 - Keep the service independent of other applications on the server. Discover a free port before changing it, preserve existing services, and verify the service health after every deployment.
 - Keep the project reproducible from a clean checkout. Prefer Python standard-library code and documented Docker/systemd paths unless a dependency has a clear user-facing benefit.
+- Keep the local Codex assistant disabled unless `WORKSPACE_CODEX_BIN` is explicitly configured on the private server. It may receive only the selected document through standard input, must run in ephemeral read-only mode, and must never expose arbitrary command execution or persist prompts and responses.
 
 ## Working workflow
 
 1. Read the repository instructions and inspect the current branch, service unit, data path, port, and resource headroom before editing.
 2. Work in the Git checkout. Keep production data in a separate ignored directory. Make schema changes backward-compatible and test them against a copy of the database before touching production.
 3. Treat the repository skill at skills/personal-workspace-maintenance/SKILL.md as the source of truth for this workflow. If a workflow invariant or repeatable operational lesson changes, update this skill and its relevant reference in the same change.
-4. Run the project's checks before deployment: make compile, make test, and an HTTP smoke test covering health, first-run session state, authentication, content CRUD, and file upload when those paths changed.
+4. Run the project's checks before deployment: make compile, make test, and an HTTP smoke test covering health, first-run session state, authentication, content CRUD, file upload, and assistant-disabled behavior when those paths changed.
 5. Run a public-repository scan before staging and again before pushing. Check for IP addresses, personal email addresses, private paths, credentials, private keys, tokens, cookies, database files, uploads, logs, and non-placeholder production settings. Review the staged file list manually.
 6. Deploy only source files and static assets to the configured application directory. Do not copy .env, data/, backups, or a whole working directory. Restart the systemd service only after the new files are in place, then verify systemctl is-active, /healthz, /api/session, the listening port, and recent journal output.
 7. Commit with a focused message that describes the user-facing behavior. Push only to the intended GitHub repository and branch. If the remote is absent or the authenticated account is unclear, stop before creating a new remote or publishing.

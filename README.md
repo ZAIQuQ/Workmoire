@@ -18,6 +18,7 @@ introducing a large runtime dependency stack.
 - Private file storage with a 64 MB per-file limit.
 - Signed, expiring login cookies and basic login rate limiting.
 - SQLite WAL mode and a small activity trail.
+- Optional local Codex整理助手，默认关闭，不上传内容到外部服务。
 - Docker and systemd friendly deployment.
 
 ## Run locally
@@ -52,6 +53,15 @@ production .env, data/, database, uploads, logs, or backups.
 The project is intentionally independent of any existing service on the
 machine. Choose a free port and data directory when deploying beside another
 application.
+
+### Optional local Codex assistant
+
+The editor can ask a locally installed Codex CLI to summarize, outline, review,
+or suggest next steps. It is disabled unless `WORKSPACE_CODEX_BIN` points to an
+installed executable. Workmoire invokes only `codex exec` in an ephemeral,
+read-only mode, passes the selected document through standard input, and does
+not save the response. The server must have its own Codex authentication if
+this option is enabled; the public repository contains no credentials.
 
 ## License
 

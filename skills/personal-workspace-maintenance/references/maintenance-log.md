@@ -12,3 +12,11 @@ changes belong in normal commit history.
   outside the repository.
 - Added release and deployment gates for compilation, tests, HTTP smoke checks,
   staged-file review, sensitive-data scans, health checks, and service logs.
+
+## 2026-09-29
+
+- Added an optional local Codex assistant with a disabled-by-default boundary:
+  explicit executable configuration, read-only ephemeral invocation, bounded
+  input/output, and no persisted prompts or responses.
+- Added the assistant boundary to the source, security guidance, and deployment
+  verification workflow.

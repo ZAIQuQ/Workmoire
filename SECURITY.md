@@ -9,3 +9,7 @@ maintainer privately with a description, reproduction steps, and impact.
 Never commit runtime data, uploaded files, database files, production
 configuration, credentials, access tokens, or server addresses. The repository
 contains only generic source and documentation.
+
+The optional local assistant is disabled by default. If enabled, configure an
+explicit Codex executable on the private server and keep the service behind the
+same authentication and network boundary as the rest of the workspace.

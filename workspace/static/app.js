@@ -1,9 +1,19 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],selected:null,stats:null,editorTab:"write",setup:false};
+const state={page:"dashboard",items:[],selected:null,stats:null,editorTab:"write",setup:false,assistant:null,draftTimer:null};
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
+const draftKey=kind=>"workmoire:draft:"+kind;
+function readLocalDraft(kind){
+  try{const raw=localStorage.getItem(draftKey(kind));return raw?JSON.parse(raw):null}catch(_){return null}
+}
+function clearLocalDraft(kind){try{localStorage.removeItem(draftKey(kind))}catch(_){} }
+function scheduleLocalDraft(){
+  if(!state.selected||state.selected.id||!$("#edit-title"))return;
+  clearTimeout(state.draftTimer);
+  state.draftTimer=setTimeout(()=>{try{localStorage.setItem(draftKey(state.page),JSON.stringify({...collectEditor(),saved_at:new Date().toISOString()}));$("#save-indicator").textContent="已保存在本机草稿"}catch(_){}},250);
+}
 
 function esc(value){
   return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
@@ -51,11 +61,12 @@ function setAuthMode(setup){
   $("#auth-confirm-row").classList.toggle("is-hidden",!setup);
   $("#auth-password").autocomplete=setup?"new-password":"current-password";
 }
+async function loadAssistantStatus(){try{state.assistant=await api("/api/assistant/status")}catch(_){state.assistant=null}}
 async function boot(){
   try{
     const session=await api("/api/session");
     if(session.setup){showApp(false);setAuthMode(true)}
-    else if(session.authenticated){$("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await goPage("dashboard")}
+    else if(session.authenticated){$("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await loadAssistantStatus();await goPage("dashboard")}
     else{showApp(false);setAuthMode(false)}
   }catch(error){showApp(false);setAuthMode(false);$("#auth-error").textContent=error.message}
 }
@@ -65,7 +76,7 @@ $("#auth-form").addEventListener("submit",async event=>{
   if(state.setup&&password!==$("#auth-confirm").value){$("#auth-error").textContent="两次密码不一致";return}
   try{
     const session=await api(state.setup?"/api/setup":"/api/login",{method:"POST",body:JSON.stringify({username,password})});
-    $("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await goPage("dashboard");
+    $("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await loadAssistantStatus();await goPage("dashboard");
   }catch(error){$("#auth-error").textContent=error.message}
 });
 async function goPage(page){
@@ -108,7 +119,7 @@ function defaultContent(kind){
   return {...templates[kind],kind};
 }
 function createItem(kind){
-  state.page=kind;state.selected={id:null,...defaultContent(kind)};state.editorTab="write";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
+  state.page=kind;state.selected={id:null,...defaultContent(kind),...(readLocalDraft(kind)||{})};state.editorTab="write";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
 }
 function renderContentPage(){
   const item=state.selected;
@@ -128,11 +139,12 @@ function drawEditor(){
   const editor=$("#editor");
   if(!state.selected){editor.innerHTML='<div class="editor-empty"><div><div class="empty-icon">✎</div><strong>选择一条内容开始整理</strong><p>也可以点击右上角新建一条。</p></div></div>';return}
   const item=state.selected;
-  editor.innerHTML='<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><textarea id="edit-content" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label></div></div><div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span><button id="delete-content" class="button button-danger">删除</button><button id="save-content" class="button button-primary">保存内容</button></div>';
+  editor.innerHTML='<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><textarea id="edit-content" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label></div></div><div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span><button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
   $("#edit-status").value=item.status||"inbox";$("#edit-priority").value=String(item.priority||2);
   $$(".editor-tab").forEach(tab=>tab.onclick=()=>{collectEditorIntoState();state.editorTab=tab.dataset.tab;drawEditor()});
   $("#edit-content").oninput=()=>{if(state.editorTab==="preview"){$("#content-preview").innerHTML=parseMarkdown($("#edit-content").value)}};
-  $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;
+  $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#assistant-content").onclick=openAssistant;
+  $$("#editor input, #editor textarea, #editor select").forEach(field=>field.addEventListener("input",scheduleLocalDraft));
   $("#edit-title").focus();
 }
 function collectEditor(){
@@ -142,13 +154,23 @@ function collectEditorIntoState(){
   if(!state.selected||!$("#edit-title"))return;
   Object.assign(state.selected,collectEditor());
 }
+function openAssistant(){
+  if(!state.selected)return;
+  collectEditorIntoState();
+  const dialog=$("#assistant-dialog"),result=$("#assistant-result");
+  result.classList.remove("is-error");result.textContent="正在整理…";dialog.showModal();
+  api("/api/assistant",{method:"POST",body:JSON.stringify({task:$("#assistant-task").value,title:state.selected.title,kind:state.page,content:state.selected.content})})
+    .then(data=>{result.textContent=data.result})
+    .catch(error=>{result.textContent=error.message;result.classList.add("is-error")});
+}
+
 async function saveItem(){
   const data=collectEditor(),indicator=$("#save-indicator");
   if(!data.title){indicator.textContent="请先填写标题";return}
   indicator.textContent="保存中…";
   try{
     const result=state.selected.id?await api("/api/items/"+state.selected.id,{method:"PUT",body:JSON.stringify(data)}):await api("/api/items",{method:"POST",body:JSON.stringify(data)});
-    state.selected=result.item;await loadItems();drawItemList();drawEditor();$("#save-indicator").textContent="已保存 · "+new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
+    state.selected=result.item;clearLocalDraft(state.page);await loadItems();drawItemList();drawEditor();$("#save-indicator").textContent="已保存 · "+new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
   }catch(error){indicator.textContent=error.message}
 }
 async function deleteItem(){
@@ -174,6 +196,7 @@ $("#settings-button").onclick=()=>$("#settings-menu").classList.toggle("is-hidde
 $("#logout").onclick=async()=>{await api("/api/logout",{method:"POST"});showApp(false);setAuthMode(false)};
 $("#change-password").onclick=()=>{$("#settings-menu").classList.add("is-hidden");$("#password-message").textContent="";$("#password-dialog").showModal()};
 $("#password-form").addEventListener("submit",async event=>{if(event.submitter?.value==="cancel")return;event.preventDefault();$("#password-message").textContent="";try{await api("/api/password",{method:"POST",body:JSON.stringify({old_password:$("#old-password").value,new_password:$("#new-password").value})});$("#password-message").textContent="密码已更新";setTimeout(()=>$("#password-dialog").close(),500)}catch(error){$("#password-message").textContent=error.message}});
+$("#assistant-close").onclick=()=>$("#assistant-dialog").close();
 $("#global-search-trigger").onclick=()=>{$("#search-dialog").showModal();$("#global-search").focus()};
 $("#global-search").oninput=async()=>{const query=$("#global-search").value.trim(),box=$("#search-results");if(!query){box.innerHTML='<div class="search-empty">输入关键词开始搜索</div>';return}const result=await api("/api/items?q="+encodeURIComponent(query)+"&limit=30");box.innerHTML=result.items.length?result.items.map(item=>'<div class="search-result" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div><strong>'+esc(item.title)+'</strong><div class="recent-meta">'+esc(labels[item.kind])+" · "+esc(item.summary||"暂无摘要")+'</div></div></div>').join(""):'<div class="search-empty">没有找到匹配内容</div>';$$("#search-results .search-result").forEach(row=>row.onclick=async()=>{$("#search-dialog").close();await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);renderContentPage()})};
 document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();$("#search-dialog").showModal();$("#global-search").focus()}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="s"&&state.selected){event.preventDefault();saveItem()}if(event.key==="Escape"){$("#settings-menu")?.classList.add("is-hidden")}});
