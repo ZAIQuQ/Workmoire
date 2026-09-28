@@ -93,6 +93,11 @@ class TrashHttpTests(unittest.TestCase):
     def test_z_dashboard_splits_overdue_and_upcoming_open_items(self):
         yesterday = (date.today() - timedelta(days=1)).isoformat()
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        captured = self.request(
+            "/api/items", "POST", {"kind": "note", "title": "Quick capture synthetic", "content": "remember this", "status": "inbox"}, expected=201
+        )["item"]
+        self.assertEqual(captured["status"], "inbox")
+        self.assertEqual(captured["content"], "remember this")
         overdue = self.request(
             "/api/items", "POST", {"kind": "project", "title": "Overdue synthetic", "due_date": yesterday}, expected=201
         )["item"]
@@ -123,7 +128,7 @@ class TrashHttpTests(unittest.TestCase):
         self.assertEqual(completed_from_dashboard["status"], "done")
         after_complete = self.request("/api/stats")
         self.assertNotIn(overdue["id"], [item["id"] for item in after_complete["overdue"] + after_complete["upcoming"]])
-        for item in (overdue, upcoming, completed):
+        for item in (captured, overdue, upcoming, completed):
             self.request("/api/items/%d" % item["id"], "DELETE")
             self.request("/api/trash/items/%d" % item["id"], "DELETE")
 
