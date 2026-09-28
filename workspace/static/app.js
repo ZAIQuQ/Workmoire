@@ -1,7 +1,8 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",trash:"回收站"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",listTag:"",listSort:"updated",fileSearch:"",fileSearchTimer:null,fileSearchController:null,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,searchController:null};
+const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",listTag:"",listSort:"updated",fileSearch:"",fileSearchTimer:null,fileSearchController:null,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null};
+const captureDraftKey="workmoire:capture-draft";
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
 const draftKey=(kind,id=null)=>"workmoire:draft:"+kind+":"+(id==null?"new":id);
@@ -113,8 +114,18 @@ function setAuthMode(setup,tokenRequired=false){
 function openCapture(){
   if(!state.authenticated)return;
   $("#capture-title").value="";$("#capture-content").value="";$("#capture-error").textContent="";$("#capture-submit").disabled=false;$("#capture-submit").textContent="放入待整理箱";
+  let draft=null;try{draft=JSON.parse(localStorage.getItem(captureDraftKey)||"null")}catch(_){draft=null}
+  $("#capture-draft-notice").classList.toggle("is-hidden",!draft||(!draft.title&&!draft.content));
   $("#capture-dialog").showModal();$("#capture-title").focus();
 }
+function scheduleCaptureDraft(){
+  clearTimeout(state.captureDraftTimer);
+  state.captureDraftTimer=setTimeout(()=>{const title=$("#capture-title").value,content=$("#capture-content").value;try{if(!title&&!content){localStorage.removeItem(captureDraftKey);return}localStorage.setItem(captureDraftKey,JSON.stringify({title,content,saved_at:new Date().toISOString()}))}catch(_){}} ,250);
+}
+function restoreCaptureDraft(){
+  try{const draft=JSON.parse(localStorage.getItem(captureDraftKey)||"null");if(!draft)return;$("#capture-title").value=draft.title||"";$("#capture-content").value=draft.content||"";$("#capture-draft-notice").classList.add("is-hidden");$("#capture-title").focus()}catch(_){}
+}
+function discardCaptureDraft(){try{localStorage.removeItem(captureDraftKey)}catch(_){}$("#capture-draft-notice").classList.add("is-hidden")}
 async function saveCapture(event){
   if(event.submitter?.value==="cancel")return;
   event.preventDefault();
@@ -123,6 +134,7 @@ async function saveCapture(event){
   const button=$("#capture-submit");button.disabled=true;button.textContent="保存中…";$("#capture-error").textContent="";
   try{
     await api("/api/items",{method:"POST",body:JSON.stringify({kind:"note",title,summary:"",content,tags:"",status:"inbox",priority:2,due_date:"",parent_id:null,pinned:false})});
+    try{localStorage.removeItem(captureDraftKey)}catch(_){}
     $("#capture-dialog").close();
     if(state.page==="dashboard"){await loadStats();renderDashboard()}
   }catch(error){button.disabled=false;button.textContent="放入待整理箱";$("#capture-error").textContent=error.message}
@@ -404,6 +416,7 @@ $("#change-password").onclick=()=>{$("#settings-menu").classList.add("is-hidden"
 $("#password-form").addEventListener("submit",async event=>{if(event.submitter?.value==="cancel")return;event.preventDefault();$("#password-message").textContent="";try{await api("/api/password",{method:"POST",body:JSON.stringify({old_password:$("#old-password").value,new_password:$("#new-password").value})});$("#password-message").textContent="密码已更新";setTimeout(()=>$("#password-dialog").close(),500)}catch(error){$("#password-message").textContent=error.message}});
 $("#assistant-close").onclick=()=>$("#assistant-dialog").close();$("#assistant-run").onclick=runAssistant;$("#assistant-apply-summary").onclick=()=>applyAssistantResult("summary");$("#assistant-apply-content").onclick=()=>applyAssistantResult("content");
 $("#capture-form").addEventListener("submit",saveCapture);
+$("#capture-title").addEventListener("input",scheduleCaptureDraft);$("#capture-content").addEventListener("input",scheduleCaptureDraft);$("#restore-capture-draft").onclick=restoreCaptureDraft;$("#discard-capture-draft").onclick=discardCaptureDraft;
 $("#global-search-trigger").onclick=()=>{$("#search-dialog").showModal();$("#global-search").focus()};
 async function searchGlobal(query){
   const box=$("#search-results");

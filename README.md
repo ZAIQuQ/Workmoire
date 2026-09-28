@@ -13,6 +13,7 @@ introducing a large runtime dependency stack.
 - One account with password setup and password changes.
 - Dashboard with recent work, content counts, quick capture actions, an inbox queue with one-click promotion, and deadline cards that can be marked complete in place.
 - Global quick capture via the dashboard or Ctrl/⌘ + Shift + N puts a thought directly into the inbox.
+- Unsubmitted quick captures can be restored or cleared from browser-local drafts; they are never uploaded automatically.
 - The daily log action reopens the current day's log when one already exists, avoiding duplicate daily entries.
 - The dashboard activity timeline links back to active content and uploaded files.
 - Separate spaces for notes, projects, papers, and work logs.
