@@ -12,6 +12,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - Run an HTTP smoke test for /healthz, /api/session, login/setup, content CRUD, and file upload when applicable.
 - When import/export changes, test a synthetic export with relationships and verify the import is transactional and excludes credentials and file binaries.
 - When deletion behavior changes, test the full trash lifecycle: active queries hide deleted rows, restore returns them, and permanent deletion removes the row and file bytes.
+- When editor behavior changes, verify local drafts are revision-scoped, restorable or dismissible, and cleared after a successful save or deletion.
 - If `WORKSPACE_CODEX_BIN` is configured, run a synthetic assistant smoke test and verify the CLI version; never use a personal document as the fixture.
 - Update the README when the user-visible behavior or deployment contract changes.
 - Update the project skill and maintenance log when the workflow or an operational invariant changes.

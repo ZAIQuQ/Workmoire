@@ -43,3 +43,6 @@ changes belong in normal commit history.
 - Added real-browser startup, navigation, and trash lifecycle checks using an
   isolated synthetic workspace after discovering a selector error that passed
   syntax checks. Deployment health probes now allow a bounded startup interval.
+- Extended browser-local drafts to existing items with revision matching and
+  explicit restore/ignore actions, and recorded the boundary so unsaved private
+  text cannot enter repository, export, log, or assistant paths.

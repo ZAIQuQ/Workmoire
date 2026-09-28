@@ -11,6 +11,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 
 - The Git repository is public-safe source. Never commit personal notes, papers, work logs, uploaded files, SQLite databases, backups, production .env files, server addresses, usernames, SSH material, access tokens, cookies, logs, or generated runtime state.
 - Runtime data stays outside the checkout in the configured WORKSPACE_DATA_DIR. Treat the database and file directory as user data and back them up before schema changes or destructive operations.
+- Unsaved editor drafts are browser-local convenience data. They may be restored only when their saved-item revision still matches, and must never be copied into the repository, server logs, exports, or assistant prompts until the user explicitly saves them.
 - Keep normal content and file deletion reversible through the authenticated trash area. Permanent deletion must be a separate, explicit operation and must remove the corresponding file bytes.
 - Keep the application single-user unless the user explicitly changes that product decision. Passwords are set through the first-run page and are never placed in source, documentation, chat, or deployment commands.
 - Protect first-run setup with `WORKSPACE_SETUP_TOKEN` whenever the service is reachable beyond localhost. Keep the token in the private environment file and never commit or print it in deployment logs.
