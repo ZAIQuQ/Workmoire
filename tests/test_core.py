@@ -62,6 +62,19 @@ class WorkspaceCoreTests(unittest.TestCase):
                 app.CODEX_BIN = previous_bin
                 app.CODEX_REASONING_EFFORT = previous_effort
 
+    def test_assistant_receives_item_context_metadata(self):
+        previous = app.CODEX_BIN
+        with tempfile.TemporaryDirectory() as temp:
+            script = Path(temp) / "fake_codex_context.py"
+            script.write_text("import sys\nprint(sys.stdin.read())\n", encoding="utf-8")
+            try:
+                app.CODEX_BIN = sys.executable + " " + str(script)
+                result = app.run_assistant("summarize", "论文标题", "paper", "正文", "研究摘要", "方法,实验")
+                self.assertIn("摘要：研究摘要", result)
+                self.assertIn("标签：方法,实验", result)
+            finally:
+                app.CODEX_BIN = previous
+
     def test_item_rejects_invalid_due_date(self):
         with self.assertRaises(ValueError):
             app.WorkspaceHandler.normalized_item(None, {

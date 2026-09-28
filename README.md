@@ -35,6 +35,7 @@ introducing a large runtime dependency stack.
 - Signed, expiring login cookies and basic login rate limiting.
 - SQLite WAL mode and a small activity trail.
 - Optional local Codex整理助手，默认关闭，不上传内容到外部服务。
+- When explicitly enabled, the assistant receives the selected item's title, summary, tags, and body through the local read-only CLI context.
 - Assistant results can be explicitly inserted into the summary or appended to the body; generation never saves automatically.
 - Docker and systemd friendly deployment.
 

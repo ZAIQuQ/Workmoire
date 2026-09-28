@@ -339,7 +339,7 @@ async function runAssistant(){
   const result=$("#assistant-result");
   const runButton=$("#assistant-run");runButton.disabled=true;runButton.textContent="整理中…";result.classList.remove("is-error");result.textContent="正在整理…";
   try{
-    const data=await api("/api/assistant",{method:"POST",body:JSON.stringify({task:$("#assistant-task").value,title:state.selected.title,kind:state.page,content:state.selected.content})});
+    const data=await api("/api/assistant",{method:"POST",body:JSON.stringify({task:$("#assistant-task").value,title:state.selected.title,kind:state.page,summary:state.selected.summary,tags:state.selected.tags,content:state.selected.content})});
     state.assistantResult=data.result;result.textContent=data.result;$("#assistant-apply-summary").classList.remove("is-hidden");$("#assistant-apply-content").classList.remove("is-hidden");
   }catch(error){result.textContent=error.message;result.classList.add("is-error")}
   finally{runButton.disabled=false;runButton.textContent="再次整理"}
