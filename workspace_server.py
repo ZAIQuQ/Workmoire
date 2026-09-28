@@ -393,10 +393,11 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             counts = {row["kind"]: row["count"] for row in con.execute("SELECT kind, COUNT(*) AS count FROM items GROUP BY kind")}
             status_counts = {row["status"]: row["count"] for row in con.execute("SELECT status, COUNT(*) AS count FROM items GROUP BY status")}
             recent = [as_item(row) for row in con.execute("SELECT * FROM items ORDER BY updated_at DESC LIMIT 8")]
+            upcoming = [as_item(row) for row in con.execute("SELECT * FROM items WHERE due_date != '' ORDER BY due_date ASC, updated_at DESC LIMIT 8")]
             activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY created_at DESC LIMIT 8")]
             file_bytes = con.execute("SELECT COALESCE(SUM(size),0) FROM files").fetchone()[0]
             con.close()
-            self.json_response({"counts": counts, "status_counts": status_counts, "recent": recent, "activity": activity, "file_bytes": file_bytes})
+            self.json_response({"counts": counts, "status_counts": status_counts, "recent": recent, "upcoming": upcoming, "activity": activity, "file_bytes": file_bytes})
             return
         if path == "/api/items":
             if not self.require_user():
