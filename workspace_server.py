@@ -612,6 +612,41 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             con.close()
             self.json_response({"year": year, "month": month, "items": items})
             return
+        if path == "/api/graph":
+            if not self.require_user():
+                return
+            params = parse_qs(parsed.query)
+            try:
+                limit = min(max(int(params.get("limit", ["300"])[0]), 1), 500)
+            except ValueError:
+                self.error("无效的关系地图数量限制", 400)
+                return
+            con = open_db()
+            total = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' ").fetchone()[0]
+            rows = con.execute(
+                "SELECT id,kind,title,summary,status,priority,due_date,parent_id,pinned,updated_at "
+                "FROM items WHERE deleted_at='' ORDER BY pinned DESC, updated_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            nodes = [dict(row) for row in rows]
+            node_ids = {row["id"] for row in rows}
+            edges = []
+            for row in con.execute(
+                "SELECT parent_id AS source_id,id AS target_id FROM items "
+                "WHERE deleted_at='' AND parent_id IS NOT NULL"
+            ):
+                if row["source_id"] in node_ids and row["target_id"] in node_ids:
+                    edges.append({"source_id": row["source_id"], "target_id": row["target_id"], "kind": "hierarchy"})
+            for row in con.execute(
+                "SELECT l.source_id,l.target_id FROM item_links l "
+                "JOIN items a ON a.id=l.source_id AND a.deleted_at='' "
+                "JOIN items b ON b.id=l.target_id AND b.deleted_at=''"
+            ):
+                if row["source_id"] in node_ids and row["target_id"] in node_ids:
+                    edges.append({"source_id": row["source_id"], "target_id": row["target_id"], "kind": "related"})
+            con.close()
+            self.json_response({"nodes": nodes, "edges": edges, "total": total, "truncated": total > len(nodes)})
+            return
         if path == "/api/trash":
             if not self.require_user():
                 return

@@ -1,7 +1,7 @@
-const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",review:"今日复盘",calendar:"计划日历",trash:"回收站"};
-const icons={note:"▤",project:"◈",paper:"▧",log:"◷",review:"✦",calendar:"▦",trash:"♲"};
+const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",review:"今日复盘",calendar:"计划日历",graph:"关系地图",trash:"回收站"};
+const icons={note:"▤",project:"◈",paper:"▧",log:"◷",review:"✦",calendar:"▦",graph:"⌘",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,reviewData:null,calendarDate:new Date(),editorTab:"write",listTag:"",listSort:"updated",fileSearch:"",fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null};
+const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,reviewData:null,graphData:null,graphFilter:"",calendarDate:new Date(),editorTab:"write",listTag:"",listSort:"updated",fileSearch:"",fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null};
 const captureDraftKey="workmoire:capture-draft";
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
@@ -191,6 +191,7 @@ async function goPage(page){
   if(page==="dashboard"){await loadStats();renderDashboard()}
   else if(page==="review"){await renderReview()}
   else if(page==="calendar"){await renderCalendar()}
+  else if(page==="graph"){await renderGraph()}
   else if(page==="files"){await renderFiles()}
   else if(page==="trash"){await renderTrash()}
   else{await loadItems();renderContentPage()}
@@ -291,6 +292,40 @@ async function renderCalendar(){
   $("#calendar-next").onclick=()=>{state.calendarDate=new Date(year,month+1,1);renderCalendar()};
   $("#calendar-today").onclick=()=>{state.calendarDate=new Date();renderCalendar()};
   $$(".calendar-item").forEach(button=>button.onclick=openCalendarItem);
+}
+function graphTitle(value){
+  const text=String(value||"未命名");
+  return text.length>28?text.slice(0,28)+"…":text;
+}
+async function openGraphNode(event){
+  event.stopPropagation();
+  try{
+    const result=await api("/api/items/"+encodeURIComponent(event.currentTarget.dataset.id));
+    if(!await goPage(result.item.kind))return;
+    state.selected=state.items.find(item=>String(item.id)===String(result.item.id))||result.item;
+    state.savedSnapshot=editorSnapshot(state.selected);
+    renderContentPage();
+  }catch(error){window.alert(error.message)}
+}
+function drawGraph(){
+  const data=state.graphData||{nodes:[],edges:[],total:0,truncated:false};
+  const filter=state.graphFilter||"",nodes=(data.nodes||[]).filter(node=>!filter||node.kind===filter);
+  const columns={project:24,paper:272,note:520,log:768},grouped={note:[],project:[],paper:[],log:[]};
+  nodes.forEach(node=>(grouped[node.kind]||grouped.note).push(node));
+  const positions=new Map();Object.keys(grouped).forEach(kind=>grouped[kind].forEach((node,index)=>positions.set(String(node.id),{x:columns[kind],y:70+index*78})));
+  const canvasHeight=Math.max(420,...Array.from(positions.values()).map(position=>position.y+78));
+  const edges=(data.edges||[]).filter(edge=>positions.has(String(edge.source_id))&&positions.has(String(edge.target_id)));
+  const edgeMarkup=edges.map(edge=>{const source=positions.get(String(edge.source_id)),target=positions.get(String(edge.target_id)),bend=Math.max(42,Math.abs(target.y-source.y)*.35);return '<path class="graph-edge '+esc(edge.kind||"related")+'" d="M '+(source.x+190)+' '+(source.y+30)+' C '+(source.x+190+bend)+' '+(source.y+30)+', '+(target.x-bend)+' '+(target.y+30)+', '+target.x+' '+(target.y+30)+'"></path>'}).join("");
+  const nodeMarkup=nodes.map(node=>{const position=positions.get(String(node.id));return '<button class="graph-node '+esc(node.kind)+'" data-id="'+node.id+'" style="left:'+position.x+'px;top:'+position.y+'px" title="打开：'+esc(node.title||"未命名")+'"><span class="graph-node-head">'+kindMark(node.kind)+statusPill(node.status)+'</span><strong>'+esc(graphTitle(node.title))+'</strong><small>'+esc(node.summary||((node.due_date?"截止 "+formatDueDate(node.due_date):"最近更新 "+relativeDate(node.updated_at))))+'</small></button>'}).join("");
+  const filterMarkup='<button class="graph-filter '+(!filter?"is-active":"")+'" data-kind="">全部</button>'+["project","paper","note","log"].map(kind=>'<button class="graph-filter '+(filter===kind?"is-active":"")+'" data-kind="'+kind+'">'+labels[kind]+'</button>').join("");
+  const note=data.truncated?' · 仅显示最近 '+nodes.length+' 条内容':"";
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>关系地图</h1><p>从上级层级和横向关联中，看见论文、项目与思路如何连成一张网。</p></div></div><section class="surface graph-surface"><div class="graph-toolbar"><div class="graph-filters">'+filterMarkup+'</div><span class="spacer"></span><span class="graph-summary">'+nodes.length+' 个节点 · '+edges.length+' 条连接'+note+'</span></div><div class="graph-legend"><span><i class="graph-legend-line hierarchy"></i>层级关系</span><span><i class="graph-legend-line related"></i>横向关联</span><span class="graph-hint">点击节点打开内容</span></div><div class="graph-viewport"><div class="graph-stage" style="width:1000px;height:'+canvasHeight+'px"><svg class="graph-lines" viewBox="0 0 1000 '+canvasHeight+'" aria-hidden="true">'+edgeMarkup+'</svg>'+nodeMarkup+'</div></div></section>';
+  $$(".graph-filter").forEach(button=>button.onclick=()=>{state.graphFilter=button.dataset.kind;drawGraph()});
+  $$(".graph-node").forEach(button=>button.onclick=openGraphNode);
+}
+async function renderGraph(){
+  state.graphData=await api("/api/graph?limit=300");
+  drawGraph();
 }
 async function openActivity(event){
   const row=event.currentTarget,type=row.dataset.targetType,id=row.dataset.targetId;

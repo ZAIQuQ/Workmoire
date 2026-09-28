@@ -104,6 +104,14 @@ def main():
                 expect(page.locator("#related-list")).to_contain_text("Synthetic browser note")
                 page.locator("#related-list .related-link").click()
                 expect(page.locator("#edit-title")).to_have_value("Synthetic browser note")
+                page.locator('[data-page="graph"]').click()
+                expect(page.locator("#page-content h1")).to_have_text("关系地图")
+                expect(page.locator(".graph-node")).to_have_count(3)
+                expect(page.locator(".graph-edge")).to_have_count(1)
+                page.locator('.graph-node[data-id="%d"]' % project_id).click()
+                expect(page.locator("#edit-title")).to_have_value("Synthetic linked project")
+                page.locator('[data-page="note"]').click()
+                page.locator(".content-item").filter(has_text="Synthetic browser note").click()
 
                 # Same-space navigation must respect unsaved edits.
                 page.remove_listener("dialog", accept_dialog)

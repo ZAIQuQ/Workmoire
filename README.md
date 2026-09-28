@@ -14,6 +14,7 @@ introducing a large runtime dependency stack.
 - Dashboard with recent work, content counts, quick capture actions, an inbox queue with one-click promotion, and deadline cards that can be marked complete in place.
 - A dedicated daily review queue groups inbox items, overdue work, today's deadlines, and stale active content with direct open, promote, and complete actions.
 - A month calendar brings project, paper, and work-log deadlines into one navigable planning view.
+- A read-only relationship map shows hierarchy and cross-links together; nodes open the original content without exposing bodies through the graph endpoint.
 - Global quick capture via the dashboard or Ctrl/⌘ + Shift + N puts a thought directly into the inbox.
 - Unsubmitted quick captures can be restored or cleared from browser-local drafts; they are never uploaded automatically.
 - The daily log action reopens the current day's log when one already exists, avoiding duplicate daily entries.
