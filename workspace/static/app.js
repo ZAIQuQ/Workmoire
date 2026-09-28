@@ -54,7 +54,17 @@ function statusPill(status){return '<span class="status-pill '+esc(status)+'">'+
 function kindMark(kind){return '<span class="kind-mark '+esc(kind)+'">'+esc(icons[kind]||"·")+"</span>"}
 function priorityMarkup(priority){return '<span class="priority" title="优先级 '+priority+'">'+[1,2,3].map(n=>'<i class="'+(n<=priority?"on":"")+'"></i>').join("")+"</span>"}
 function dueItemMarkup(item){const overdue=Boolean(item.overdue);return '<div class="due-item '+(overdue?"is-overdue":"")+'" data-id="'+item.id+'" data-kind="'+item.kind+'"><div class="due-date">'+(overdue?"已逾期 · ":"")+esc(item.due_date)+'</div><div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+'</div></div>'+statusPill(item.status)+'</div>'}
-function inboxItemMarkup(item){return '<div class="inbox-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title||"未命名")+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+esc(item.summary||"等待整理")+'</div></div>'+priorityMarkup(item.priority||2)+'</div>'}
+function inboxItemMarkup(item){return '<div class="inbox-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title||"未命名")+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+esc(item.summary||"等待整理")+'</div></div>'+priorityMarkup(item.priority||2)+'<button class="inbox-start" data-id="'+item.id+'" type="button">开始整理</button></div>'}
+async function promoteInboxItem(event){
+  event.stopPropagation();
+  const itemId=event.currentTarget.dataset.id,item=(state.stats?.inbox||[]).find(candidate=>String(candidate.id)===itemId);
+  if(!item)return;
+  const button=event.currentTarget;button.disabled=true;button.textContent="更新中…";
+  try{
+    await api("/api/items/"+item.id,{method:"PUT",body:JSON.stringify({kind:item.kind,title:item.title,summary:item.summary,content:item.content,tags:item.tags,status:"active",priority:item.priority,due_date:item.due_date,parent_id:item.parent_id,pinned:Boolean(item.pinned)})});
+    await loadStats();renderDashboard();
+  }catch(error){button.disabled=false;button.textContent="开始整理";window.alert(error.message)}
+}
 function parseMarkdown(source){
   let safe=esc(source||"");
   safe=safe.replace(/^### (.+)$/gm,"<h3>$1</h3>").replace(/^## (.+)$/gm,"<h2>$1</h2>").replace(/^# (.+)$/gm,"<h1>$1</h1>");
@@ -135,6 +145,7 @@ function renderDashboard(){
   $$(".recent-item").forEach(row=>row.onclick=async()=>{await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
   $$(".due-item").forEach(row=>row.onclick=async()=>{await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
   $$(".pinned-item,.inbox-item").forEach(row=>row.onclick=async()=>{await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
+  $$(".inbox-start").forEach(button=>button.onclick=promoteInboxItem);
 }
 function defaultContent(kind){
   const templates={
