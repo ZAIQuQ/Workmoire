@@ -54,6 +54,8 @@ def main():
                 page.locator("#edit-content").fill("A recoverable thought.")
                 page.locator("#save-content").click()
                 expect(page.locator("#save-indicator")).to_contain_text("已保存")
+                expect(page.locator("#select-all-items")).to_be_visible()
+                expect(page.locator("#bulk-actions")).to_be_hidden()
                 page.locator("#edit-summary").fill("Synthetic history marker")
                 page.locator("#save-content").click()
                 expect(page.locator(".history-row")).to_have_count(1)
