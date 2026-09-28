@@ -28,3 +28,5 @@ changes belong in normal commit history.
 - Added a transactional export/import boundary: JSON imports are versioned,
   relationship-aware, and keep credentials and file binaries outside the
   portable content format.
+- Added HEAD health/static checks and included them in deployment verification after
+  discovering that basic monitors can probe without a response body.

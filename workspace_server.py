@@ -489,6 +489,40 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             return
         self.send_error(404)
 
+    def do_HEAD(self) -> None:
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == "/healthz":
+            raw = json.dumps({"ok": True, "service": "workmoire"}, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.add_security_headers()
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            return
+        if path == "/":
+            name, content_type = "index.html", "text/html; charset=utf-8"
+        elif path.startswith("/static/"):
+            requested = unquote(path[len("/static/"):])
+            if "/" in requested or requested.startswith("."):
+                self.send_error(404)
+                return
+            name, content_type = requested, None
+        else:
+            self.send_error(404)
+            return
+        target = STATIC_DIR / name
+        if not target.is_file():
+            self.send_error(404)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", content_type or mimetypes.guess_type(name)[0] or "application/octet-stream")
+        self.send_header("Cache-Control", "public, max-age=300")
+        self.add_security_headers()
+        self.send_header("Content-Length", str(target.stat().st_size))
+        self.end_headers()
+
     def serve_static(self, name: str, content_type: str | None = None) -> None:
         target = STATIC_DIR / name
         if not target.is_file():

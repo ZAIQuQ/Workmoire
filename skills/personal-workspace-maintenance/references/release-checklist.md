@@ -26,6 +26,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - Check the port and existing services before restarting.
 - Run systemctl is-active personal-workspace.service.
 - Check /healthz, /api/session, ss -lntp, and recent journalctl output.
+- Probe `HEAD /healthz` and `HEAD /static/app.js` when the service is behind a monitor or reverse proxy.
 - Record the deployed commit and any cloud security-group or HTTPS requirement.
 
 ## GitHub
