@@ -16,6 +16,7 @@ introducing a large runtime dependency stack.
 - Markdown editing with a safe client-side preview.
 - Status, priority, due date, tags, and server-side search.
 - Hierarchical relationships between related notes, projects, papers, and logs.
+- Clickable parent and child links make those relationships navigable from the editor.
 - Recoverable deletion with a private trash area for content and uploaded files.
 - Trashed items stay out of search, active statistics, and item exports until restored.
 - Pin important papers, projects, or notes so they stay visible in lists and the dashboard.
