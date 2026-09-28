@@ -44,5 +44,9 @@ changes belong in normal commit history.
   isolated synthetic workspace after discovering a selector error that passed
   syntax checks. Deployment health probes now allow a bounded startup interval.
 - Extended browser-local drafts to existing items with revision matching and
-  explicit restore/ignore actions, and recorded the boundary so unsaved private
-  text cannot enter repository, export, log, or assistant paths.
+  explicit restore/ignore actions. The boundary keeps drafts out of repository,
+  export, and log paths; an explicit local-assistant action may process the
+  current selected text without persisting it.
+- Added explicit assistant result actions for summary/body insertion; generated
+  text remains reviewable and unsaved until the user chooses both insertion and
+  the normal save operation.

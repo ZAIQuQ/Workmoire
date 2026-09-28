@@ -1,7 +1,7 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",trash:"回收站"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",setup:false,authenticated:false,assistant:null,draftTimer:null};
+const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null};
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
 const draftKey=(kind,id=null)=>"workmoire:draft:"+kind+":"+(id==null?"new":id);
@@ -208,8 +208,10 @@ function openAssistant(){
   if(!state.selected)return;
   collectEditorIntoState();
   const result=$("#assistant-result");
+  state.assistantResult="";
   result.classList.remove("is-error");
   result.textContent=state.assistant?.available?"选择整理方式后点击“开始整理”。":"服务器尚未配置本地 Codex。";
+  $("#assistant-apply-summary").classList.add("is-hidden");$("#assistant-apply-content").classList.add("is-hidden");
   $("#assistant-dialog").showModal();
 }
 async function runAssistant(){
@@ -219,8 +221,18 @@ async function runAssistant(){
   result.classList.remove("is-error");result.textContent="正在整理…";
   try{
     const data=await api("/api/assistant",{method:"POST",body:JSON.stringify({task:$("#assistant-task").value,title:state.selected.title,kind:state.page,content:state.selected.content})});
-    result.textContent=data.result;
+    state.assistantResult=data.result;result.textContent=data.result;$("#assistant-apply-summary").classList.remove("is-hidden");$("#assistant-apply-content").classList.remove("is-hidden");
   }catch(error){result.textContent=error.message;result.classList.add("is-error")}
+}
+function applyAssistantResult(target){
+  if(!state.selected||!state.assistantResult)return;
+  if(target==="content"){
+    const current=$("#edit-content").value.trim();
+    state.selected.content=current?current+"\n\n"+state.assistantResult:state.assistantResult;
+  }else{
+    state.selected.summary=state.assistantResult.trim().slice(0,500);
+  }
+  $("#assistant-dialog").close();drawEditor();scheduleLocalDraft();$("#save-indicator").textContent="助手结果已加入未保存修改";
 }
 
 async function saveItem(){
@@ -259,7 +271,7 @@ $("#import-input").onchange=async()=>{const file=$("#import-input").files[0];if(
 $("#logout").onclick=async()=>{await api("/api/logout",{method:"POST"});state.authenticated=false;showApp(false);setAuthMode(false)};
 $("#change-password").onclick=()=>{$("#settings-menu").classList.add("is-hidden");$("#password-message").textContent="";$("#password-dialog").showModal()};
 $("#password-form").addEventListener("submit",async event=>{if(event.submitter?.value==="cancel")return;event.preventDefault();$("#password-message").textContent="";try{await api("/api/password",{method:"POST",body:JSON.stringify({old_password:$("#old-password").value,new_password:$("#new-password").value})});$("#password-message").textContent="密码已更新";setTimeout(()=>$("#password-dialog").close(),500)}catch(error){$("#password-message").textContent=error.message}});
-$("#assistant-close").onclick=()=>$("#assistant-dialog").close();$("#assistant-run").onclick=runAssistant;
+$("#assistant-close").onclick=()=>$("#assistant-dialog").close();$("#assistant-run").onclick=runAssistant;$("#assistant-apply-summary").onclick=()=>applyAssistantResult("summary");$("#assistant-apply-content").onclick=()=>applyAssistantResult("content");
 $("#global-search-trigger").onclick=()=>{$("#search-dialog").showModal();$("#global-search").focus()};
 $("#global-search").oninput=async()=>{const query=$("#global-search").value.trim(),box=$("#search-results");if(!query){box.innerHTML='<div class="search-empty">输入关键词开始搜索</div>';return}const result=await api("/api/items?q="+encodeURIComponent(query)+"&limit=30");box.innerHTML=result.items.length?result.items.map(item=>'<div class="search-result" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div><strong>'+esc(item.title)+'</strong><div class="recent-meta">'+esc(labels[item.kind])+" · "+esc(item.summary||"暂无摘要")+'</div></div></div>').join(""):'<div class="search-empty">没有找到匹配内容</div>';$$("#search-results .search-result").forEach(row=>row.onclick=async()=>{$("#search-dialog").close();await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()})};
 document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();$("#search-dialog").showModal();$("#global-search").focus()}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="s"&&state.selected){event.preventDefault();saveItem()}if((event.ctrlKey||event.metaKey)&&event.key==="Enter"&&state.selected){event.preventDefault();saveItem()}if(event.key==="Escape"){$("#settings-menu")?.classList.add("is-hidden")}});

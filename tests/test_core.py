@@ -1,4 +1,7 @@
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 
 import workspace_server as app
 
@@ -31,6 +34,18 @@ class WorkspaceCoreTests(unittest.TestCase):
                 app.run_assistant("summarize", "标题", "note", "正文")
         finally:
             app.CODEX_BIN = previous
+
+    def test_assistant_uses_explicit_local_command(self):
+        previous = app.CODEX_BIN
+        with tempfile.TemporaryDirectory() as temp:
+            script = Path(temp) / "fake_codex.py"
+            script.write_text("import sys\nsys.stdin.read()\nprint('synthetic assistant result')\n", encoding="utf-8")
+            try:
+                app.CODEX_BIN = sys.executable + " " + str(script)
+                result = app.run_assistant("summarize", "标题", "note", "正文")
+                self.assertEqual(result, "synthetic assistant result")
+            finally:
+                app.CODEX_BIN = previous
 
     def test_item_rejects_invalid_due_date(self):
         with self.assertRaises(ValueError):

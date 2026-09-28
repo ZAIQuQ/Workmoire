@@ -11,13 +11,14 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 
 - The Git repository is public-safe source. Never commit personal notes, papers, work logs, uploaded files, SQLite databases, backups, production .env files, server addresses, usernames, SSH material, access tokens, cookies, logs, or generated runtime state.
 - Runtime data stays outside the checkout in the configured WORKSPACE_DATA_DIR. Treat the database and file directory as user data and back them up before schema changes or destructive operations.
-- Unsaved editor drafts are browser-local convenience data. They may be restored only when their saved-item revision still matches, and must never be copied into the repository, server logs, exports, or assistant prompts until the user explicitly saves them.
+- Unsaved editor drafts are browser-local convenience data. They may be restored only when their saved-item revision still matches. They stay local by default; only an explicit assistant action may send the current selected text to the configured local Codex, and that text must never enter repository files, server logs, or exports automatically.
 - Keep normal content and file deletion reversible through the authenticated trash area. Permanent deletion must be a separate, explicit operation and must remove the corresponding file bytes.
 - Keep the application single-user unless the user explicitly changes that product decision. Passwords are set through the first-run page and are never placed in source, documentation, chat, or deployment commands.
 - Protect first-run setup with `WORKSPACE_SETUP_TOKEN` whenever the service is reachable beyond localhost. Keep the token in the private environment file and never commit or print it in deployment logs.
 - Keep the service independent of other applications on the server. Discover a free port before changing it, preserve existing services, and verify the service health after every deployment.
 - Keep the project reproducible from a clean checkout. Prefer Python standard-library code and documented Docker/systemd paths unless a dependency has a clear user-facing benefit.
 - Keep the local Codex assistant disabled unless `WORKSPACE_CODEX_BIN` is explicitly configured on the private server. It may receive only the selected document through standard input, must run in ephemeral read-only mode, and must never expose arbitrary command execution or persist prompts and responses.
+- Treat assistant output as a user-reviewed suggestion: display it without mutation first, require an explicit insert action, keep the result in the unsaved editor state, and send it to persistent storage only through the normal save path.
 - Treat imports as user-data migrations: accept only the versioned Workmoire export format, run them in one transaction, rebuild relationships through an ID map, and never import credentials or file binaries.
 - Back up the configured data directory before schema or deployment changes. Use `backup.sh` (or an equivalent SQLite backup API) for the database and archive uploaded files; keep backups outside the checkout and apply an explicit retention policy.
 

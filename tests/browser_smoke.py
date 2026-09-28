@@ -20,7 +20,9 @@ def main():
         app.DB_PATH = app.DATA_DIR / "workspace.db"
         app.SETUP_TOKEN = "synthetic-bootstrap-token"
         app.SESSION_SECRET = "synthetic-browser-secret"
-        app.CODEX_BIN = ""
+        fake_codex = Path(temp) / "fake_codex.py"
+        fake_codex.write_text("import sys\nsys.stdin.read()\nprint('Synthetic assistant output')\n", encoding="utf-8")
+        app.CODEX_BIN = sys.executable + " " + str(fake_codex)
         app.init_db()
         server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.WorkspaceHandler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -43,6 +45,13 @@ def main():
                 page.locator("#new-content").click()
                 page.locator("#edit-title").fill("Synthetic browser note")
                 page.locator("#edit-content").fill("A recoverable thought.")
+                page.locator("#save-content").click()
+                expect(page.locator("#save-indicator")).to_contain_text("已保存")
+                page.locator("#assistant-content").click()
+                page.locator("#assistant-run").click()
+                expect(page.locator("#assistant-result")).to_contain_text("Synthetic assistant output")
+                page.locator("#assistant-apply-content").click()
+                expect(page.locator("#edit-content")).to_have_value("A recoverable thought.\n\nSynthetic assistant output")
                 page.locator("#save-content").click()
                 expect(page.locator("#save-indicator")).to_contain_text("已保存")
                 page.locator("#delete-content").click()
