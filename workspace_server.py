@@ -108,6 +108,7 @@ def init_db() -> None:
           id INTEGER PRIMARY KEY CHECK(id=1),
           username TEXT NOT NULL UNIQUE,
           password_hash TEXT NOT NULL,
+          session_version INTEGER NOT NULL DEFAULT 1,
           created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS items(
@@ -143,6 +144,9 @@ def init_db() -> None:
         );
         """
     )
+    user_columns = {row["name"] for row in con.execute("PRAGMA table_info(users)")}
+    if "session_version" not in user_columns:
+        con.execute("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 1")
     columns = {row["name"] for row in con.execute("PRAGMA table_info(items)")}
     for name, definition in (
         ("priority", "INTEGER NOT NULL DEFAULT 2"),
@@ -171,8 +175,11 @@ def password_matches(password: str, encoded: str) -> bool:
         return False
 
 
-def encode_session(username: str) -> str:
-    payload = ("%s|%d" % (username, int(time.time()) + SESSION_TTL)).encode()
+def encode_session(username: str, session_version: int | None = None) -> str:
+    fields = [username, str(int(time.time()) + SESSION_TTL)]
+    if session_version is not None:
+        fields.append(str(session_version))
+    payload = "|".join(fields).encode()
     body = base64.urlsafe_b64encode(payload).decode().rstrip("=")
     signature = hmac.new(SESSION_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()
     return body + "." + signature
@@ -187,9 +194,18 @@ def decode_session(token: str | None) -> str | None:
         return None
     try:
         raw = base64.urlsafe_b64decode((body + "==").encode()).decode()
-        username, expires = raw.rsplit("|", 1)
+        fields = raw.split("|")
+        if len(fields) not in (2, 3):
+            return None
+        username, expires = fields[:2]
         if not username or int(expires) < int(time.time()):
             return None
+        if len(fields) == 3:
+            con = open_db()
+            row = con.execute("SELECT session_version FROM users WHERE username=?", (username,)).fetchone()
+            con.close()
+            if not row or int(row["session_version"]) != int(fields[2]):
+                return None
         return username
     except Exception:
         return None
@@ -348,11 +364,13 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             return None
         return user
 
-    def set_login_cookie(self, username: str) -> None:
+    def login_cookie(self, username: str, session_version: int | None = None) -> str:
+        return "workspace_session=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=%d" % (encode_session(username, session_version), SESSION_TTL)
+
+    def set_login_cookie(self, username: str, session_version: int | None = None) -> None:
         self.send_header(
             "Set-Cookie",
-            "workspace_session=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=%d"
-            % (encode_session(username), SESSION_TTL),
+            self.login_cookie(username, session_version),
         )
 
     def do_GET(self) -> None:
@@ -558,14 +576,14 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     raise ValueError("账号长度应为 2 到 64 个字符")
                 if len(password) < 10:
                     raise ValueError("密码至少需要 10 个字符")
-                con.execute("INSERT INTO users(id,username,password_hash,created_at) VALUES(1,?,?,?)", (username, password_hash(password), utc_now()))
+                con.execute("INSERT INTO users(id,username,password_hash,session_version,created_at) VALUES(1,?,?,1,?)", (username, password_hash(password), utc_now()))
                 con.commit()
                 con.close()
                 payload = json.dumps({"username": username}, ensure_ascii=False).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.add_security_headers()
-                self.set_login_cookie(username)
+                self.set_login_cookie(username, 1)
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
                 self.wfile.write(payload)
@@ -584,7 +602,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     self.error("登录尝试过多，请稍后再试", 429)
                     return
                 con = open_db()
-                row = con.execute("SELECT username,password_hash FROM users WHERE id=1").fetchone()
+                row = con.execute("SELECT username,password_hash,session_version FROM users WHERE id=1").fetchone()
                 con.close()
                 if not row or row["username"] != username or not password_matches(str(data.get("password", "")), row["password_hash"]):
                     LOGIN_FAILURES.setdefault(address, []).append(now)
@@ -594,7 +612,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.add_security_headers()
-                self.set_login_cookie(row["username"])
+                self.set_login_cookie(row["username"], row["session_version"])
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
                 self.wfile.write(payload)
@@ -729,15 +747,16 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 if len(new_password) < 10:
                     raise ValueError("新密码至少需要 10 个字符")
                 con = open_db()
-                row = con.execute("SELECT password_hash FROM users WHERE id=1").fetchone()
+                row = con.execute("SELECT password_hash,session_version FROM users WHERE id=1").fetchone()
                 if not row or not password_matches(old_password, row["password_hash"]):
                     con.close()
                     self.error("当前密码错误", 401)
                     return
-                con.execute("UPDATE users SET password_hash=? WHERE id=1", (password_hash(new_password),))
+                new_session_version = int(row["session_version"]) + 1
+                con.execute("UPDATE users SET password_hash=?,session_version=? WHERE id=1", (password_hash(new_password), new_session_version))
                 con.commit()
                 con.close()
-                self.json_response({"ok": True})
+                self.json_response({"ok": True}, headers=[("Set-Cookie", self.login_cookie(user, new_session_version))])
             except Exception as exc:
                 self.request_error(exc)
             return

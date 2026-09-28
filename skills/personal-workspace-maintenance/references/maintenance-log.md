@@ -30,3 +30,5 @@ changes belong in normal commit history.
   portable content format.
 - Added HEAD health/static checks and included them in deployment verification after
   discovering that basic monitors can probe without a response body.
+- Added persisted session versions so password changes revoke prior cookies
+  immediately while keeping the SQLite migration additive.
