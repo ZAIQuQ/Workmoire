@@ -313,6 +313,16 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
     def error(self, message: str, status: int = 400) -> None:
         self.json_response({"error": message}, status)
 
+    def json_download(self, data: object, filename: str) -> None:
+        raw = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Disposition", "attachment; filename=\"%s\"" % filename)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
     def request_error(self, exc: Exception, fallback: str = "请求无法处理", status: int = 500) -> None:
         if isinstance(exc, ValueError):
             self.error(str(exc), 400)
@@ -361,6 +371,19 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if not self.require_user():
                 return
             self.json_response(assistant_status())
+            return
+        if path == "/api/export":
+            if not self.require_user():
+                return
+            con = open_db()
+            items = [as_item(row) for row in con.execute("SELECT * FROM items ORDER BY id")]
+            files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,created_at FROM files ORDER BY id")]
+            activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY id")]
+            con.close()
+            self.json_download(
+                {"format": "workmoire-export", "version": 1, "exported_at": utc_now(), "items": items, "files": files, "activity": activity},
+                "workmoire-export.json",
+            )
             return
         if path == "/api/stats":
             if not self.require_user():

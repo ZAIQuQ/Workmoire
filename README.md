@@ -16,6 +16,7 @@ introducing a large runtime dependency stack.
 - Markdown editing with a safe client-side preview.
 - Status, priority, due date, tags, and server-side search.
 - Private file storage with a 64 MB per-file limit.
+- One-click JSON export of notes, metadata, and activity history (without passwords).
 - Signed, expiring login cookies and basic login rate limiting.
 - SQLite WAL mode and a small activity trail.
 - Optional local Codex整理助手，默认关闭，不上传内容到外部服务。
@@ -38,6 +39,8 @@ Copy .env.example to .env and run:
 
 The named volume stores the database and uploaded files. Back up that volume
 before upgrading or moving the service.
+The JSON export contains file metadata; use `backup.sh` when the uploaded file
+contents themselves must be migrated.
 
 ## Project maintenance
 

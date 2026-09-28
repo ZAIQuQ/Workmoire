@@ -193,6 +193,7 @@ async function uploadFile(file){
   try{await api("/api/files",{method:"POST",body:form});await renderFiles()}catch(error){window.alert(error.message)}
 }
 $("#settings-button").onclick=()=>$("#settings-menu").classList.toggle("is-hidden");
+$("#export-data").onclick=()=>{$("#settings-menu").classList.add("is-hidden");const link=document.createElement("a");link.href="/api/export";link.download="workmoire-export.json";document.body.appendChild(link);link.click();link.remove()};
 $("#logout").onclick=async()=>{await api("/api/logout",{method:"POST"});showApp(false);setAuthMode(false)};
 $("#change-password").onclick=()=>{$("#settings-menu").classList.add("is-hidden");$("#password-message").textContent="";$("#password-dialog").showModal()};
 $("#password-form").addEventListener("submit",async event=>{if(event.submitter?.value==="cancel")return;event.preventDefault();$("#password-message").textContent="";try{await api("/api/password",{method:"POST",body:JSON.stringify({old_password:$("#old-password").value,new_password:$("#new-password").value})});$("#password-message").textContent="密码已更新";setTimeout(()=>$("#password-dialog").close(),500)}catch(error){$("#password-message").textContent=error.message}});
