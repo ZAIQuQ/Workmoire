@@ -16,10 +16,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - name: Compile and test
         run: |
           make compile
           make test
+      - name: Check browser client syntax
+        run: |
+          node --check workspace/static/app.js
+          python3 -m py_compile tests/browser_smoke.py
+          git diff --check
       - name: Check public source boundary
         shell: bash
         run: |

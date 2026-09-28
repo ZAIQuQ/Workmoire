@@ -55,3 +55,5 @@ changes belong in normal commit history.
   repeated clicks.
 
 - Made the local assistant explicitly pass a configurable bounded reasoning setting (default `low`) after the private CLI timed out at its profile default; documented model/reasoning overrides and kept the server-only configuration boundary.
+
+- Extended GitHub CI with an explicit Node client syntax check, browser smoke-script compilation, and diff validation so frontend changes receive a reproducible public-repository gate before deployment.
