@@ -15,6 +15,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - When editor behavior changes, verify local drafts are revision-scoped, restorable or dismissible, and cleared after a successful save or deletion.
 - If `WORKSPACE_CODEX_BIN` is configured, run a synthetic assistant smoke test and verify the CLI version; never use a personal document as the fixture.
 - When assistant UI changes, verify that generated text is not persisted until an explicit insert and save action.
+- When assistant calls are slow or unavailable, verify the entry is disabled or visibly busy and repeated clicks do not create concurrent calls.
 - Update the README when the user-visible behavior or deployment contract changes.
 - Update the project skill and maintenance log when the workflow or an operational invariant changes.
 

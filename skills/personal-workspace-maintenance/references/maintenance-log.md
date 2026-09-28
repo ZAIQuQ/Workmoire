@@ -50,3 +50,6 @@ changes belong in normal commit history.
 - Added explicit assistant result actions for summary/body insertion; generated
   text remains reviewable and unsaved until the user chooses both insertion and
   the normal save operation.
+- Added a disabled assistant entry when the local CLI is unavailable and a
+  single-request UI guard so slow local CLI calls cannot be duplicated by
+  repeated clicks.

@@ -188,7 +188,7 @@ function drawEditor(){
   $("#edit-status").value=item.status||"inbox";$("#edit-priority").value=String(item.priority||2);$("#edit-parent").value=item.parent_id==null?"":String(item.parent_id);
   $$(".editor-tab").forEach(tab=>tab.onclick=()=>{collectEditorIntoState();state.editorTab=tab.dataset.tab;drawEditor()});
   $("#edit-content").oninput=()=>{if(state.editorTab==="preview"){$("#content-preview").innerHTML=parseMarkdown($("#edit-content").value)}};
-  $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#assistant-content").onclick=openAssistant;
+  $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#assistant-content").onclick=openAssistant;$("#assistant-content").disabled=Boolean(state.assistant&&!state.assistant.available);if($("#assistant-content").disabled)$("#assistant-content").title="服务器尚未配置本地 Codex";
   $$("#editor input, #editor textarea, #editor select").forEach(field=>field.addEventListener("input",scheduleLocalDraft));
   if(draftAvailable){
     $("#restore-draft").onclick=()=>{Object.assign(state.selected,localDraft);clearLocalDraft(state.page,state.selected.id);drawEditor();$("#save-indicator").textContent="草稿已恢复，请保存内容"};
@@ -218,11 +218,12 @@ async function runAssistant(){
   if(!state.selected)return;
   collectEditorIntoState();
   const result=$("#assistant-result");
-  result.classList.remove("is-error");result.textContent="正在整理…";
+  const runButton=$("#assistant-run");runButton.disabled=true;runButton.textContent="整理中…";result.classList.remove("is-error");result.textContent="正在整理…";
   try{
     const data=await api("/api/assistant",{method:"POST",body:JSON.stringify({task:$("#assistant-task").value,title:state.selected.title,kind:state.page,content:state.selected.content})});
     state.assistantResult=data.result;result.textContent=data.result;$("#assistant-apply-summary").classList.remove("is-hidden");$("#assistant-apply-content").classList.remove("is-hidden");
   }catch(error){result.textContent=error.message;result.classList.add("is-error")}
+  finally{runButton.disabled=false;runButton.textContent="再次整理"}
 }
 function applyAssistantResult(target){
   if(!state.selected||!state.assistantResult)return;
