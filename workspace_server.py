@@ -21,6 +21,7 @@ import sqlite3
 import subprocess
 import time
 import uuid
+from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -667,6 +668,11 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             priority = 2
         due_date = str(data.get("due_date", "")).strip()[:10]
+        if due_date:
+            try:
+                date.fromisoformat(due_date)
+            except ValueError as exc:
+                raise ValueError("截止日期格式无效") from exc
         parent_id = data.get("parent_id")
         if parent_id in ("", None):
             parent_id = None

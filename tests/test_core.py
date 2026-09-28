@@ -32,6 +32,14 @@ class WorkspaceCoreTests(unittest.TestCase):
         finally:
             app.CODEX_BIN = previous
 
+    def test_item_rejects_invalid_due_date(self):
+        with self.assertRaises(ValueError):
+            app.WorkspaceHandler.normalized_item(None, {
+                "kind": "note",
+                "title": "date test",
+                "due_date": "2026-02-30",
+            })
+
 
 if __name__ == "__main__":
     unittest.main()

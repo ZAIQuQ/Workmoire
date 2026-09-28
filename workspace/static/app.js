@@ -79,7 +79,14 @@ $("#auth-form").addEventListener("submit",async event=>{
     $("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await loadAssistantStatus();await goPage("dashboard");
   }catch(error){$("#auth-error").textContent=error.message}
 });
+function editorHasChanges(){
+  if(!state.selected||!$("#edit-title"))return false;
+  const draft=collectEditor();
+  return ["title","summary","content","tags","status","priority","due_date"].some(key=>String(draft[key]??"")!==String(state.selected[key]??""));
+}
+function confirmEditorLeave(){return !editorHasChanges()||window.confirm("当前内容尚未保存，确定离开吗？")}
 async function goPage(page){
+  if(state.page!==page&&!confirmEditorLeave())return;
   state.page=page;state.selected=null;state.editorTab="write";
   $$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===page));
   $("#page-heading").textContent=page==="dashboard"?"总览":page==="files"?"文件空间":labels[page];
@@ -119,6 +126,7 @@ function defaultContent(kind){
   return {...templates[kind],kind};
 }
 function createItem(kind){
+  if(!confirmEditorLeave())return;
   state.page=kind;state.selected={id:null,...defaultContent(kind),...(readLocalDraft(kind)||{})};state.editorTab="write";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
 }
 function renderContentPage(){
@@ -133,7 +141,7 @@ function drawItemList(){
   const box=$("#item-list");
   if(!items.length){box.innerHTML='<div class="empty-state"><strong>这里还没有内容</strong><p>点击右上角，先创建第一条。</p></div>';return}
   box.innerHTML=items.map(item=>'<div class="content-item '+(state.selected&&String(state.selected.id)===String(item.id)?"is-selected":"")+'" data-id="'+item.id+'"><div class="content-item-title">'+esc(item.title||"未命名")+'</div><div class="content-item-summary">'+esc(item.summary||"暂无摘要")+'</div><div class="content-item-meta">'+priorityMarkup(item.priority||2)+'<span>'+relativeDate(item.updated_at)+'</span><span class="spacer"></span>'+statusPill(item.status)+'</div></div>').join("");
-  $$(".content-item").forEach(row=>row.onclick=()=>{state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.editorTab="write";drawItemList();drawEditor()});
+  $$(".content-item").forEach(row=>row.onclick=()=>{if(!confirmEditorLeave())return;state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.editorTab="write";drawItemList();drawEditor()});
 }
 function drawEditor(){
   const editor=$("#editor");
