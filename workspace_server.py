@@ -574,6 +574,47 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self.request_error(exc, "本地整理助手暂时不可用", 503)
             return
+        if path == "/api/import":
+            user = self.require_user()
+            if not user:
+                return
+            try:
+                data = parse_json(self)
+                if data.get("format") != "workmoire-export" or data.get("version") != 1:
+                    raise ValueError("不是受支持的 Workmoire 导出文件")
+                raw_items = data.get("items")
+                if not isinstance(raw_items, list) or len(raw_items) > 5000:
+                    raise ValueError("导出文件中的内容数量无效")
+                prepared = []
+                source_ids = set()
+                for index, raw_item in enumerate(raw_items, 1):
+                    if not isinstance(raw_item, dict):
+                        raise ValueError("第 %d 条内容格式无效" % index)
+                    source_id = raw_item.get("id")
+                    if source_id is None or str(source_id) in source_ids:
+                        raise ValueError("第 %d 条内容的 ID 无效或重复" % index)
+                    source_ids.add(str(source_id))
+                    prepared.append((source_id, self.normalized_item(raw_item)))
+                con = open_db()
+                con.execute("BEGIN IMMEDIATE")
+                id_map = {}
+                for source_id, item in prepared:
+                    cursor = con.execute(
+                        "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,parent_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                        (item["kind"], item["title"], item["summary"], item["content"], item["tags"], item["status"], item["priority"], item["due_date"], None, utc_now(), utc_now()),
+                    )
+                    id_map[str(source_id)] = cursor.lastrowid
+                for source_id, item in prepared:
+                    parent_id = item["parent_id"]
+                    if parent_id is not None and str(parent_id) in id_map:
+                        con.execute("UPDATE items SET parent_id=? WHERE id=?", (id_map[str(parent_id)], id_map[str(source_id)]))
+                    log_activity(con, "import", "item", id_map[str(source_id)], item["title"])
+                con.commit()
+                con.close()
+                self.json_response({"ok": True, "imported_items": len(prepared), "skipped_files": len(data.get("files", [])) if isinstance(data.get("files", []), list) else 0}, 201)
+            except Exception as exc:
+                self.request_error(exc)
+            return
         if path == "/api/items":
             user = self.require_user()
             if not user:

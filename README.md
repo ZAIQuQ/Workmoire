@@ -17,6 +17,7 @@ introducing a large runtime dependency stack.
 - Status, priority, due date, tags, and server-side search.
 - Private file storage with a 64 MB per-file limit.
 - One-click JSON export of notes, metadata, and activity history (without passwords).
+- Transactional JSON import that rebuilds item relationships without importing credentials or file binaries.
 - Signed, expiring login cookies and basic login rate limiting.
 - SQLite WAL mode and a small activity trail.
 - Optional local Codex整理助手，默认关闭，不上传内容到外部服务。

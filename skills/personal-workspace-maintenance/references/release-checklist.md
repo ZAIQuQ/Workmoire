@@ -8,6 +8,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - Confirm data/, databases, uploads, backups, logs, .env, SSH files, server addresses, and personal content are ignored or absent.
 - Run make compile and make test.
 - Run an HTTP smoke test for /healthz, /api/session, login/setup, content CRUD, and file upload when applicable.
+- When import/export changes, test a synthetic export with relationships and verify the import is transactional and excludes credentials and file binaries.
 - If `WORKSPACE_CODEX_BIN` is configured, run a synthetic assistant smoke test and verify the CLI version; never use a personal document as the fixture.
 - Update the README when the user-visible behavior or deployment contract changes.
 - Update the project skill and maintenance log when the workflow or an operational invariant changes.

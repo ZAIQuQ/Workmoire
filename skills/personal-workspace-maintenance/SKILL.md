@@ -16,6 +16,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 - Keep the service independent of other applications on the server. Discover a free port before changing it, preserve existing services, and verify the service health after every deployment.
 - Keep the project reproducible from a clean checkout. Prefer Python standard-library code and documented Docker/systemd paths unless a dependency has a clear user-facing benefit.
 - Keep the local Codex assistant disabled unless `WORKSPACE_CODEX_BIN` is explicitly configured on the private server. It may receive only the selected document through standard input, must run in ephemeral read-only mode, and must never expose arbitrary command execution or persist prompts and responses.
+- Treat imports as user-data migrations: accept only the versioned Workmoire export format, run them in one transaction, rebuild relationships through an ID map, and never import credentials or file binaries.
 
 ## Working workflow
 

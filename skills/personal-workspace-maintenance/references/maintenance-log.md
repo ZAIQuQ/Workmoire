@@ -25,3 +25,6 @@ changes belong in normal commit history.
 - Installed the optional Codex CLI as a user-local dependency on the server and
   verified Workmoire's assistant endpoint with synthetic input only; the path
   and CLI authentication remain private service configuration.
+- Added a transactional export/import boundary: JSON imports are versioned,
+  relationship-aware, and keep credentials and file binaries outside the
+  portable content format.
