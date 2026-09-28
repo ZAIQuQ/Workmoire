@@ -148,8 +148,10 @@ def init_db() -> None:
           stored_name TEXT NOT NULL UNIQUE,
           size INTEGER NOT NULL,
           content_type TEXT NOT NULL,
+          item_id INTEGER,
           deleted_at TEXT NOT NULL DEFAULT '',
-          created_at TEXT NOT NULL
+          created_at TEXT NOT NULL,
+          FOREIGN KEY(item_id) REFERENCES items(id) ON DELETE SET NULL
         );
         CREATE TABLE IF NOT EXISTS activity(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -175,6 +177,8 @@ def init_db() -> None:
         if name not in columns:
             con.execute("ALTER TABLE items ADD COLUMN %s %s" % (name, definition))
     file_columns = {row["name"] for row in con.execute("PRAGMA table_info(files)")}
+    if "item_id" not in file_columns:
+        con.execute("ALTER TABLE files ADD COLUMN item_id INTEGER")
     if "deleted_at" not in file_columns:
         con.execute("ALTER TABLE files ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''")
     con.commit()
@@ -430,7 +434,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 return
             con = open_db()
             items = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY id")]
-            files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,created_at FROM files WHERE deleted_at='' ORDER BY id")]
+            files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,item_id,created_at FROM files WHERE deleted_at='' ORDER BY id")]
             activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY id")]
             con.close()
             self.json_download(
@@ -464,7 +468,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 return
             con = open_db()
             items = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at!='' ORDER BY deleted_at DESC LIMIT 200")]
-            files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,created_at,deleted_at FROM files WHERE deleted_at!='' ORDER BY deleted_at DESC LIMIT 200")]
+            files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,item_id,created_at,deleted_at FROM files WHERE deleted_at!='' ORDER BY deleted_at DESC LIMIT 200")]
             con.close()
             self.json_response({"items": items, "files": files})
             return
@@ -516,8 +520,20 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         if path == "/api/files":
             if not self.require_user():
                 return
+            params = parse_qs(parsed.query)
+            raw_item_id = params.get("item_id", [""])[0]
+            clauses = ["f.deleted_at=''"]
+            values = []
+            if raw_item_id:
+                try:
+                    item_id = int(raw_item_id)
+                except ValueError:
+                    self.error("无效的内容 ID", 400)
+                    return
+                clauses.append("f.item_id=?")
+                values.append(item_id)
             con = open_db()
-            rows = con.execute("SELECT id,name,size,content_type,created_at FROM files WHERE deleted_at='' ORDER BY created_at DESC").fetchall()
+            rows = con.execute("SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s ORDER BY f.created_at DESC" % " AND ".join(clauses), values).fetchall()
             con.close()
             self.json_response({"files": [dict(row) for row in rows]})
             return
@@ -821,6 +837,13 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 field = form["file"] if "file" in form else None
                 if field is None or not getattr(field, "filename", None):
                     raise ValueError("没有选择文件")
+                raw_item_id = str(form.getfirst("item_id", "")).strip()
+                item_id = None
+                if raw_item_id:
+                    try:
+                        item_id = int(raw_item_id)
+                    except ValueError as exc:
+                        raise ValueError("关联内容 ID 无效") from exc
                 original = Path(field.filename).name[:200]
                 file_id = uuid.uuid4().hex
                 stored_name = file_id + Path(original).suffix.lower()
@@ -829,14 +852,18 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     while chunk := field.file.read(1024 * 1024):
                         stream.write(chunk)
                 con = open_db()
+                if item_id is not None and not con.execute("SELECT 1 FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone():
+                    con.close()
+                    target.unlink(missing_ok=True)
+                    raise ValueError("关联内容不存在")
                 con.execute(
-                    "INSERT INTO files(id,name,stored_name,size,content_type,created_at) VALUES(?,?,?,?,?,?)",
-                    (file_id, original, stored_name, target.stat().st_size, field.type or mimetypes.guess_type(original)[0] or "application/octet-stream", utc_now()),
+                    "INSERT INTO files(id,name,stored_name,size,content_type,item_id,created_at) VALUES(?,?,?,?,?,?,?)",
+                    (file_id, original, stored_name, target.stat().st_size, field.type or mimetypes.guess_type(original)[0] or "application/octet-stream", item_id, utc_now()),
                 )
                 log_activity(con, "upload", "file", file_id, original)
                 con.commit()
                 con.close()
-                self.json_response({"ok": True, "id": file_id}, 201)
+                self.json_response({"ok": True, "id": file_id, "item_id": item_id}, 201)
             except Exception as exc:
                 self.request_error(exc)
             return

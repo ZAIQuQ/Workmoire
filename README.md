@@ -22,7 +22,7 @@ introducing a large runtime dependency stack.
 - Trashed items stay out of search, active statistics, and item exports until restored.
 - Pin important papers, projects, or notes so they stay visible in lists and the dashboard.
 - Keep unsaved edits as browser-local drafts, with an explicit restore or ignore action.
-- Private file storage with a 64 MB per-file limit.
+- Private file storage with a 64 MB per-file limit and optional links from files to notes, projects, papers, or logs.
 - One-click JSON export of notes, metadata, and activity history (without passwords).
 - Transactional JSON import that rebuilds item relationships without importing credentials or file binaries.
 - Signed, expiring login cookies and basic login rate limiting.

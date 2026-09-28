@@ -65,6 +65,31 @@ class TrashHttpTests(unittest.TestCase):
         self.assertEqual(status, expected)
         return json.loads(raw.decode("utf-8"))
 
+    def upload_file(self, item_id, name="linked.txt", payload=b"linked file"):
+        boundary = "----workmoire-test-boundary"
+        body = (
+            ("--%s\r\n" % boundary).encode()
+            + b'Content-Disposition: form-data; name="item_id"\r\n\r\n'
+            + str(item_id).encode()
+            + b"\r\n"
+            + ("--%s\r\n" % boundary).encode()
+            + ('Content-Disposition: form-data; name="file"; filename="%s"\r\n' % name).encode()
+            + b"Content-Type: text/plain\r\n\r\n"
+            + payload
+            + b"\r\n--"
+            + boundary.encode()
+            + b"--\r\n"
+        )
+        request = urllib.request.Request(
+            self.base + "/api/files",
+            data=body,
+            headers={"Content-Type": "multipart/form-data; boundary=" + boundary},
+            method="POST",
+        )
+        response = self.opener.open(request, timeout=3)
+        self.assertEqual(response.status, 201)
+        return json.loads(response.read().decode("utf-8"))
+
     def test_z_dashboard_splits_overdue_and_upcoming_open_items(self):
         yesterday = (date.today() - timedelta(days=1)).isoformat()
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
@@ -106,6 +131,12 @@ class TrashHttpTests(unittest.TestCase):
             {"kind": "note", "title": "Child", "parent_id": parent["id"]},
             expected=201,
         )["item"]
+        linked = self.upload_file(parent["id"])
+        self.assertEqual(linked["item_id"], parent["id"])
+        linked_files = self.request("/api/files?item_id=%d" % parent["id"])["files"]
+        self.assertEqual([file["id"] for file in linked_files], [linked["id"]])
+        self.request("/api/files/%s" % linked["id"], "DELETE")
+        self.request("/api/trash/files/%s" % linked["id"], "DELETE")
 
         self.request("/api/items/%d" % parent["id"], "DELETE")
         active = self.request("/api/items?limit=20")["items"]
