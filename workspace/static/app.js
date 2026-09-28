@@ -1,7 +1,7 @@
-const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",trash:"回收站"};
-const icons={note:"▤",project:"◈",paper:"▧",log:"◷",trash:"♲"};
+const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",review:"今日复盘",trash:"回收站"};
+const icons={note:"▤",project:"◈",paper:"▧",log:"◷",review:"✦",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",listTag:"",listSort:"updated",fileSearch:"",fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null};
+const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,reviewData:null,editorTab:"write",listTag:"",listSort:"updated",fileSearch:"",fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null};
 const captureDraftKey="workmoire:capture-draft";
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
@@ -171,6 +171,7 @@ async function goPage(page){
   $$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===page));
   $("#page-heading").textContent=page==="dashboard"?"总览":page==="files"?"文件空间":labels[page];
   if(page==="dashboard"){await loadStats();renderDashboard()}
+  else if(page==="review"){await renderReview()}
   else if(page==="files"){await renderFiles()}
   else if(page==="trash"){await renderTrash()}
   else{await loadItems();renderContentPage()}
@@ -192,18 +193,56 @@ function renderDashboard(){
   const recent=stats.recent||[];
   const inbox=stats.inbox||[],pinned=stats.pinned||[],upcoming=stats.upcoming||[],overdue=stats.overdue||[],activity=stats.activity||[];
   const dueItems=overdue.map(item=>({...item,overdue:true})).concat(upcoming);
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>总览</h1><p>把今天的想法放下来，再慢慢把它们组织成自己的系统。</p></div><div class="page-title-actions"><button class="button button-secondary" id="quick-log">记录今天</button><button class="button button-primary" id="quick-note">新建内容</button></div></div>'+
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>总览</h1><p>把今天的想法放下来，再慢慢把它们组织成自己的系统。</p></div><div class="page-title-actions"><button class="button button-secondary" id="quick-review">今日复盘</button><button class="button button-secondary" id="quick-log">记录今天</button><button class="button button-primary" id="quick-note">新建内容</button></div></div>'+
   '<div class="stats-grid"><div class="stat-card"><span class="stat-icon">◒</span><b>'+total+'</b><span>全部内容 <em>持续积累</em></span></div><div class="stat-card"><span class="stat-icon">▧</span><b>'+count("paper")+'</b><span>论文大纲</span></div><div class="stat-card"><span class="stat-icon">◈</span><b>'+count("project")+'</b><span>项目空间</span></div><div class="stat-card"><span class="stat-icon">◷</span><b>'+count("log")+'</b><span>工作日志</span></div></div>'+
   '<div class="section-label">工作流</div><div class="dashboard-columns"><section class="surface"><div class="surface-head"><h2>最近编辑</h2><a id="view-all">查看全部</a></div><div class="recent-list">'+(recent.length?recent.map(item=>'<div class="recent-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+" · "+relativeDate(item.updated_at)+'</div></div>'+statusPill(item.status)+'</div>').join(""):'<div class="empty-state"><strong>还没有内容</strong><p>从一条知识卡片开始，给自己的思考留个位置。</p></div>')+'</div></section>'+
   '<section class="surface"><div class="surface-head"><h2>快速开始</h2></div><div class="quick-actions"><button class="quick-button" data-create-kind="note">'+kindMark("note")+'<span><strong>捕捉一个想法</strong><small>把还没成形的念头先记下来</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="paper">'+kindMark("paper")+'<span><strong>搭一份论文大纲</strong><small>从问题、方法和实验开始</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="project">'+kindMark("project")+'<span><strong>拆解一个项目</strong><small>明确目标、下一步和截止日期</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="log">'+kindMark("log")+'<span><strong>写今天的工作日志</strong><small>留下过程，也留下进展</small></span><span class="quick-plus">＋</span></button></div></section></div>'+
   '<div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>置顶内容</h2></div><div class="pinned-list">'+(pinned.length?pinned.map(item=>'<div class="pinned-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+relativeDate(item.updated_at)+'</div></div><span class="pin-mark">★</span></div>').join(""):'<div class="empty-state"><strong>还没有置顶内容</strong><p>把正在推进的项目或重要知识置顶，它们会一直出现在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>下一步期限</h2></div><div class="due-list">'+(dueItems.length?dueItems.map(dueItemMarkup).join(""):'<div class="empty-state"><strong>暂时没有待处理的截止日期</strong><p>在项目或论文中加上日期，下一步会出现在这里。</p></div>')+'</div></section></div><div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>待整理</h2><span class="surface-count">'+inbox.length+'</span></div><div class="inbox-list">'+(inbox.length?inbox.map(inboxItemMarkup).join(""):'<div class="empty-state"><strong>待整理箱是空的</strong><p>捕捉到的想法会先停在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>最近活动</h2></div><div class="activity-list">'+(activity.length?activity.map(entry=>'<div class="activity-item '+(entry.target_type==="item"||entry.target_type==="file"?"is-clickable":"")+'" data-target-type="'+esc(entry.target_type||"")+'" data-target-id="'+esc(entry.target_id||"")+'" title="'+(entry.target_type==="item"||entry.target_type==="file"?"打开关联内容":"")+'"><span class="activity-dot"></span><div><div class="recent-title">'+esc(entry.label)+'</div><div class="recent-meta">'+esc(formatDate(entry.created_at,true))+'</div></div></div>').join(""):'<div class="empty-state"><strong>还没有活动</strong><p>保存第一条内容后，这里会留下轨迹。</p></div>')+'</div></section></div>';
-  $("#quick-note").onclick=openCapture;$("#quick-log").onclick=openTodayLog;
+  $("#quick-note").onclick=openCapture;$("#quick-log").onclick=openTodayLog;$("#quick-review").onclick=()=>goPage("review");
   $("#view-all").onclick=()=>goPage("note");
   $$(".quick-button").forEach(button=>button.onclick=()=>button.dataset.createKind==="note"?openCapture():button.dataset.createKind==="log"?openTodayLog():createItem(button.dataset.createKind));
   $$(".recent-item,.due-item,.pinned-item,.inbox-item").forEach(row=>row.onclick=async()=>{if(!await goPage(row.dataset.kind))return;state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
   $$(".inbox-start").forEach(button=>button.onclick=promoteInboxItem);
   $$(".due-complete").forEach(button=>button.onclick=completeDueItem);
   $$(".activity-item.is-clickable").forEach(row=>row.onclick=openActivity);
+}
+function reviewItemMarkup(item){
+  const start=item.status==="inbox"?'<button class="review-promote" data-review-id="'+item.id+'" type="button">开始整理</button>':'';
+  return '<div class="review-row" data-review-id="'+item.id+'" data-review-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title||"未命名")+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+(item.due_date?esc(formatDueDate(item.due_date)):esc(relativeDate(item.updated_at)))+'</div></div>'+priorityMarkup(item.priority||2)+'<div class="review-row-actions"><button class="review-open" data-review-id="'+item.id+'" type="button">打开</button>'+start+'<button class="review-done" data-review-id="'+item.id+'" type="button">完成</button></div></div>';
+}
+function reviewItemById(itemId){
+  const groups=state.reviewData||{};
+  return ["inbox","overdue","today","stale"].flatMap(key=>groups[key]||[]).find(item=>String(item.id)===String(itemId));
+}
+async function openReviewItem(event){
+  event.stopPropagation();
+  const itemId=event.currentTarget.dataset.reviewId;
+  try{
+    const result=await api("/api/items/"+encodeURIComponent(itemId));
+    if(!await goPage(result.item.kind))return;
+    state.selected=state.items.find(item=>String(item.id)===String(itemId))||result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
+  }catch(error){window.alert(error.message)}
+}
+async function updateReviewStatus(event,status){
+  event.stopPropagation();
+  const button=event.currentTarget,item=reviewItemById(button.dataset.reviewId);
+  if(!item)return;
+  button.disabled=true;button.textContent="更新中…";
+  try{
+    await api("/api/items/"+item.id,{method:"PUT",body:JSON.stringify({kind:item.kind,title:item.title,summary:item.summary,content:item.content,tags:item.tags,status,priority:item.priority,due_date:item.due_date,parent_id:item.parent_id,pinned:Boolean(item.pinned)})});
+    await renderReview();
+  }catch(error){button.disabled=false;button.textContent=status==="done"?"完成":"开始整理";window.alert(error.message)}
+}
+async function renderReview(){
+  state.reviewData=await api("/api/review");
+  const data=state.reviewData,total=["inbox","overdue","today","stale"].reduce((sum,key)=>sum+(data[key]||[]).length,0);
+  const section=(key,title,hint,empty)=>'<section class="surface review-section"><div class="surface-head"><div><h2>'+title+'</h2><p class="review-hint">'+hint+'</p></div><span class="surface-count">'+(data[key]||[]).length+'</span></div><div class="review-list">'+((data[key]||[]).length?(data[key]||[]).map(reviewItemMarkup).join(""):'<div class="empty-state review-empty"><strong>'+empty+'</strong></div>')+'</div></section>';
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>今日复盘</h1><p>先处理最需要你注意的内容，再回到深度工作。</p></div><div class="page-title-actions"><button id="review-refresh" class="button button-secondary">刷新队列</button></div></div><div class="review-summary"><div><span class="review-summary-label">今天建议处理</span><strong>'+total+'</strong><span>项</span></div><p>完成或开始整理后，队列会自动更新。</p></div><div class="review-grid">'+section("overdue","已逾期","先处理已经错过日期的事项。","没有逾期内容")+section("today","今天到期","今天需要给出明确结果的内容。","今天没有到期内容")+section("inbox","待整理","把捕捉到的碎片变成下一步。","待整理箱是空的")+section("stale","很久没更新","超过 7 天没有推进、且没有截止日期的进行中内容。","没有长期停滞内容")+'</div>';
+  $("#review-refresh").onclick=renderReview;
+  $$(".review-open").forEach(button=>button.onclick=openReviewItem);
+  $$(".review-done").forEach(button=>button.onclick=event=>updateReviewStatus(event,"done"));
+  $$(".review-promote").forEach(button=>button.onclick=event=>updateReviewStatus(event,"active"));
+  $$(".review-row").forEach(row=>row.onclick=openReviewItem);
 }
 async function openActivity(event){
   const row=event.currentTarget,type=row.dataset.targetType,id=row.dataset.targetId;

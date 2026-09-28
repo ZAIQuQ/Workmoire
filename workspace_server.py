@@ -499,6 +499,34 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             con.close()
             self.json_response({"counts": counts, "status_counts": status_counts, "inbox": inbox, "recent": recent, "pinned": pinned, "overdue": overdue, "upcoming": upcoming, "activity": activity, "file_bytes": file_bytes, "trash_counts": trash_counts})
             return
+        if path == "/api/review":
+            if not self.require_user():
+                return
+            today = date.today().isoformat()
+            cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 7 * 86400))
+            con = open_db()
+            inbox = [as_item(row) for row in con.execute(
+                "SELECT * FROM items WHERE deleted_at='' AND status='inbox' "
+                "ORDER BY pinned DESC, priority DESC, updated_at DESC LIMIT 12"
+            )]
+            overdue = [as_item(row) for row in con.execute(
+                "SELECT * FROM items WHERE deleted_at='' AND status!='inbox' AND status!='done' "
+                "AND due_date != '' AND due_date < ? ORDER BY due_date ASC, priority DESC, updated_at DESC LIMIT 12",
+                (today,),
+            )]
+            today_items = [as_item(row) for row in con.execute(
+                "SELECT * FROM items WHERE deleted_at='' AND status!='inbox' AND status!='done' "
+                "AND due_date = ? ORDER BY priority DESC, updated_at DESC LIMIT 12",
+                (today,),
+            )]
+            stale = [as_item(row) for row in con.execute(
+                "SELECT * FROM items WHERE deleted_at='' AND status='active' AND due_date='' "
+                "AND updated_at < ? ORDER BY updated_at ASC LIMIT 12",
+                (cutoff,),
+            )]
+            con.close()
+            self.json_response({"generated_at": utc_now(), "inbox": inbox, "overdue": overdue, "today": today_items, "stale": stale})
+            return
         if path == "/api/trash":
             if not self.require_user():
                 return
