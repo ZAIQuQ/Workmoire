@@ -166,7 +166,7 @@ function editorHasChanges(){
 }
 function confirmEditorLeave(){return !editorHasChanges()||window.confirm("当前内容尚未保存，确定离开吗？")}
 async function goPage(page){
-  if(state.page!==page&&!confirmEditorLeave())return false;
+  if(!confirmEditorLeave())return false;
   state.page=page;state.selected=null;state.savedSnapshot=null;state.listTag="";state.listSort="updated";state.editorTab="write";state.focusMode=false;document.body.classList.remove("editor-focus-mode");
   $$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===page));
   $("#page-heading").textContent=page==="dashboard"?"总览":page==="files"?"文件空间":labels[page];
@@ -283,6 +283,42 @@ function drawTagFilter(){
   box.innerHTML=tags.length?'<button class="tag-chip '+(!state.listTag?"is-active":"")+'" data-tag="">全部</button>'+tags.map(tag=>'<button class="tag-chip '+(state.listTag===tag?"is-active":"")+'" data-tag="'+esc(tag)+'">'+esc(tag)+' <small>'+counts[tag]+'</small></button>').join(""):'';
   $$(".tag-chip").forEach(button=>button.onclick=()=>{state.listTag=button.dataset.tag;drawItemList()});
 }
+function relatedTargetOptions(item){
+  const excluded=new Set([String(item.id)]);
+  return (state.allItems.length?state.allItems:state.items).filter(candidate=>!excluded.has(String(candidate.id))).map(candidate=>'<option value="'+candidate.id+'">'+esc((labels[candidate.kind]||"内容")+" · "+(candidate.title||"未命名"))+'</option>').join("");
+}
+async function renderRelatedItems(itemId){
+  const list=$("#related-list");
+  if(!list)return;
+  try{
+    const result=await api("/api/items/"+encodeURIComponent(itemId)+"/links");
+    if(!state.selected||String(state.selected.id)!==String(itemId)||$("#related-list")!==list)return;
+    const items=result.items||[];
+    const linkedIds=new Set(items.map(item=>String(item.id)));
+    $$("#related-target option").forEach(option=>{option.disabled=linkedIds.has(option.value)});
+    list.innerHTML=items.length?items.map(item=>'<div class="related-row"><button class="related-link" data-related-id="'+item.id+'" data-related-kind="'+item.kind+'">'+kindMark(item.kind)+'<span>'+esc(item.title||"未命名")+'</span></button><button class="related-remove" data-related-id="'+item.id+'" title="解除关联" aria-label="解除与 '+esc(item.title||"未命名")+' 的关联">×</button></div>').join(""):'<span class="related-empty">还没有横向关联</span>';
+    $$("#related-list .related-remove").forEach(button=>button.onclick=async event=>{event.stopPropagation();button.disabled=true;try{await api("/api/items/"+encodeURIComponent(itemId)+"/links/"+encodeURIComponent(button.dataset.relatedId),{method:"DELETE"});await renderRelatedItems(itemId)}catch(error){button.disabled=false;window.alert(error.message)}});
+    $$("#related-list .related-link").forEach(link=>link.onclick=async()=>{
+      try{
+        const result=await api("/api/items/"+encodeURIComponent(link.dataset.relatedId));
+        if(!await goPage(result.item.kind))return;
+        state.selected={...result.item};state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
+      }catch(error){window.alert(error.message)}
+    });
+  }catch(error){if($("#related-list")===list)list.innerHTML='<span class="related-empty">关联列表暂时不可用</span>'}
+}
+async function addRelatedItem(){
+  const select=$("#related-target"),button=$("#add-related");
+  if(!select||!button||!select.value||!state.selected?.id)return;
+  const itemId=state.selected.id;
+  button.disabled=true;
+  try{
+    await api("/api/items/"+encodeURIComponent(itemId)+"/links",{method:"POST",body:JSON.stringify({target_id:Number(select.value)})});
+    select.value="";
+    if(state.selected?.id===itemId&&$("#related-target")===select)await renderRelatedItems(itemId);
+  }catch(error){window.alert(error.message)}
+  finally{if($("#add-related")===button)button.disabled=false}
+}
 function drawEditor(){
   const editor=$("#editor");
   if(!state.selected){editor.innerHTML='<div class="editor-empty"><div><div class="empty-icon">✎</div><strong>选择一条内容开始整理</strong><p>也可以点击右上角新建一条。</p></div></div>';return}
@@ -293,20 +329,22 @@ function drawEditor(){
   const parentOptions=(state.allItems.length?state.allItems:state.items).filter(candidate=>String(candidate.id)!==String(item.id)).map(candidate=>'<option value="'+candidate.id+'">'+esc((labels[candidate.kind]||"内容")+" · "+(candidate.title||"未命名"))+'</option>').join("");
   const parentItem=item.parent_id!=null?state.allItems.find(candidate=>String(candidate.id)===String(item.parent_id)):null;
   const childItems=item.id?state.allItems.filter(candidate=>String(candidate.parent_id)===String(item.id)):[];
-  const relationMarkup=(parentItem||childItems.length)?'<section class="relation-panel"><div class="relation-heading">关联内容</div>'+(parentItem?'<div class="relation-group"><span class="relation-label">上级</span><button class="related-link" data-related-id="'+parentItem.id+'" data-related-kind="'+parentItem.kind+'">'+kindMark(parentItem.kind)+'<span>'+esc(parentItem.title)+'</span></button></div>':'')+(childItems.length?'<div class="relation-group"><span class="relation-label">下级</span><div class="relation-children">'+childItems.map(child=>'<button class="related-link" data-related-id="'+child.id+'" data-related-kind="'+child.kind+'">'+kindMark(child.kind)+'<span>'+esc(child.title)+'</span></button>').join('')+'</div></div>':'')+'</section>':'';
+  const hierarchyMarkup=(parentItem||childItems.length)?'<section class="relation-panel"><div class="relation-heading">层级关系</div>'+(parentItem?'<div class="relation-group"><span class="relation-label">上级</span><button class="related-link" data-related-id="'+parentItem.id+'" data-related-kind="'+parentItem.kind+'">'+kindMark(parentItem.kind)+'<span>'+esc(parentItem.title)+'</span></button></div>':'')+(childItems.length?'<div class="relation-group"><span class="relation-label">下级</span><div class="relation-children">'+childItems.map(child=>'<button class="related-link" data-related-id="'+child.id+'" data-related-kind="'+child.kind+'">'+kindMark(child.kind)+'<span>'+esc(child.title)+'</span></button>').join('')+'</div></div>':'')+'</section>':'';
+  const relatedMarkup=item.id?'<section class="relation-panel related-content-panel"><div class="relation-heading">横向关联 · 更改即时保存</div><div id="related-list" class="related-list"><span class="related-empty">加载中…</span></div><div class="related-add"><select id="related-target" class="control-input" aria-label="要关联的内容"><option value="">选择要关联的内容…</option>'+relatedTargetOptions(item)+'</select><button id="add-related" class="button button-secondary" type="button">关联</button></div></section>':'';
+  const relationMarkup=hierarchyMarkup+relatedMarkup;
   const attachmentMarkup=item.id?'<section class="attachment-panel"><div class="attachment-head"><div><strong>关联文件</strong><small>只显示属于这条内容的附件</small></div><label class="button button-secondary attachment-upload">上传文件<input id="item-file-input" class="file-input" type="file"></label></div><div id="item-file-list" class="item-file-list"></div></section>':'<section class="attachment-panel attachment-empty"><strong>关联文件</strong><span>保存内容后可以上传论文、数据或项目资料。</span></section>';
   editor.innerHTML=draftNotice+'<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><textarea id="edit-content" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label><label class="form-field"><span>上级内容</span><select id="edit-parent"><option value="">无上级内容</option>'+parentOptions+'</select></label><label class="form-check"><input id="edit-pinned" type="checkbox" '+(item.pinned?"checked":"")+'><span>置顶内容</span></label></div></div>'+relationMarkup+attachmentMarkup+'<div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span>'+'<button id="focus-mode" class="button button-secondary">'+(state.focusMode?"退出专注":"专注模式")+'</button>'+(item.id?'<button id="duplicate-content" class="button button-secondary">另存副本</button>':"")+'<button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
   $("#edit-status").value=item.status||"inbox";$("#edit-priority").value=String(item.priority||2);$("#edit-parent").value=item.parent_id==null?"":String(item.parent_id);
   $$(".editor-tab").forEach(tab=>tab.onclick=()=>{collectEditorIntoState();state.editorTab=tab.dataset.tab;drawEditor()});
   $("#edit-content").oninput=()=>{if(state.editorTab==="preview"){$("#content-preview").innerHTML=parseMarkdown($("#edit-content").value)}};
-  $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#focus-mode").onclick=toggleFocusMode;if($("#duplicate-content"))$("#duplicate-content").onclick=duplicateItem;$("#assistant-content").onclick=openAssistant;$("#assistant-content").disabled=!state.assistant?.available;if($("#assistant-content").disabled)$("#assistant-content").title="服务器尚未配置本地 Codex";
+  $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#focus-mode").onclick=toggleFocusMode;if($("#duplicate-content"))$("#duplicate-content").onclick=duplicateItem;$("#assistant-content").onclick=openAssistant;$("#assistant-content").disabled=!state.assistant?.available;if($("#assistant-content").disabled)$("#assistant-content").title="服务器尚未配置本地 Codex";if($("#add-related"))$("#add-related").onclick=addRelatedItem;
   $$("#editor input, #editor textarea, #editor select").forEach(field=>field.addEventListener("input",scheduleLocalDraft));
   if(draftAvailable){
     $("#restore-draft").onclick=()=>{Object.assign(state.selected,localDraft);clearLocalDraft(state.page,state.selected.id);drawEditor();$("#save-indicator").textContent="草稿已恢复，请保存内容"};
     $("#dismiss-draft").onclick=()=>{clearLocalDraft(state.page,state.selected.id);drawEditor()};
   }
   $$(".related-link").forEach(link=>link.onclick=async()=>{if(!await goPage(link.dataset.relatedKind))return;state.selected=state.items.find(candidate=>String(candidate.id)===link.dataset.relatedId);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
-  if(item.id)renderItemFiles(item.id);
+  if(item.id){renderItemFiles(item.id);renderRelatedItems(item.id)}
   $("#edit-title").focus();
 }
 function collectEditor(){

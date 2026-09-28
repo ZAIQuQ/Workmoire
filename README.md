@@ -24,6 +24,7 @@ introducing a large runtime dependency stack.
 - Global search covers content and uploaded files, including a file's associated content title.
 - Hierarchical relationships between related notes, projects, papers, and logs.
 - Clickable parent and child links make those relationships navigable from the editor.
+- Add reversible many-to-many links between any active notes, projects, papers, and logs to connect ideas across the hierarchy.
 - Filter and sort each content space by tags, priority, deadlines, or title without leaving the current workspace.
 - Recoverable deletion with a private trash area for content and uploaded files.
 - Trashed items stay out of search, active statistics, and item exports until restored.
@@ -31,8 +32,8 @@ introducing a large runtime dependency stack.
 - Keep unsaved edits as browser-local drafts, with an explicit restore or ignore action.
 - Private file storage with a 64 MB per-file limit and optional links from files to notes, projects, papers, or logs.
 - Search the file space by filename or the title of its associated note, project, paper, or log.
-- One-click JSON export of notes, metadata, and activity history (without passwords).
-- Transactional JSON import that rebuilds item relationships without importing credentials or file binaries.
+- One-click JSON export of notes, metadata, activity history, and cross-links (without passwords).
+- Transactional JSON import that rebuilds hierarchy and cross-links without importing credentials or file binaries.
 - Signed, expiring login cookies and basic login rate limiting.
 - SQLite WAL mode and a small activity trail.
 - Optional local Codex整理助手，默认关闭，不上传内容到外部服务。

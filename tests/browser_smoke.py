@@ -33,7 +33,10 @@ def main():
                 page = browser.new_page(viewport={"width": 1440, "height": 1000})
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
-                page.on("dialog", lambda dialog: dialog.accept())
+                def accept_dialog(dialog):
+                    dialog.accept()
+
+                page.on("dialog", accept_dialog)
                 page.goto("http://127.0.0.1:%d" % server.server_port)
                 page.locator("#auth-username").fill("browser-tester")
                 page.locator("#auth-password").fill("synthetic-browser-password")
@@ -54,6 +57,39 @@ def main():
                 expect(page.locator("#edit-content")).to_have_value("A recoverable thought.\n\nSynthetic assistant output")
                 page.locator("#save-content").click()
                 expect(page.locator("#save-indicator")).to_contain_text("已保存")
+                # Create a synthetic project to exercise links across spaces.
+                response = page.context.request.post(
+                    "http://127.0.0.1:%d/api/items" % server.server_port,
+                    data={"kind": "project", "title": "Synthetic linked project"},
+                )
+                assert response.status == 201
+                project_id = response.json()["item"]["id"]
+                page.locator('[data-page="note"]').click()
+                page.locator(".content-item").click()
+                page.locator("#related-target").select_option(str(project_id))
+                page.locator("#add-related").click()
+                expect(page.locator("#related-list")).to_contain_text("Synthetic linked project")
+                page.locator("#related-list .related-link").click()
+                expect(page.locator("#edit-title")).to_have_value("Synthetic linked project")
+                expect(page.locator("#related-list")).to_contain_text("Synthetic browser note")
+                page.locator("#related-list .related-link").click()
+                expect(page.locator("#edit-title")).to_have_value("Synthetic browser note")
+
+                # Same-space navigation must respect unsaved edits.
+                page.remove_listener("dialog", accept_dialog)
+                def dismiss_dialog(dialog):
+                    dialog.dismiss()
+
+                page.on("dialog", dismiss_dialog)
+                page.locator("#edit-summary").fill("Unsaved synthetic summary")
+                page.locator('[data-page="note"]').click()
+                expect(page.locator("#edit-summary")).to_have_value("Unsaved synthetic summary")
+                page.remove_listener("dialog", dismiss_dialog)
+                page.on("dialog", accept_dialog)
+                page.locator("#save-content").click()
+                expect(page.locator("#save-indicator")).to_contain_text("已保存")
+                page.locator("#related-list .related-remove").click()
+                expect(page.locator("#related-list .related-link")).to_have_count(0)
                 page.locator("#delete-content").click()
                 expect(page.locator(".content-item")).to_have_count(0)
                 page.locator('[data-page="trash"]').click()
@@ -62,7 +98,7 @@ def main():
                 expect(page.locator(".restore-item")).to_have_count(0)
                 page.locator('[data-page="note"]').click()
                 page.locator(".content-item").click()
-                expect(page.locator("#edit-content")).to_have_value("A recoverable thought.")
+                expect(page.locator("#edit-content")).to_have_value("A recoverable thought.\n\nSynthetic assistant output")
                 page.locator('[data-page="files"]').click()
                 page.locator("#file-input").set_input_files({
                     "name": "synthetic.txt", "mimeType": "text/plain", "buffer": b"file payload",

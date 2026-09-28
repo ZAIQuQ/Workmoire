@@ -144,6 +144,33 @@ class TrashHttpTests(unittest.TestCase):
             {"kind": "note", "title": "Child", "parent_id": parent["id"]},
             expected=201,
         )["item"]
+        linked_items = self.request(
+            "/api/items/%d/links" % parent["id"],
+            "POST",
+            {"target_id": child["id"]},
+            expected=201,
+        )["items"]
+        self.assertEqual([item["id"] for item in linked_items], [child["id"]])
+        self.request(
+            "/api/items/%d/links" % parent["id"],
+            "POST",
+            {"target_id": parent["id"]},
+            expected=400,
+        )
+        self.request(
+            "/api/items/%d/links" % parent["id"],
+            "POST",
+            {"target_id": 999999},
+            expected=404,
+        )
+        self.assertEqual(
+            [item["id"] for item in self.request("/api/items/%d/links" % child["id"])["items"]],
+            [parent["id"]],
+        )
+        self.assertEqual(
+            [item["id"] for item in self.request("/api/items/%d/links" % parent["id"], "POST", {"target_id": child["id"]})["items"]],
+            [child["id"]],
+        )
         linked = self.upload_file(parent["id"])
         self.assertEqual(linked["item_id"], parent["id"])
         linked_files = self.request("/api/files?item_id=%d" % parent["id"])["files"]
@@ -160,6 +187,7 @@ class TrashHttpTests(unittest.TestCase):
         active = self.request("/api/items?limit=20")["items"]
         self.assertEqual([item["id"] for item in active], [child["id"]])
         self.assertIsNone(active[0]["parent_id"])
+        self.assertEqual(self.request("/api/items/%d/links" % child["id"])["items"], [])
         trash = self.request("/api/trash")
         self.assertEqual([item["id"] for item in trash["items"]], [parent["id"]])
         self.assertEqual([item["id"] for item in self.request("/api/export")["items"]], [child["id"]])
@@ -188,6 +216,12 @@ class TrashHttpTests(unittest.TestCase):
 
         restored = self.request("/api/trash/items/%d/restore" % parent["id"], "POST")["item"]
         self.assertEqual(restored["title"], "Parent")
+        self.assertEqual(
+            [item["id"] for item in self.request("/api/items/%d/links" % parent["id"])["items"]],
+            [child["id"]],
+        )
+        self.request("/api/items/%d/links/%d" % (parent["id"], child["id"]), "DELETE")
+        self.assertEqual(self.request("/api/items/%d/links" % parent["id"])["items"], [])
         self.request("/api/items/%d" % parent["id"], "DELETE")
         self.request("/api/trash/items/%d" % parent["id"], "DELETE")
         self.request("/api/items/%d" % parent["id"], expected=404)
@@ -223,10 +257,12 @@ class TrashMigrationTests(unittest.TestCase):
                     item_columns = {row[1] for row in db.execute("PRAGMA table_info(items)")}
                     file_columns = {row[1] for row in db.execute("PRAGMA table_info(files)")}
                     user_columns = {row[1] for row in db.execute("PRAGMA table_info(users)")}
+                    link_tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
                 self.assertIn("deleted_at", item_columns)
                 self.assertIn("pinned", item_columns)
                 self.assertIn("deleted_at", file_columns)
                 self.assertIn("session_version", user_columns)
+                self.assertIn("item_links", link_tables)
             finally:
                 app.DATA_DIR, app.FILES_DIR, app.DB_PATH = saved
 

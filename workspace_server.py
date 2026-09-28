@@ -21,6 +21,7 @@ import sqlite3
 import subprocess
 import time
 import uuid
+from contextlib import closing
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
@@ -90,6 +91,8 @@ ACTIVITY_LABELS = {
     "purge_file": "永久删除文件",
     "pin": "置顶内容",
     "unpin": "取消置顶",
+    "link": "关联内容",
+    "unlink": "解除内容关联",
 }
 LOGIN_FAILURES: dict[str, list[float]] = {}
 ASSISTANT_TASKS = {
@@ -160,6 +163,15 @@ def init_db() -> None:
           target_id TEXT,
           label TEXT NOT NULL,
           created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS item_links(
+          source_id INTEGER NOT NULL,
+          target_id INTEGER NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY(source_id, target_id),
+          CHECK(source_id < target_id),
+          FOREIGN KEY(source_id) REFERENCES items(id) ON DELETE CASCADE,
+          FOREIGN KEY(target_id) REFERENCES items(id) ON DELETE CASCADE
         );
         """
     )
@@ -320,6 +332,25 @@ def log_activity(con: sqlite3.Connection, action: str, target_type: str, target_
     )
 
 
+def canonical_link(source_id: int, target_id: int) -> tuple[int, int]:
+    if source_id == target_id:
+        raise ValueError("内容不能关联自身")
+    return (source_id, target_id) if source_id < target_id else (target_id, source_id)
+
+
+def linked_items(con: sqlite3.Connection, item_id: int) -> list[dict]:
+    rows = con.execute(
+        """
+        SELECT i.* FROM item_links l
+        JOIN items i ON i.id = CASE WHEN l.source_id=? THEN l.target_id ELSE l.source_id END
+        WHERE (l.source_id=? OR l.target_id=?) AND i.deleted_at=''
+        ORDER BY i.pinned DESC, i.updated_at DESC
+        """,
+        (item_id, item_id, item_id),
+    ).fetchall()
+    return [as_item(row) for row in rows]
+
+
 def parse_json(handler: BaseHTTPRequestHandler) -> dict:
     length = int(handler.headers.get("Content-Length", "0"))
     if length > MAX_JSON:
@@ -436,9 +467,14 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             items = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY id")]
             files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,item_id,created_at FROM files WHERE deleted_at='' ORDER BY id")]
             activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY id")]
+            links = [dict(row) for row in con.execute(
+                "SELECT l.source_id,l.target_id FROM item_links l "
+                "JOIN items a ON a.id=l.source_id JOIN items b ON b.id=l.target_id "
+                "WHERE a.deleted_at='' AND b.deleted_at='' ORDER BY l.source_id,l.target_id"
+            )]
             con.close()
             self.json_download(
-                {"format": "workmoire-export", "version": 1, "exported_at": utc_now(), "items": items, "files": files, "activity": activity},
+                {"format": "workmoire-export", "version": 1, "exported_at": utc_now(), "items": items, "links": links, "files": files, "activity": activity},
                 "workmoire-export.json",
             )
             return
@@ -526,6 +562,24 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             rows = con.execute("SELECT * FROM items%s ORDER BY pinned DESC, updated_at DESC LIMIT ?" % where, values + [limit]).fetchall()
             con.close()
             self.json_response({"items": [as_item(row) for row in rows]})
+            return
+        if path.startswith("/api/items/") and path.endswith("/links"):
+            if not self.require_user():
+                return
+            try:
+                item_id = int(path.split("/")[3])
+            except (IndexError, ValueError):
+                self.error("无效的内容 ID", 400)
+                return
+            con = open_db()
+            exists = con.execute("SELECT 1 FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
+            if not exists:
+                con.close()
+                self.error("内容不存在", 404)
+                return
+            items = linked_items(con, item_id)
+            con.close()
+            self.json_response({"items": items})
             return
         if path.startswith("/api/items/"):
             if not self.require_user():
@@ -710,6 +764,40 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         if path == "/api/logout":
             self.json_response({"ok": True}, 200, [("Set-Cookie", "workspace_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0")])
             return
+        if path.startswith("/api/items/") and path.endswith("/links"):
+            if not self.require_user():
+                return
+            try:
+                parts = path.strip("/").split("/")
+                if len(parts) != 4:
+                    raise ValueError("无效的关联路径")
+                item_id = int(parts[2])
+                data = parse_json(self)
+                requested_target_id = data.get("target_id")
+                if type(requested_target_id) is not int:
+                    raise ValueError("无效的关联内容 ID")
+                source_id, target_id = canonical_link(item_id, requested_target_id)
+                with closing(open_db()) as con, con:
+                    con.execute("BEGIN IMMEDIATE")
+                    rows = con.execute(
+                        "SELECT id,title FROM items WHERE id IN (?,?) AND deleted_at=''",
+                        (source_id, target_id),
+                    ).fetchall()
+                    if len(rows) != 2:
+                        self.error("关联内容不存在", 404)
+                        return
+                    inserted = con.execute(
+                        "INSERT OR IGNORE INTO item_links(source_id,target_id,created_at) VALUES(?,?,?)",
+                        (source_id, target_id, utc_now()),
+                    ).rowcount
+                    if inserted:
+                        title_by_id = {row["id"]: row["title"] for row in rows}
+                        log_activity(con, "link", "item", item_id, "关联内容 · " + title_by_id[requested_target_id])
+                    items = linked_items(con, item_id)
+                self.json_response({"items": items}, 201 if inserted else 200)
+            except Exception as exc:
+                self.request_error(exc)
+            return
         if path.startswith("/api/items/") and path.endswith("/pin"):
             user = self.require_user()
             if not user:
@@ -812,22 +900,37 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                         raise ValueError("第 %d 条内容的 ID 无效或重复" % index)
                     source_ids.add(str(source_id))
                     prepared.append((source_id, self.normalized_item(raw_item)))
-                con = open_db()
-                con.execute("BEGIN IMMEDIATE")
-                id_map = {}
-                for source_id, item in prepared:
-                    cursor = con.execute(
-                        "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                        (item["kind"], item["title"], item["summary"], item["content"], item["tags"], item["status"], item["priority"], item["due_date"], None, item["pinned"], "", utc_now(), utc_now()),
-                    )
-                    id_map[str(source_id)] = cursor.lastrowid
-                for source_id, item in prepared:
-                    parent_id = item["parent_id"]
-                    if parent_id is not None and str(parent_id) in id_map:
-                        con.execute("UPDATE items SET parent_id=? WHERE id=?", (id_map[str(parent_id)], id_map[str(source_id)]))
-                    log_activity(con, "import", "item", id_map[str(source_id)], item["title"])
-                con.commit()
-                con.close()
+                raw_links = data.get("links", [])
+                if not isinstance(raw_links, list) or len(raw_links) > 20000:
+                    raise ValueError("导出文件中的关联数量无效")
+                prepared_links = []
+                for link in raw_links:
+                    if not isinstance(link, dict):
+                        raise ValueError("关联格式无效")
+                    source, target = str(link.get("source_id")), str(link.get("target_id"))
+                    if source not in source_ids or target not in source_ids or source == target:
+                        raise ValueError("关联必须指向导出文件中不同的两条内容")
+                    prepared_links.append((source, target))
+                with closing(open_db()) as con, con:
+                    con.execute("BEGIN IMMEDIATE")
+                    id_map = {}
+                    for source_id, item in prepared:
+                        cursor = con.execute(
+                            "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                            (item["kind"], item["title"], item["summary"], item["content"], item["tags"], item["status"], item["priority"], item["due_date"], None, item["pinned"], "", utc_now(), utc_now()),
+                        )
+                        id_map[str(source_id)] = cursor.lastrowid
+                    for source_id, item in prepared:
+                        parent_id = item["parent_id"]
+                        if parent_id is not None and str(parent_id) in id_map:
+                            con.execute("UPDATE items SET parent_id=? WHERE id=?", (id_map[str(parent_id)], id_map[str(source_id)]))
+                        log_activity(con, "import", "item", id_map[str(source_id)], item["title"])
+                    for source_id, target_id in prepared_links:
+                        source, target = canonical_link(id_map[source_id], id_map[target_id])
+                        con.execute(
+                            "INSERT OR IGNORE INTO item_links(source_id,target_id,created_at) VALUES(?,?,?)",
+                            (source, target, utc_now()),
+                        )
                 self.json_response({"ok": True, "imported_items": len(prepared), "skipped_files": len(data.get("files", [])) if isinstance(data.get("files", []), list) else 0}, 201)
             except Exception as exc:
                 self.request_error(exc)
@@ -1022,6 +1125,38 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         user = self.require_user()
         if not user:
+            return
+        if path.startswith("/api/items/") and "/links/" in path:
+            parts = path.strip("/").split("/")
+            if len(parts) != 5 or parts[0:2] != ["api", "items"] or parts[3] != "links":
+                self.error("无效的关联路径", 400)
+                return
+            try:
+                item_id, target_id = int(parts[2]), int(parts[4])
+                source_id, target_id = canonical_link(item_id, target_id)
+            except (TypeError, ValueError) as exc:
+                self.request_error(exc)
+                return
+            con = open_db()
+            exists = con.execute(
+                "SELECT 1 FROM items WHERE id IN (?,?) AND deleted_at=''", (source_id, target_id)
+            ).fetchall()
+            if len(exists) != 2:
+                con.close()
+                self.error("关联内容不存在", 404)
+                return
+            deleted = con.execute(
+                "DELETE FROM item_links WHERE source_id=? AND target_id=?", (source_id, target_id)
+            ).rowcount
+            if not deleted:
+                con.close()
+                self.error("关联不存在", 404)
+                return
+            log_activity(con, "unlink", "item", item_id, "解除内容关联")
+            con.commit()
+            items = linked_items(con, item_id)
+            con.close()
+            self.json_response({"items": items})
             return
         if path.startswith("/api/trash/items/"):
             try:
