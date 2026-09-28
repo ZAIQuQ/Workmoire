@@ -40,6 +40,14 @@ class WorkspaceCoreTests(unittest.TestCase):
                 "due_date": "2026-02-30",
             })
 
+    def test_item_pin_is_normalized(self):
+        item = app.WorkspaceHandler.normalized_item(None, {
+            "kind": "note",
+            "title": "pinned",
+            "pinned": True,
+        })
+        self.assertEqual(item["pinned"], 1)
+
     def test_session_secret_example_is_not_accepted(self):
         self.assertNotEqual(app.SESSION_SECRET, "replace-with-a-long-random-secret")
 

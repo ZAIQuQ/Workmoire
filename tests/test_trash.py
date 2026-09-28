@@ -67,6 +67,9 @@ class TrashHttpTests(unittest.TestCase):
     def test_items_can_be_restored_and_permanently_removed(self):
         self.request("/api/setup", "POST", {"username": "tester", "password": "a-long-test-password"})
         parent = self.request("/api/items", "POST", {"kind": "project", "title": "Parent"}, expected=201)["item"]
+        pinned = self.request("/api/items/" + str(parent["id"]) + "/pin", "POST", {"pinned": True})["item"]
+        self.assertEqual(pinned["pinned"], 1)
+        self.assertEqual(self.request("/api/stats")["pinned"][0]["id"], parent["id"])
         child = self.request(
             "/api/items",
             "POST",
@@ -142,6 +145,7 @@ class TrashMigrationTests(unittest.TestCase):
                     file_columns = {row[1] for row in db.execute("PRAGMA table_info(files)")}
                     user_columns = {row[1] for row in db.execute("PRAGMA table_info(users)")}
                 self.assertIn("deleted_at", item_columns)
+                self.assertIn("pinned", item_columns)
                 self.assertIn("deleted_at", file_columns)
                 self.assertIn("session_version", user_columns)
             finally:

@@ -84,6 +84,8 @@ ACTIVITY_LABELS = {
     "restore_file": "恢复文件",
     "purge": "永久删除内容",
     "purge_file": "永久删除文件",
+    "pin": "置顶内容",
+    "unpin": "取消置顶",
 }
 LOGIN_FAILURES: dict[str, list[float]] = {}
 ASSISTANT_TASKS = {
@@ -130,6 +132,7 @@ def init_db() -> None:
           priority INTEGER NOT NULL DEFAULT 2,
           due_date TEXT NOT NULL DEFAULT '',
           parent_id INTEGER,
+          pinned INTEGER NOT NULL DEFAULT 0,
           deleted_at TEXT NOT NULL DEFAULT '',
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
@@ -162,6 +165,7 @@ def init_db() -> None:
         ("priority", "INTEGER NOT NULL DEFAULT 2"),
         ("due_date", "TEXT NOT NULL DEFAULT ''"),
         ("parent_id", "INTEGER"),
+        ("pinned", "INTEGER NOT NULL DEFAULT 0"),
         ("deleted_at", "TEXT NOT NULL DEFAULT ''"),
     ):
         if name not in columns:
@@ -434,7 +438,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             con = open_db()
             counts = {row["kind"]: row["count"] for row in con.execute("SELECT kind, COUNT(*) AS count FROM items WHERE deleted_at='' GROUP BY kind")}
             status_counts = {row["status"]: row["count"] for row in con.execute("SELECT status, COUNT(*) AS count FROM items WHERE deleted_at='' GROUP BY status")}
-            recent = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY updated_at DESC LIMIT 8")]
+            recent = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY pinned DESC, updated_at DESC LIMIT 8")]
+            pinned = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND pinned=1 ORDER BY updated_at DESC LIMIT 6")]
             upcoming = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND due_date != '' ORDER BY due_date ASC, updated_at DESC LIMIT 8")]
             activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY created_at DESC LIMIT 8")]
             file_bytes = con.execute("SELECT COALESCE(SUM(size),0) FROM files WHERE deleted_at='' ").fetchone()[0]
@@ -443,7 +448,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 "files": con.execute("SELECT COUNT(*) FROM files WHERE deleted_at!=''").fetchone()[0],
             }
             con.close()
-            self.json_response({"counts": counts, "status_counts": status_counts, "recent": recent, "upcoming": upcoming, "activity": activity, "file_bytes": file_bytes, "trash_counts": trash_counts})
+            self.json_response({"counts": counts, "status_counts": status_counts, "recent": recent, "pinned": pinned, "upcoming": upcoming, "activity": activity, "file_bytes": file_bytes, "trash_counts": trash_counts})
             return
         if path == "/api/trash":
             if not self.require_user():
@@ -479,7 +484,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 values.extend([needle] * 4)
             where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
             con = open_db()
-            rows = con.execute("SELECT * FROM items%s ORDER BY updated_at DESC LIMIT ?" % where, values + [limit]).fetchall()
+            rows = con.execute("SELECT * FROM items%s ORDER BY pinned DESC, updated_at DESC LIMIT ?" % where, values + [limit]).fetchall()
             con.close()
             self.json_response({"items": [as_item(row) for row in rows]})
             return
@@ -649,6 +654,29 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         if path == "/api/logout":
             self.json_response({"ok": True}, 200, [("Set-Cookie", "workspace_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0")])
             return
+        if path.startswith("/api/items/") and path.endswith("/pin"):
+            user = self.require_user()
+            if not user:
+                return
+            try:
+                item_id = int(path.split("/")[3])
+                data = parse_json(self)
+                pinned = 1 if data.get("pinned") in (True, 1, "1", "true", "True") else 0
+                con = open_db()
+                row = con.execute("SELECT title FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
+                if not row:
+                    con.close()
+                    self.error("内容不存在", 404)
+                    return
+                con.execute("UPDATE items SET pinned=? WHERE id=?", (pinned, item_id))
+                log_activity(con, "pin" if pinned else "unpin", "item", item_id, row["title"])
+                con.commit()
+                updated = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+                con.close()
+                self.json_response({"item": as_item(updated)})
+            except Exception as exc:
+                self.request_error(exc)
+            return
         if path.startswith("/api/trash/items/") and path.endswith("/restore"):
             user = self.require_user()
             if not user:
@@ -731,8 +759,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 id_map = {}
                 for source_id, item in prepared:
                     cursor = con.execute(
-                        "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,parent_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                        (item["kind"], item["title"], item["summary"], item["content"], item["tags"], item["status"], item["priority"], item["due_date"], None, utc_now(), utc_now()),
+                        "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (item["kind"], item["title"], item["summary"], item["content"], item["tags"], item["status"], item["priority"], item["due_date"], None, item["pinned"], "", utc_now(), utc_now()),
                     )
                     id_map[str(source_id)] = cursor.lastrowid
                 for source_id, item in prepared:
@@ -756,8 +784,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 con = open_db()
                 self.validate_parent(con, data["parent_id"])
                 cursor = con.execute(
-                    "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,parent_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                    (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["parent_id"], stamp, stamp),
+                    "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["parent_id"], data["pinned"], "", stamp, stamp),
                 )
                 item_id = cursor.lastrowid
                 log_activity(con, "create", "item", item_id, data["title"])
@@ -869,6 +897,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             "priority": priority,
             "due_date": due_date,
             "parent_id": parent_id,
+            "pinned": 1 if data.get("pinned", False) in (True, 1, "1", "true", "True") else 0,
         }
 
     def validate_parent(self, con: sqlite3.Connection, parent_id: int | None, item_id: int | None = None) -> None:
@@ -907,8 +936,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     return
                 self.validate_parent(con, data["parent_id"], item_id)
                 con.execute(
-                    "UPDATE items SET kind=?,title=?,summary=?,content=?,tags=?,status=?,priority=?,due_date=?,parent_id=?,updated_at=? WHERE id=?",
-                    (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["parent_id"], stamp, item_id),
+                    "UPDATE items SET kind=?,title=?,summary=?,content=?,tags=?,status=?,priority=?,due_date=?,parent_id=?,pinned=?,updated_at=? WHERE id=?",
+                    (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["parent_id"], data["pinned"], stamp, item_id),
                 )
                 log_activity(con, "update", "item", item_id, data["title"])
                 con.commit()
