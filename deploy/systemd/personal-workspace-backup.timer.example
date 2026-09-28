@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Workmoire data backup
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=30m
+Unit=personal-workspace-backup.service
+
+[Install]
+WantedBy=timers.target

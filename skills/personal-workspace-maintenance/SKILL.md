@@ -17,6 +17,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 - Keep the project reproducible from a clean checkout. Prefer Python standard-library code and documented Docker/systemd paths unless a dependency has a clear user-facing benefit.
 - Keep the local Codex assistant disabled unless `WORKSPACE_CODEX_BIN` is explicitly configured on the private server. It may receive only the selected document through standard input, must run in ephemeral read-only mode, and must never expose arbitrary command execution or persist prompts and responses.
 - Treat imports as user-data migrations: accept only the versioned Workmoire export format, run them in one transaction, rebuild relationships through an ID map, and never import credentials or file binaries.
+- Back up the configured data directory before schema or deployment changes. Use `backup.sh` (or an equivalent SQLite backup API) for the database and archive uploaded files; keep backups outside the checkout and apply an explicit retention policy.
 
 ## Working workflow
 
@@ -25,7 +26,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 3. Treat the repository skill at skills/personal-workspace-maintenance/SKILL.md as the source of truth for this workflow. If a workflow invariant or repeatable operational lesson changes, update this skill and its relevant reference in the same change.
 4. Run the project's checks before deployment: make compile, make test, and an HTTP smoke test covering health, first-run session state, authentication, content CRUD, file upload, and assistant-disabled behavior when those paths changed.
 5. Run a public-repository scan before staging and again before pushing. Check for IP addresses, personal email addresses, private paths, credentials, private keys, tokens, cookies, database files, uploads, logs, and non-placeholder production settings. Review the staged file list manually.
-6. Deploy only source files and static assets to the configured application directory. Do not copy .env, data/, backups, or a whole working directory. Restart the systemd service only after the new files are in place, then verify systemctl is-active, /healthz, /api/session, the listening port, and recent journal output.
+6. Deploy only source files and static assets to the configured application directory. Do not copy .env, data/, backups, or a whole working directory. Restart the systemd service only after the new files are in place, then verify systemctl is-active, /healthz, /api/session, the listening port, and recent journal output. If backups are enabled, verify the timer, one completed snapshot, and retention behavior without exposing backup contents.
 7. Commit with a focused message that describes the user-facing behavior. Push only to the intended GitHub repository and branch. If the remote is absent or the authenticated account is unclear, stop before creating a new remote or publishing.
 8. Report what changed, what was tested, the public repository state, the deployment state, and any remaining setup such as a cloud security-group rule or HTTPS.
 

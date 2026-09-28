@@ -34,3 +34,6 @@ changes belong in normal commit history.
   immediately while keeping the SQLite migration additive.
 - Added a startup guard that refuses the public example session secret, reducing
   the chance of deploying a copy of `.env.example` as production configuration.
+- Added a retention-aware SQLite/file backup workflow, generic systemd timer
+  examples, and a synthetic backup test so scheduled backups can be enabled on
+  a private deployment without putting server paths or data in the repository.

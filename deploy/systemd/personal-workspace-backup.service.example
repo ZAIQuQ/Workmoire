@@ -1,0 +1,12 @@
+[Unit]
+Description=Workmoire data backup
+After=local-fs.target
+
+[Service]
+Type=oneshot
+# Replace these example values with the dedicated service user and paths.
+User=workmoire
+WorkingDirectory=/opt/workmoire
+Environment=WORKSPACE_DATA_DIR=/var/lib/workmoire/data
+Environment=WORKSPACE_BACKUP_RETENTION_DAYS=14
+ExecStart=/opt/workmoire/backup.sh /var/lib/workmoire/backups

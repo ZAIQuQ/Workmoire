@@ -46,6 +46,13 @@ before upgrading or moving the service.
 The JSON export contains file metadata; use `backup.sh` when the uploaded file
 contents themselves must be migrated.
 
+`backup.sh` writes a SQLite-consistent database snapshot and a compressed file
+archive. It retains the last 14 days by default; set
+`WORKSPACE_BACKUP_RETENTION_DAYS` to change that policy. A generic systemd
+service and timer are provided in `deploy/systemd/*.example`. Copy them into
+your systemd configuration, replace the example user and paths, then enable
+the timer. Keep the backup directory outside the Git checkout.
+
 ## Project maintenance
 
 The repository includes a Codex maintenance skill at `skills/personal-workspace-maintenance`. It defines the public/private data boundary, testing gates, deployment checks, and GitHub release workflow. When a maintenance rule changes, update the skill and its maintenance log in the same commit, then run `make skill-sync`.

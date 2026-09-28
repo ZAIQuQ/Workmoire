@@ -16,6 +16,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 ## Database and data
 
 - Make a copy or backup of the production data directory before a schema migration.
+- When scheduled backups are enabled, run `backup.sh` once, verify both the SQLite snapshot and file archive exist, and confirm the retention setting is applied.
 - Verify migrations are additive or have a tested rollback path.
 - Keep production data in the configured data directory, outside the Git checkout.
 - Never use a production password or personal document as a test fixture.
@@ -27,6 +28,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - Run systemctl is-active personal-workspace.service.
 - Check /healthz, /api/session, ss -lntp, and recent journalctl output.
 - Probe `HEAD /healthz` and `HEAD /static/app.js` when the service is behind a monitor or reverse proxy.
+- If a backup timer is enabled, check `systemctl list-timers`, the latest successful run, and the backup directory's free space.
 - Record the deployed commit and any cloud security-group or HTTPS requirement.
 
 ## GitHub
