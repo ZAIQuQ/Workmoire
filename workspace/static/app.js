@@ -276,7 +276,7 @@ function drawEditor(){
   $("#edit-status").value=item.status||"inbox";$("#edit-priority").value=String(item.priority||2);$("#edit-parent").value=item.parent_id==null?"":String(item.parent_id);
   $$(".editor-tab").forEach(tab=>tab.onclick=()=>{collectEditorIntoState();state.editorTab=tab.dataset.tab;drawEditor()});
   $("#edit-content").oninput=()=>{if(state.editorTab==="preview"){$("#content-preview").innerHTML=parseMarkdown($("#edit-content").value)}};
-  $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#assistant-content").onclick=openAssistant;$("#assistant-content").disabled=Boolean(state.assistant&&!state.assistant.available);if($("#assistant-content").disabled)$("#assistant-content").title="服务器尚未配置本地 Codex";
+  $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#assistant-content").onclick=openAssistant;$("#assistant-content").disabled=!state.assistant?.available;if($("#assistant-content").disabled)$("#assistant-content").title="服务器尚未配置本地 Codex";
   $$("#editor input, #editor textarea, #editor select").forEach(field=>field.addEventListener("input",scheduleLocalDraft));
   if(draftAvailable){
     $("#restore-draft").onclick=()=>{Object.assign(state.selected,localDraft);clearLocalDraft(state.page,state.selected.id);drawEditor();$("#save-indicator").textContent="草稿已恢复，请保存内容"};
