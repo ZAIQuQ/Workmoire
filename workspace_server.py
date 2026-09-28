@@ -59,6 +59,7 @@ if not SESSION_SECRET:
     SESSION_SECRET = secrets.token_urlsafe(48)
 
 CODEX_BIN = os.environ.get("WORKSPACE_CODEX_BIN", "").strip()
+SETUP_TOKEN = os.environ.get("WORKSPACE_SETUP_TOKEN", "").strip()
 try:
     ASSISTANT_TIMEOUT = min(max(int(os.environ.get("WORKSPACE_ASSISTANT_TIMEOUT", "45")), 5), 120)
 except ValueError:
@@ -366,7 +367,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             user_row = con.execute("SELECT username FROM users WHERE id=1").fetchone()
             con.close()
             user = self.current_user()
-            self.json_response({"setup": user_row is None, "authenticated": bool(user), "username": user})
+            self.json_response({"setup": user_row is None, "setup_token_required": bool(SETUP_TOKEN), "authenticated": bool(user), "username": user})
             return
         if path == "/api/assistant/status":
             if not self.require_user():
@@ -505,6 +506,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     self.error("空间已经初始化", 409)
                     return
                 data = parse_json(self)
+                if SETUP_TOKEN and not hmac.compare_digest(str(data.get("setup_token", "")), SETUP_TOKEN):
+                    raise ValueError("初始化令牌无效")
                 username = str(data.get("username", "")).strip()
                 password = str(data.get("password", ""))
                 if len(username) < 2 or len(username) > 64:

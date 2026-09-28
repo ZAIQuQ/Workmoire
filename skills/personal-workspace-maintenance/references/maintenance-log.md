@@ -20,3 +20,5 @@ changes belong in normal commit history.
   input/output, and no persisted prompts or responses.
 - Added the assistant boundary to the source, security guidance, and deployment
   verification workflow.
+- Added a private bootstrap token boundary so a fresh public instance cannot be
+  initialized by the first unauthenticated visitor.

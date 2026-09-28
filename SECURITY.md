@@ -13,3 +13,7 @@ contains only generic source and documentation.
 The optional local assistant is disabled by default. If enabled, configure an
 explicit Codex executable on the private server and keep the service behind the
 same authentication and network boundary as the rest of the workspace.
+
+Set a random `WORKSPACE_SETUP_TOKEN` before exposing a fresh instance. It is
+accepted only during the one-time account initialization and must stay outside
+the public repository.

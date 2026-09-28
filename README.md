@@ -30,6 +30,8 @@ Copy .env.example to .env, set a long random session secret, and run:
 
 Open http://127.0.0.1:5200. The first visit asks you to create the only
 account. The optional `.env` file is loaded automatically and must stay private.
+When the service is reachable beyond localhost, set `WORKSPACE_SETUP_TOKEN` in
+`.env` before the first visit. The token protects the one-time account setup.
 
 ## Docker
 

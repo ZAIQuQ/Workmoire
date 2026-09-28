@@ -53,19 +53,21 @@ function parseMarkdown(source){
   safe=safe.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\`(.+?)\`/g,"<code>$1</code>");
   return safe.split(/\n{2,}/).map(block=>/^<(h|ul)/.test(block.trim())?block:"<p>"+block.replace(/\n/g,"<br>")+"</p>").join("");
 }
-function setAuthMode(setup){
+function setAuthMode(setup,tokenRequired=false){
   state.setup=setup;
   $("#auth-title").textContent=setup?"创建你的工作空间":"欢迎回来";
   $("#auth-subtitle").textContent=setup?"设置唯一账号和密码，之后只有这个账号可以访问。":"把论文、项目和日常思路放在同一个安静的空间里。";
   $("#auth-submit").textContent=setup?"创建空间":"登录";
   $("#auth-confirm-row").classList.toggle("is-hidden",!setup);
+  $("#auth-setup-token-row").classList.toggle("is-hidden",!setup||!tokenRequired);
+  $("#auth-setup-token").required=setup&&tokenRequired;
   $("#auth-password").autocomplete=setup?"new-password":"current-password";
 }
 async function loadAssistantStatus(){try{state.assistant=await api("/api/assistant/status")}catch(_){state.assistant=null}}
 async function boot(){
   try{
     const session=await api("/api/session");
-    if(session.setup){showApp(false);setAuthMode(true)}
+    if(session.setup){showApp(false);setAuthMode(true,session.setup_token_required)}
     else if(session.authenticated){$("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await loadAssistantStatus();await goPage("dashboard")}
     else{showApp(false);setAuthMode(false)}
   }catch(error){showApp(false);setAuthMode(false);$("#auth-error").textContent=error.message}
@@ -75,7 +77,8 @@ $("#auth-form").addEventListener("submit",async event=>{
   const username=$("#auth-username").value.trim(),password=$("#auth-password").value;
   if(state.setup&&password!==$("#auth-confirm").value){$("#auth-error").textContent="两次密码不一致";return}
   try{
-    const session=await api(state.setup?"/api/setup":"/api/login",{method:"POST",body:JSON.stringify({username,password})});
+    const payload={username,password};if(state.setup&&!$("#auth-setup-token-row").classList.contains("is-hidden"))payload.setup_token=$("#auth-setup-token").value;
+    const session=await api(state.setup?"/api/setup":"/api/login",{method:"POST",body:JSON.stringify(payload)});
     $("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await loadAssistantStatus();await goPage("dashboard");
   }catch(error){$("#auth-error").textContent=error.message}
 });
