@@ -115,6 +115,14 @@ class TrashHttpTests(unittest.TestCase):
         self.assertEqual(promoted["status"], "active")
         after_promote = self.request("/api/stats")
         self.assertNotIn(overdue["id"], [item["id"] for item in after_promote["inbox"]])
+        completed_from_dashboard = self.request(
+            "/api/items/%d" % overdue["id"],
+            "PUT",
+            {"kind": overdue["kind"], "title": overdue["title"], "summary": overdue["summary"], "content": overdue["content"], "tags": overdue["tags"], "status": "done", "priority": overdue["priority"], "due_date": overdue["due_date"], "parent_id": overdue["parent_id"], "pinned": overdue["pinned"]},
+        )["item"]
+        self.assertEqual(completed_from_dashboard["status"], "done")
+        after_complete = self.request("/api/stats")
+        self.assertNotIn(overdue["id"], [item["id"] for item in after_complete["overdue"] + after_complete["upcoming"]])
         for item in (overdue, upcoming, completed):
             self.request("/api/items/%d" % item["id"], "DELETE")
             self.request("/api/trash/items/%d" % item["id"], "DELETE")
