@@ -37,6 +37,21 @@ function relativeDate(value){
   if(delta<604800000)return Math.floor(delta/86400000)+" 天前";
   return formatDate(value);
 }
+function formatDueDate(value){
+  const parts=String(value||"").split("-");
+  return parts.length===3?parts[0]+"年"+Number(parts[1])+"月"+Number(parts[2])+"日":value||"";
+}
+async function refreshServiceStatus(){
+  const dot=$(".server-status i"),label=$("#server-status-label");
+  if(!dot||!label)return;
+  try{
+    const response=await fetch("/healthz",{credentials:"same-origin",cache:"no-store"});
+    if(!response.ok)throw new Error("health check failed");
+    dot.classList.remove("is-offline");label.textContent="本地服务在线";
+  }catch(_){
+    dot.classList.add("is-offline");label.textContent="服务连接异常";
+  }
+}
 async function api(path,options={}){
   const headers=options.body instanceof FormData?{}:{"Content-Type":"application/json"};
   const response=await fetch(path,{credentials:"same-origin",...options,headers:{...headers,...(options.headers||{})}});
@@ -53,7 +68,7 @@ function showApp(visible){setVisible("#auth-view",!visible);setVisible("#app-vie
 function statusPill(status){return '<span class="status-pill '+esc(status)+'">'+esc(statusLabels[status]||status)+'</span>'}
 function kindMark(kind){return '<span class="kind-mark '+esc(kind)+'">'+esc(icons[kind]||"·")+"</span>"}
 function priorityMarkup(priority){return '<span class="priority" title="优先级 '+priority+'">'+[1,2,3].map(n=>'<i class="'+(n<=priority?"on":"")+'"></i>').join("")+"</span>"}
-function dueItemMarkup(item){const overdue=Boolean(item.overdue);return '<div class="due-item '+(overdue?"is-overdue":"")+'" data-id="'+item.id+'" data-kind="'+item.kind+'"><div class="due-date">'+(overdue?"已逾期 · ":"")+esc(item.due_date)+'</div><div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+'</div></div>'+statusPill(item.status)+'</div>'}
+function dueItemMarkup(item){const overdue=Boolean(item.overdue);return '<div class="due-item '+(overdue?"is-overdue":"")+'" data-id="'+item.id+'" data-kind="'+item.kind+'"><div class="due-date">'+(overdue?"已逾期 · ":"")+esc(formatDueDate(item.due_date))+'</div><div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+'</div></div>'+statusPill(item.status)+'</div>'}
 function inboxItemMarkup(item){return '<div class="inbox-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title||"未命名")+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+esc(item.summary||"等待整理")+'</div></div>'+priorityMarkup(item.priority||2)+'<button class="inbox-start" data-id="'+item.id+'" type="button">开始整理</button></div>'}
 async function promoteInboxItem(event){
   event.stopPropagation();
@@ -138,7 +153,7 @@ function renderDashboard(){
   '<div class="stats-grid"><div class="stat-card"><span class="stat-icon">◒</span><b>'+total+'</b><span>全部内容 <em>持续积累</em></span></div><div class="stat-card"><span class="stat-icon">▧</span><b>'+count("paper")+'</b><span>论文大纲</span></div><div class="stat-card"><span class="stat-icon">◈</span><b>'+count("project")+'</b><span>项目空间</span></div><div class="stat-card"><span class="stat-icon">◷</span><b>'+count("log")+'</b><span>工作日志</span></div></div>'+
   '<div class="section-label">工作流</div><div class="dashboard-columns"><section class="surface"><div class="surface-head"><h2>最近编辑</h2><a id="view-all">查看全部</a></div><div class="recent-list">'+(recent.length?recent.map(item=>'<div class="recent-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+" · "+relativeDate(item.updated_at)+'</div></div>'+statusPill(item.status)+'</div>').join(""):'<div class="empty-state"><strong>还没有内容</strong><p>从一条知识卡片开始，给自己的思考留个位置。</p></div>')+'</div></section>'+
   '<section class="surface"><div class="surface-head"><h2>快速开始</h2></div><div class="quick-actions"><button class="quick-button" data-create-kind="note">'+kindMark("note")+'<span><strong>捕捉一个想法</strong><small>把还没成形的念头先记下来</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="paper">'+kindMark("paper")+'<span><strong>搭一份论文大纲</strong><small>从问题、方法和实验开始</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="project">'+kindMark("project")+'<span><strong>拆解一个项目</strong><small>明确目标、下一步和截止日期</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="log">'+kindMark("log")+'<span><strong>写今天的工作日志</strong><small>留下过程，也留下进展</small></span><span class="quick-plus">＋</span></button></div></section></div>'+
-  '<div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>置顶内容</h2></div><div class="pinned-list">'+(pinned.length?pinned.map(item=>'<div class="pinned-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+relativeDate(item.updated_at)+'</div></div><span class="pin-mark">★</span></div>').join(""):'<div class="empty-state"><strong>还没有置顶内容</strong><p>把正在推进的项目或重要知识置顶，它们会一直出现在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>下一步期限</h2></div><div class="due-list">'+(dueItems.length?dueItems.map(dueItemMarkup).join(""):'<div class="empty-state"><strong>暂时没有待处理的截止日期</strong><p>在项目或论文中加上日期，下一步会出现在这里。</p></div>')+'</div></section></div><div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>待整理</h2><span class="surface-count">'+inbox.length+'</span></div><div class="inbox-list">'+(inbox.length?inbox.map(inboxItemMarkup).join(""):'<div class="empty-state"><strong>待整理箱是空的</strong><p>捕捉到的想法会先停在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>最近活动</h2></div><div class="activity-list">'+(activity.length?activity.map(entry=>'<div class="activity-item"><span class="activity-dot"></span><div><div class="recent-title">'+esc(entry.label)+'</div><div class="recent-meta">'+esc(entry.created_at)+'</div></div></div>').join(""):'<div class="empty-state"><strong>还没有活动</strong><p>保存第一条内容后，这里会留下轨迹。</p></div>')+'</div></section></div>';
+  '<div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>置顶内容</h2></div><div class="pinned-list">'+(pinned.length?pinned.map(item=>'<div class="pinned-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+relativeDate(item.updated_at)+'</div></div><span class="pin-mark">★</span></div>').join(""):'<div class="empty-state"><strong>还没有置顶内容</strong><p>把正在推进的项目或重要知识置顶，它们会一直出现在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>下一步期限</h2></div><div class="due-list">'+(dueItems.length?dueItems.map(dueItemMarkup).join(""):'<div class="empty-state"><strong>暂时没有待处理的截止日期</strong><p>在项目或论文中加上日期，下一步会出现在这里。</p></div>')+'</div></section></div><div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>待整理</h2><span class="surface-count">'+inbox.length+'</span></div><div class="inbox-list">'+(inbox.length?inbox.map(inboxItemMarkup).join(""):'<div class="empty-state"><strong>待整理箱是空的</strong><p>捕捉到的想法会先停在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>最近活动</h2></div><div class="activity-list">'+(activity.length?activity.map(entry=>'<div class="activity-item"><span class="activity-dot"></span><div><div class="recent-title">'+esc(entry.label)+'</div><div class="recent-meta">'+esc(formatDate(entry.created_at,true))+'</div></div></div>').join(""):'<div class="empty-state"><strong>还没有活动</strong><p>保存第一条内容后，这里会留下轨迹。</p></div>')+'</div></section></div>';
   $("#quick-note").onclick=()=>createItem("note");$("#quick-log").onclick=()=>createItem("log");
   $("#view-all").onclick=()=>goPage("note");
   $$(".quick-button").forEach(button=>button.onclick=()=>createItem(button.dataset.createKind));
@@ -319,4 +334,5 @@ async function searchGlobal(query){
 $("#global-search").oninput=()=>searchGlobal($("#global-search").value.trim());
 document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();$("#search-dialog").showModal();$("#global-search").focus()}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="s"&&state.selected){event.preventDefault();saveItem()}if((event.ctrlKey||event.metaKey)&&event.key==="Enter"&&state.selected){event.preventDefault();saveItem()}if(event.key==="Escape"){$("#settings-menu")?.classList.add("is-hidden")}});
 $("#mobile-menu").onclick=()=>$(".sidebar").classList.toggle("is-open");
+refreshServiceStatus();setInterval(refreshServiceStatus,60000);
 boot();

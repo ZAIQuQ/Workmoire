@@ -24,3 +24,5 @@
 .inbox-list{padding:3px 20px}.inbox-item{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #f0f2f6;cursor:pointer}.inbox-item:last-child{border-bottom:0}.inbox-item:hover .recent-title{color:var(--blue)}.inbox-item .priority{margin-left:auto}.inbox-start{border:1px solid #cbdcf8;border-radius:7px;background:#f4f8ff;color:var(--blue);padding:5px 7px;font-size:10px;white-space:nowrap}.inbox-start:hover{background:#e8f0ff}.inbox-start:disabled{opacity:.6;cursor:wait}
 
 .list-toolbar select{min-width:0}
+
+.server-status i.is-offline{background:var(--red);box-shadow:0 0 0 3px rgba(217,81,95,.15)}
