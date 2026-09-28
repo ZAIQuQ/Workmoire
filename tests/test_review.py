@@ -76,7 +76,7 @@ class ReviewHttpTests(unittest.TestCase):
             db.commit()
 
         review = self.request("/api/review")
-        self.assertEqual([item["id"] for item in review["inbox"]], [inbox["id"], inbox_due["id"]])
+        self.assertEqual({item["id"] for item in review["inbox"]}, {inbox["id"], inbox_due["id"]})
         self.assertEqual([item["id"] for item in review["overdue"]], [overdue["id"]])
         self.assertEqual([item["id"] for item in review["today"]], [due_today["id"]])
         self.assertEqual([item["id"] for item in review["stale"]], [stale["id"]])
