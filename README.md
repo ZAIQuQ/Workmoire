@@ -15,6 +15,7 @@ introducing a large runtime dependency stack.
 - Separate spaces for notes, projects, papers, and work logs.
 - Markdown editing with a safe client-side preview.
 - Status, priority, due date, tags, and server-side search.
+- Global search covers content and uploaded files, including a file's associated content title.
 - Hierarchical relationships between related notes, projects, papers, and logs.
 - Clickable parent and child links make those relationships navigable from the editor.
 - Filter and sort each content space by tags, priority, deadlines, or title without leaving the current workspace.

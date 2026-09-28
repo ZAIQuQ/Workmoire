@@ -472,6 +472,32 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             con.close()
             self.json_response({"items": items, "files": files})
             return
+        if path == "/api/search":
+            if not self.require_user():
+                return
+            params = parse_qs(parsed.query)
+            query = params.get("q", [""])[0].strip()[:120]
+            try:
+                limit = min(max(int(params.get("limit", ["30"])[0]), 1), 50)
+            except ValueError:
+                self.error("无效的数量限制", 400)
+                return
+            if not query:
+                self.json_response({"items": [], "files": []})
+                return
+            pattern = "%" + query + "%"
+            con = open_db()
+            items = [as_item(row) for row in con.execute(
+                "SELECT * FROM items WHERE deleted_at='' AND (title LIKE ? OR summary LIKE ? OR content LIKE ? OR tags LIKE ?) ORDER BY pinned DESC, updated_at DESC LIMIT ?",
+                (pattern, pattern, pattern, pattern, limit),
+            ).fetchall()]
+            files = [dict(row) for row in con.execute(
+                "SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE f.deleted_at='' AND (f.name LIKE ? OR COALESCE(i.title,'') LIKE ?) ORDER BY f.created_at DESC LIMIT ?",
+                (pattern, pattern, limit),
+            ).fetchall()]
+            con.close()
+            self.json_response({"items": items, "files": files})
+            return
         if path == "/api/items":
             if not self.require_user():
                 return
