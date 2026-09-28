@@ -16,6 +16,7 @@ introducing a large runtime dependency stack.
 - Unsubmitted quick captures can be restored or cleared from browser-local drafts; they are never uploaded automatically.
 - The daily log action reopens the current day's log when one already exists, avoiding duplicate daily entries.
 - The dashboard activity timeline links back to active content and uploaded files.
+- Existing notes, project plans, papers, and logs can be saved as a new inbox copy for reuse as a template.
 - Separate spaces for notes, projects, papers, and work logs.
 - Markdown editing with a safe client-side preview, including headings, task lists, inline code, emphasis, and HTTPS links.
 - Status, priority, due date, tags, and server-side search.
