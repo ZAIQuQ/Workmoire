@@ -173,6 +173,24 @@ def init_db() -> None:
           FOREIGN KEY(source_id) REFERENCES items(id) ON DELETE CASCADE,
           FOREIGN KEY(target_id) REFERENCES items(id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS item_revisions(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          item_id INTEGER NOT NULL,
+          kind TEXT NOT NULL,
+          title TEXT NOT NULL,
+          summary TEXT NOT NULL DEFAULT '',
+          content TEXT NOT NULL DEFAULT '',
+          tags TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'inbox',
+          priority INTEGER NOT NULL DEFAULT 2,
+          due_date TEXT NOT NULL DEFAULT '',
+          parent_id INTEGER,
+          pinned INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY(item_id) REFERENCES items(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_item_revisions_item_created
+          ON item_revisions(item_id, created_at DESC, id DESC);
         """
     )
     user_columns = {row["name"] for row in con.execute("PRAGMA table_info(users)")}
@@ -323,6 +341,22 @@ def as_item(row: sqlite3.Row) -> dict:
     result = dict(row)
     result["tags_list"] = [x for x in result.get("tags", "").split(",") if x]
     return result
+
+
+REVISION_FIELDS = ("kind", "title", "summary", "content", "tags", "status", "priority", "due_date", "parent_id", "pinned")
+
+
+def record_revision(con: sqlite3.Connection, row: sqlite3.Row) -> None:
+    values = [row[field] for field in REVISION_FIELDS]
+    con.execute(
+        "INSERT INTO item_revisions(item_id,kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        [row["id"], *values, utc_now()],
+    )
+    con.execute(
+        "DELETE FROM item_revisions WHERE item_id=? AND id NOT IN "
+        "(SELECT id FROM item_revisions WHERE item_id=? ORDER BY id DESC LIMIT 100)",
+        (row["id"], row["id"]),
+    )
 
 
 def search_snippet(row: sqlite3.Row, query: str) -> str:
@@ -492,6 +526,10 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             items = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY id")]
             files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,item_id,created_at FROM files WHERE deleted_at='' ORDER BY id")]
             activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY id")]
+            revisions = [dict(row) for row in con.execute(
+                "SELECT id,item_id,kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,created_at "
+                "FROM item_revisions WHERE item_id IN (SELECT id FROM items WHERE deleted_at='') ORDER BY id"
+            )]
             links = [dict(row) for row in con.execute(
                 "SELECT l.source_id,l.target_id FROM item_links l "
                 "JOIN items a ON a.id=l.source_id JOIN items b ON b.id=l.target_id "
@@ -499,7 +537,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             )]
             con.close()
             self.json_download(
-                {"format": "workmoire-export", "version": 1, "exported_at": utc_now(), "items": items, "links": links, "files": files, "activity": activity},
+                {"format": "workmoire-export", "version": 1, "exported_at": utc_now(), "items": items, "links": links, "files": files, "activity": activity, "revisions": revisions},
                 "workmoire-export.json",
             )
             return
@@ -637,6 +675,32 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             ).fetchall()]
             con.close()
             self.json_response({"items": items, "files": files})
+            return
+        if path.startswith("/api/items/") and path.endswith("/revisions"):
+            if not self.require_user():
+                return
+            parts = path.strip("/").split("/")
+            if len(parts) != 4 or parts[:2] != ["api", "items"]:
+                self.error("无效的历史版本路径", 400)
+                return
+            try:
+                item_id = int(parts[2])
+            except ValueError:
+                self.error("无效的内容 ID", 400)
+                return
+            con = open_db()
+            exists = con.execute("SELECT 1 FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
+            if not exists:
+                con.close()
+                self.error("内容不存在", 404)
+                return
+            revisions = [dict(row) for row in con.execute(
+                "SELECT id,item_id,kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,created_at "
+                "FROM item_revisions WHERE item_id=? ORDER BY id DESC LIMIT 100",
+                (item_id,),
+            )]
+            con.close()
+            self.json_response({"revisions": revisions})
             return
         if path == "/api/items":
             if not self.require_user():
@@ -868,6 +932,40 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         if path == "/api/logout":
             self.json_response({"ok": True}, 200, [("Set-Cookie", "workspace_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0")])
             return
+        if path.startswith("/api/items/") and path.endswith("/restore"):
+            user = self.require_user()
+            if not user:
+                return
+            parts = path.strip("/").split("/")
+            if len(parts) != 6 or parts[:2] != ["api", "items"] or parts[3] != "revisions":
+                self.error("无效的历史版本路径", 400)
+                return
+            try:
+                item_id, revision_id = int(parts[2]), int(parts[4])
+            except ValueError:
+                self.error("无效的历史版本 ID", 400)
+                return
+            with closing(open_db()) as con, con:
+                con.execute("BEGIN IMMEDIATE")
+                current = con.execute("SELECT * FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
+                revision = con.execute("SELECT * FROM item_revisions WHERE id=? AND item_id=?", (revision_id, item_id)).fetchone()
+                if not current:
+                    self.error("内容不存在", 404)
+                    return
+                if not revision:
+                    self.error("历史版本不存在", 404)
+                    return
+                self.validate_parent(con, revision["parent_id"], item_id)
+                record_revision(con, current)
+                stamp = utc_now()
+                con.execute(
+                    "UPDATE items SET kind=?,title=?,summary=?,content=?,tags=?,status=?,priority=?,due_date=?,parent_id=?,pinned=?,updated_at=? WHERE id=?",
+                    tuple(revision[field] for field in REVISION_FIELDS) + (stamp, item_id),
+                )
+                log_activity(con, "restore_revision", "item", item_id, "恢复历史版本 · " + revision["title"])
+                restored = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+            self.json_response({"item": as_item(restored)})
+            return
         if path.startswith("/api/items/") and path.endswith("/links"):
             if not self.require_user():
                 return
@@ -1015,6 +1113,19 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     if source not in source_ids or target not in source_ids or source == target:
                         raise ValueError("关联必须指向导出文件中不同的两条内容")
                     prepared_links.append((source, target))
+                raw_revisions = data.get("revisions", [])
+                if not isinstance(raw_revisions, list) or len(raw_revisions) > 100000:
+                    raise ValueError("导出文件中的历史版本数量无效")
+                prepared_revisions = []
+                for index, raw_revision in enumerate(raw_revisions, 1):
+                    if not isinstance(raw_revision, dict):
+                        raise ValueError("第 %d 条历史版本格式无效" % index)
+                    source_item = str(raw_revision.get("item_id"))
+                    if source_item not in source_ids:
+                        raise ValueError("第 %d 条历史版本未指向导出内容" % index)
+                    normalized_revision = self.normalized_item(raw_revision)
+                    created_at = str(raw_revision.get("created_at", "")).strip()[:64] or utc_now()
+                    prepared_revisions.append((source_item, normalized_revision, created_at))
                 with closing(open_db()) as con, con:
                     con.execute("BEGIN IMMEDIATE")
                     id_map = {}
@@ -1035,7 +1146,14 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                             "INSERT OR IGNORE INTO item_links(source_id,target_id,created_at) VALUES(?,?,?)",
                             (source, target, utc_now()),
                         )
-                self.json_response({"ok": True, "imported_items": len(prepared), "skipped_files": len(data.get("files", [])) if isinstance(data.get("files", []), list) else 0}, 201)
+                    for source_item, revision, created_at in prepared_revisions:
+                        parent_id = revision["parent_id"]
+                        mapped_parent = id_map.get(str(parent_id)) if parent_id is not None else None
+                        con.execute(
+                            "INSERT INTO item_revisions(item_id,kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                            (id_map[source_item], revision["kind"], revision["title"], revision["summary"], revision["content"], revision["tags"], revision["status"], revision["priority"], revision["due_date"], mapped_parent, revision["pinned"], created_at),
+                        )
+                self.json_response({"ok": True, "imported_items": len(prepared), "imported_revisions": len(prepared_revisions), "skipped_files": len(data.get("files", [])) if isinstance(data.get("files", []), list) else 0}, 201)
             except Exception as exc:
                 self.request_error(exc)
             return
@@ -1205,12 +1323,13 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 data = self.normalized_item(parse_json(self))
                 stamp = utc_now()
                 con = open_db()
-                exists = con.execute("SELECT 1 FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
+                exists = con.execute("SELECT * FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
                 if not exists:
                     con.close()
                     self.error("内容不存在", 404)
                     return
                 self.validate_parent(con, data["parent_id"], item_id)
+                record_revision(con, exists)
                 con.execute(
                     "UPDATE items SET kind=?,title=?,summary=?,content=?,tags=?,status=?,priority=?,due_date=?,parent_id=?,pinned=?,updated_at=? WHERE id=?",
                     (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["parent_id"], data["pinned"], stamp, item_id),

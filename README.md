@@ -34,9 +34,10 @@ introducing a large runtime dependency stack.
 - Trashed items stay out of search, active statistics, and item exports until restored.
 - Pin important papers, projects, or notes so they stay visible in lists and the dashboard.
 - Keep unsaved edits as browser-local drafts, with an explicit restore or ignore action.
+- Keep up to 100 saved pre-edit versions per item, with an explicit review and restore path.
 - Private file storage with a 64 MB per-file limit and optional links from files to notes, projects, papers, or logs.
 - Search the file space by filename or the title of its associated note, project, paper, or log.
-- One-click JSON export of notes, metadata, activity history, and cross-links (without passwords).
+- One-click JSON export of notes, metadata, saved revisions, activity history, and cross-links (without passwords).
 - Transactional JSON import that rebuilds hierarchy and cross-links without importing credentials or file binaries.
 - Signed, expiring login cookies and basic login rate limiting.
 - SQLite WAL mode and a small activity trail.
