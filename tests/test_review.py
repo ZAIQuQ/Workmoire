@@ -109,6 +109,29 @@ class ReviewHttpTests(unittest.TestCase):
         self.assertEqual(review["inbox"], [])
         self.assertEqual(review["overdue"], [])
 
+    def test_item_can_change_kind_without_reentering_content(self):
+        item = self.create("Captured idea", kind="note", content="keep this thought", status="inbox")
+        converted = self.request(
+            "/api/items/%d" % item["id"],
+            "PUT",
+            {
+                "kind": "paper",
+                "title": item["title"],
+                "summary": item["summary"],
+                "content": item["content"],
+                "tags": item["tags"],
+                "status": item["status"],
+                "priority": item["priority"],
+                "due_date": item["due_date"],
+                "parent_id": item["parent_id"],
+                "pinned": item["pinned"],
+            },
+        )["item"]
+        self.assertEqual(converted["kind"], "paper")
+        self.assertEqual(converted["content"], "keep this thought")
+        self.assertEqual(self.request("/api/items?kind=note")["items"], [])
+        self.assertEqual(self.request("/api/items?kind=paper")["items"][0]["id"], item["id"])
+
 
 if __name__ == "__main__":
     unittest.main()
