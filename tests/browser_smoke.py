@@ -129,6 +129,29 @@ def main():
                 page.locator('[data-page="note"]').click()
                 page.locator(".content-item").click()
                 expect(page.locator("#edit-content")).to_have_value("A recoverable thought.\n\nSynthetic assistant output")
+                task_response = page.context.request.post(
+                    "http://127.0.0.1:%d/api/items" % server.server_port,
+                    data={"kind": "note", "title": "Synthetic task note", "content": "- [ ] Check the next step\n- [x] Keep the finished step"},
+                )
+                assert task_response.status == 201
+                task_id = task_response.json()["item"]["id"]
+                page.locator('[data-page="note"]').click()
+                page.get_by_text("Synthetic task note", exact=True).click()
+                page.locator('[data-tab="preview"]').click()
+                expect(page.locator("#content-preview input[type=checkbox]")).to_have_count(2)
+                page.locator("#content-preview input[type=checkbox]").first.check()
+                expect(page.locator("#edit-content")).to_have_value("- [x] Check the next step\n- [x] Keep the finished step")
+                expect(page.locator("#save-indicator")).to_contain_text("任务已更新")
+                page.locator("#save-content").click()
+                expect(page.locator("#save-indicator")).to_contain_text("已保存")
+                task_delete = page.context.request.delete(
+                    "http://127.0.0.1:%d/api/items/%d" % (server.server_port, task_id),
+                )
+                assert task_delete.status == 200
+                task_purge = page.context.request.delete(
+                    "http://127.0.0.1:%d/api/trash/items/%d" % (server.server_port, task_id),
+                )
+                assert task_purge.status == 200
                 page.locator('[data-page="files"]').click()
                 page.locator("#file-input").set_input_files({
                     "name": "synthetic.txt", "mimeType": "text/plain", "buffer": b"file payload",

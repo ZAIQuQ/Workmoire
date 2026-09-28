@@ -95,11 +95,29 @@ async function promoteInboxItem(event){
 function parseMarkdown(source){
   let safe=esc(source||"");
   safe=safe.replace(/^### (.+)$/gm,"<h3>$1</h3>").replace(/^## (.+)$/gm,"<h2>$1</h2>").replace(/^# (.+)$/gm,"<h1>$1</h1>");
-  safe=safe.replace(/^\- \[([ xX])\] (.+)$/gm,(_,mark,text)=>'<li class="task-item"><input type="checkbox" disabled '+(mark.toLowerCase()==="x"?"checked":"")+'><span>'+text+'</span></li>');
+  let taskIndex=0;
+  safe=safe.replace(/^\- \[([ xX])\] (.+)$/gm,(_,mark,text)=>'<li class="task-item"><input type="checkbox" data-task-index="'+taskIndex+++'" aria-label="切换任务：'+text+'" '+(mark.toLowerCase()==="x"?"checked":"")+'><span>'+text+'</span></li>');
   safe=safe.replace(/^\- (.+)$/gm,"<li>$1</li>").replace(/((?:<li(?: [^>]*)?>.*<\/li>\n?)+)/g,m=>"<ul>"+m+"</ul>");
   safe=safe.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\`(.+?)\`/g,"<code>$1</code>");
   safe=safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   return safe.split(/\n{2,}/).map(block=>/^<(h|ul)/.test(block.trim())?block:"<p>"+block.replace(/\n/g,"<br>")+"</p>").join("");
+}
+function toggleTask(event){
+  event.stopPropagation();
+  const checkbox=event.currentTarget,index=Number(checkbox.dataset.taskIndex),source=$("#edit-content")?.value||"";
+  if(!Number.isInteger(index)||index<0)return;
+  let seen=-1;
+  const next=source.replace(/^\- \[([ xX])\] (.*)$/gm,(line,mark,text)=>{
+    seen+=1;
+    return seen===index?"- ["+(checkbox.checked?"x":" ")+"] "+text:line;
+  });
+  if(next===source)return;
+  $("#edit-content").value=next;
+  state.selected.content=next;
+  $("#content-preview").innerHTML=parseMarkdown(next);
+  $$("#content-preview input[type=checkbox]").forEach(input=>input.onchange=toggleTask);
+  scheduleLocalDraft();
+  $("#save-indicator").textContent="任务已更新，请保存";
 }
 function setAuthMode(setup,tokenRequired=false){
   state.setup=setup;
@@ -430,7 +448,8 @@ function drawEditor(){
   editor.innerHTML=draftNotice+'<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><textarea id="edit-content" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>内容类型</span><select id="edit-kind">'+kindOptions+'</select></label><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label><label class="form-field"><span>上级内容</span><select id="edit-parent"><option value="">无上级内容</option>'+parentOptions+'</select></label><label class="form-check"><input id="edit-pinned" type="checkbox" '+(item.pinned?"checked":"")+'><span>置顶内容</span></label></div></div>'+relationMarkup+attachmentMarkup+historyMarkup+'<div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span>'+'<button id="focus-mode" class="button button-secondary">'+(state.focusMode?"退出专注":"专注模式")+'</button>'+(item.id?'<button id="duplicate-content" class="button button-secondary">另存副本</button>':"")+'<button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
   $("#edit-kind").value=item.kind||state.page;$("#edit-status").value=item.status||"inbox";$("#edit-priority").value=String(item.priority||2);$("#edit-parent").value=item.parent_id==null?"":String(item.parent_id);
   $$(".editor-tab").forEach(tab=>tab.onclick=()=>{collectEditorIntoState();state.editorTab=tab.dataset.tab;drawEditor()});
-  $("#edit-content").oninput=()=>{if(state.editorTab==="preview"){$("#content-preview").innerHTML=parseMarkdown($("#edit-content").value)}};
+  $("#edit-content").oninput=()=>{if(state.editorTab==="preview"){$("#content-preview").innerHTML=parseMarkdown($("#edit-content").value);$$("#content-preview input[type=checkbox]").forEach(input=>input.onchange=toggleTask)}};
+  $$("#content-preview input[type=checkbox]").forEach(input=>input.onchange=toggleTask);
   $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#focus-mode").onclick=toggleFocusMode;if($("#duplicate-content"))$("#duplicate-content").onclick=duplicateItem;$("#assistant-content").onclick=openAssistant;$("#assistant-content").disabled=!state.assistant?.available;if($("#assistant-content").disabled)$("#assistant-content").title="服务器尚未配置本地 Codex";if($("#add-related"))$("#add-related").onclick=addRelatedItem;
   $$("#editor input, #editor textarea, #editor select").forEach(field=>field.addEventListener("input",scheduleLocalDraft));
   if(draftAvailable){

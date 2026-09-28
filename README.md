@@ -22,7 +22,7 @@ introducing a large runtime dependency stack.
 - A focus mode hides navigation while writing long papers, plans, or logs.
 - Separate spaces for notes, projects, papers, and work logs.
 - Change an item's content type in the editor so a captured note can become a project, paper, or work log without re-entering it.
-- Markdown editing with a safe client-side preview, including headings, task lists, inline code, emphasis, and HTTPS links.
+- Markdown editing with a safe client-side preview, including headings, task lists, inline code, emphasis, and HTTPS links. Task-list checkboxes can be toggled in preview and remain an unsaved editor change until you explicitly save.
 - Status, priority, due date, tags, and server-side search.
 - Global search covers content and uploaded files, including a file's associated content title.
 - Global search shows a matching context preview and can be narrowed by content type or status.
