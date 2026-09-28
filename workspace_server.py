@@ -61,6 +61,10 @@ if SESSION_SECRET == "replace-with-a-long-random-secret":
     raise RuntimeError("WORKSPACE_SESSION_SECRET 仍是示例值，请先替换为随机密钥")
 
 CODEX_BIN = os.environ.get("WORKSPACE_CODEX_BIN", "").strip()
+CODEX_MODEL = os.environ.get("WORKSPACE_CODEX_MODEL", "").strip()
+CODEX_REASONING_EFFORT = os.environ.get("WORKSPACE_CODEX_REASONING_EFFORT", "low").strip().lower()
+if CODEX_REASONING_EFFORT not in {"low", "medium", "high", "xhigh"}:
+    CODEX_REASONING_EFFORT = "low"
 SETUP_TOKEN = os.environ.get("WORKSPACE_SETUP_TOKEN", "").strip()
 try:
     ASSISTANT_TIMEOUT = min(max(int(os.environ.get("WORKSPACE_ASSISTANT_TIMEOUT", "45")), 5), 120)
@@ -278,7 +282,9 @@ def run_assistant(task: str, title: str, kind: str, content: str) -> str:
         result = subprocess.run(
             command + [
                 "exec", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only",
-                "--color", "never", "-",
+                "--color", "never",
+            ] + (["--model", CODEX_MODEL] if CODEX_MODEL else []) + [
+                "-c", "model_reasoning_effort=" + CODEX_REASONING_EFFORT, "-",
             ],
             cwd=ROOT,
             input=prompt,

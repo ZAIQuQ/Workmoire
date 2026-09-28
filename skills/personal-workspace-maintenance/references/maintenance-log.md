@@ -53,3 +53,5 @@ changes belong in normal commit history.
 - Added a disabled assistant entry when the local CLI is unavailable and a
   single-request UI guard so slow local CLI calls cannot be duplicated by
   repeated clicks.
+
+- Made the local assistant explicitly pass a configurable bounded reasoning setting (default `low`) after the private CLI timed out at its profile default; documented model/reasoning overrides and kept the server-only configuration boundary.

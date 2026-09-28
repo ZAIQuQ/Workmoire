@@ -47,6 +47,21 @@ class WorkspaceCoreTests(unittest.TestCase):
             finally:
                 app.CODEX_BIN = previous
 
+    def test_assistant_passes_bounded_reasoning_setting(self):
+        previous_bin = app.CODEX_BIN
+        previous_effort = app.CODEX_REASONING_EFFORT
+        with tempfile.TemporaryDirectory() as temp:
+            script = Path(temp) / "fake_codex_args.py"
+            script.write_text("import sys\nsys.stdin.read()\nprint(' '.join(sys.argv[1:]))\n", encoding="utf-8")
+            try:
+                app.CODEX_BIN = sys.executable + " " + str(script)
+                app.CODEX_REASONING_EFFORT = "low"
+                result = app.run_assistant("summarize", "标题", "note", "正文")
+                self.assertIn("-c model_reasoning_effort=low", result)
+            finally:
+                app.CODEX_BIN = previous_bin
+                app.CODEX_REASONING_EFFORT = previous_effort
+
     def test_item_rejects_invalid_due_date(self):
         with self.assertRaises(ValueError):
             app.WorkspaceHandler.normalized_item(None, {

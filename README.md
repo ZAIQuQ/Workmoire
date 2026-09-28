@@ -88,9 +88,12 @@ On a Linux server without root package access, install it for the service user:
 
     npm install --prefix "$HOME/.local" @openai/codex@alpha
     export WORKSPACE_CODEX_BIN="$HOME/.local/node_modules/.bin/codex"
+    export WORKSPACE_CODEX_REASONING_EFFORT=low
 
-Keep the CLI's own authentication files in that user's home directory and
-outside the repository.
+Workmoire defaults to the low reasoning setting so a browser request remains
+responsive; set `WORKSPACE_CODEX_MODEL` or choose `medium`, `high`, or `xhigh`
+when a private deployment has a longer assistant timeout. Keep the CLI's own
+authentication files in that user's home directory and outside the repository.
 
 ## License
 
