@@ -19,6 +19,7 @@ introducing a large runtime dependency stack.
 - Recoverable deletion with a private trash area for content and uploaded files.
 - Trashed items stay out of search, active statistics, and item exports until restored.
 - Pin important papers, projects, or notes so they stay visible in lists and the dashboard.
+- Keep unsaved edits as browser-local drafts, with an explicit restore or ignore action.
 - Private file storage with a 64 MB per-file limit.
 - One-click JSON export of notes, metadata, and activity history (without passwords).
 - Transactional JSON import that rebuilds item relationships without importing credentials or file binaries.
