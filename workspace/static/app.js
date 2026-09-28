@@ -1,7 +1,7 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",trash:"回收站"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",listTag:"",setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null};
+const state={page:"dashboard",items:[],allItems:[],selected:null,savedSnapshot:null,stats:null,editorTab:"write",listTag:"",setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,searchController:null};
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
 const draftKey=(kind,id=null)=>"workmoire:draft:"+kind+":"+(id==null?"new":id);
@@ -286,7 +286,19 @@ $("#change-password").onclick=()=>{$("#settings-menu").classList.add("is-hidden"
 $("#password-form").addEventListener("submit",async event=>{if(event.submitter?.value==="cancel")return;event.preventDefault();$("#password-message").textContent="";try{await api("/api/password",{method:"POST",body:JSON.stringify({old_password:$("#old-password").value,new_password:$("#new-password").value})});$("#password-message").textContent="密码已更新";setTimeout(()=>$("#password-dialog").close(),500)}catch(error){$("#password-message").textContent=error.message}});
 $("#assistant-close").onclick=()=>$("#assistant-dialog").close();$("#assistant-run").onclick=runAssistant;$("#assistant-apply-summary").onclick=()=>applyAssistantResult("summary");$("#assistant-apply-content").onclick=()=>applyAssistantResult("content");
 $("#global-search-trigger").onclick=()=>{$("#search-dialog").showModal();$("#global-search").focus()};
-$("#global-search").oninput=async()=>{const query=$("#global-search").value.trim(),box=$("#search-results");if(!query){box.innerHTML='<div class="search-empty">输入关键词开始搜索</div>';return}const result=await api("/api/items?q="+encodeURIComponent(query)+"&limit=30");box.innerHTML=result.items.length?result.items.map(item=>'<div class="search-result" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div><strong>'+esc(item.title)+'</strong><div class="recent-meta">'+esc(labels[item.kind])+" · "+esc(item.summary||"暂无摘要")+'</div></div></div>').join(""):'<div class="search-empty">没有找到匹配内容</div>';$$("#search-results .search-result").forEach(row=>row.onclick=async()=>{$("#search-dialog").close();await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()})};
+async function searchGlobal(query){
+  const box=$("#search-results");
+  if(state.searchController)state.searchController.abort();
+  if(!query){box.innerHTML='<div class="search-empty">输入关键词开始搜索</div>';return}
+  const controller=new AbortController();state.searchController=controller;box.innerHTML='<div class="search-empty">搜索中…</div>';
+  try{
+    const result=await api("/api/items?q="+encodeURIComponent(query)+"&limit=30",{signal:controller.signal});
+    if(controller.signal.aborted)return;
+    box.innerHTML=result.items.length?result.items.map(item=>'<div class="search-result" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div><strong>'+esc(item.title)+'</strong><div class="recent-meta">'+esc(labels[item.kind])+" · "+esc(item.summary||"暂无摘要")+'</div></div></div>').join(""):'<div class="search-empty">没有找到匹配内容</div>';
+    $$("#search-results .search-result").forEach(row=>row.onclick=async()=>{$("#search-dialog").close();await goPage(row.dataset.kind);state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
+  }catch(error){if(error.name!=="AbortError")box.innerHTML='<div class="search-empty">搜索暂时不可用，请稍后重试</div>'}
+}
+$("#global-search").oninput=()=>searchGlobal($("#global-search").value.trim());
 document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();$("#search-dialog").showModal();$("#global-search").focus()}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="s"&&state.selected){event.preventDefault();saveItem()}if((event.ctrlKey||event.metaKey)&&event.key==="Enter"&&state.selected){event.preventDefault();saveItem()}if(event.key==="Escape"){$("#settings-menu")?.classList.add("is-hidden")}});
 $("#mobile-menu").onclick=()=>$(".sidebar").classList.toggle("is-open");
 boot();
