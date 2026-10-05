@@ -687,9 +687,10 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if status:
                 item_clauses.append("status=?")
                 item_values.append(status)
+            item_score = "CASE WHEN title LIKE ? THEN 16 ELSE 0 END + CASE WHEN summary LIKE ? THEN 8 ELSE 0 END + CASE WHEN tags LIKE ? THEN 6 ELSE 0 END + CASE WHEN content LIKE ? THEN 3 ELSE 0 END"
             item_rows = con.execute(
-                "SELECT * FROM items WHERE %s ORDER BY pinned DESC, updated_at DESC LIMIT ?" % " AND ".join(item_clauses),
-                item_values + [limit],
+                "SELECT * FROM items WHERE %s ORDER BY (%s) DESC, pinned DESC, updated_at DESC, id DESC LIMIT ?" % (" AND ".join(item_clauses), item_score),
+                item_values + [pattern, pattern, pattern, pattern] + [limit],
             ).fetchall()
             items = []
             for row in item_rows:
@@ -704,9 +705,10 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if status:
                 file_clauses.append("i.status=?")
                 file_values.append(status)
+            file_score = "CASE WHEN f.name LIKE ? THEN 8 ELSE 0 END + CASE WHEN COALESCE(i.title,'') LIKE ? THEN 6 ELSE 0 END"
             files = [dict(row) for row in con.execute(
-                "SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s ORDER BY f.created_at DESC LIMIT ?" % " AND ".join(file_clauses),
-                file_values + [limit],
+                "SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s ORDER BY (%s) DESC, f.created_at DESC, f.id DESC LIMIT ?" % (" AND ".join(file_clauses), file_score),
+                file_values + [pattern, pattern] + [limit],
             ).fetchall()]
             con.close()
             self.json_response({"items": items, "files": files})

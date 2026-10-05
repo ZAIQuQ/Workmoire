@@ -26,6 +26,8 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 - Back up the configured data directory before schema or deployment changes. Use `backup.sh` (or an equivalent SQLite backup API) for the database and archive uploaded files; keep backups outside the checkout and apply an explicit retention policy.
 - Treat a backup as valid only after the SQLite snapshot passes `PRAGMA integrity_check` and the uploaded-file archive can be listed successfully; perform those checks before retention pruning.
 - Keep automated public-boundary checks generic: never embed a real deployment address, personal domain, or other private identifier as a denylist fixture. Use synthetic patterns in CI and review actual addresses, emails, and paths before publishing.
+- Keep search ranking deterministic and privacy-preserving: rank metadata matches ahead of body-only matches without exposing deleted content or adding an external indexing service.
+- Open search and activity results through an authenticated item lookup rather than assuming the current client list contains the result; navigation must remain correct when list views are bounded or filtered.
 
 ## Working workflow
 

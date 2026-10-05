@@ -69,6 +69,17 @@ class SearchHttpTests(unittest.TestCase):
         self.assertEqual([item["kind"] for item in filtered["items"]], ["project"])
         self.request("/api/search?q=workflow&kind=invalid", status=400)
 
+    def test_search_prioritizes_title_and_metadata_matches(self):
+        body_match = self.create("Unrelated note", content="workflow appears only in the body")
+        pinned_body_match = self.create("Pinned unrelated note", content="workflow appears in this body", pinned=True)
+        title_match = self.create("Workflow retrieval plan", content="A short outline")
+        tag_match = self.create("Tagged note", tags="workflow")
+        result = self.request("/api/search?q=workflow")
+        ids = [item["id"] for item in result["items"]]
+        self.assertLess(ids.index(title_match["id"]), ids.index(tag_match["id"]))
+        self.assertLess(ids.index(tag_match["id"]), ids.index(body_match["id"]))
+        self.assertLess(ids.index(title_match["id"]), ids.index(pinned_body_match["id"]))
+
 
 if __name__ == "__main__":
     unittest.main()

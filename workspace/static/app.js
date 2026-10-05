@@ -346,7 +346,7 @@ async function openActivity(event){
   try{
     const result=await api("/api/items/"+encodeURIComponent(id));
     if(!await goPage(result.item.kind))return;
-    state.selected=state.items.find(item=>String(item.id)===String(id));state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
+    state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
   }catch(_){row.title="这条内容已移入回收站或不存在"}
 }
 function defaultContent(kind){
@@ -692,7 +692,7 @@ async function searchGlobal(query){
     const itemMarkup=items.map(item=>'<div class="search-result search-item-result" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="search-result-body"><strong>'+esc(item.title)+'</strong><div class="search-snippet">'+esc(item.snippet||item.summary||"暂无摘要")+'</div><div class="recent-meta">'+esc(labels[item.kind])+" · "+esc(statusLabels[item.status]||item.status)+" · "+relativeDate(item.updated_at)+'</div></div></div>').join("");
     const fileMarkup=files.map(file=>'<div class="search-result search-file-result" data-id="'+esc(file.id)+'"><span class="file-symbol">↧</span><div><strong>'+esc(file.name)+'</strong><div class="recent-meta">文件 · '+formatBytes(file.size)+(file.item_title?" · "+esc(file.item_title):"")+'</div></div></div>').join("");
     box.innerHTML=itemMarkup||fileMarkup?((itemMarkup?'<div class="search-section-label">内容</div>'+itemMarkup:"")+(fileMarkup?'<div class="search-section-label">文件</div>'+fileMarkup:"")):'<div class="search-empty">没有找到匹配内容或文件</div>';
-    $$("#search-results .search-item-result").forEach(row=>row.onclick=async()=>{if(!await goPage(row.dataset.kind))return;$("#search-dialog").close();state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
+    $$("#search-results .search-item-result").forEach(row=>row.onclick=async()=>{try{const result=await api("/api/items/"+encodeURIComponent(row.dataset.id));if(!await goPage(result.item.kind))return;$("#search-dialog").close();state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()}catch(error){window.alert(error.message)}});
     $$("#search-results .search-file-result").forEach(row=>row.onclick=()=>{window.open("/files/"+encodeURIComponent(row.dataset.id),"_blank","noopener")});
   }catch(error){if(error.name!=="AbortError")box.innerHTML='<div class="search-empty">搜索暂时不可用，请稍后重试</div>'}
 }
