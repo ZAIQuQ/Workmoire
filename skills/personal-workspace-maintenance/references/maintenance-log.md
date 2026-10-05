@@ -86,3 +86,6 @@ changes belong in normal commit history.
   validation, full-archive date filtering, date-preserving edits/history/imports,
   and local-day navigation. Tightened stale browser-draft recovery so an older
   draft remains discoverable but is never applied without an explicit action.
+- Made history restore check for unsaved editor changes and state its draft
+  clearing effect before the explicit restore confirmation, preventing a
+  reversible history action from silently discarding current edits.

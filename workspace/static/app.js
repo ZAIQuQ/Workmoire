@@ -539,7 +539,7 @@ async function addRelatedItem(){
 async function restoreRevision(event){
   event.stopPropagation();
   const button=event.currentTarget,itemId=state.selected?.id,revisionId=button.dataset.revisionId;
-  if(!itemId||!revisionId||!window.confirm("恢复这个历史版本吗？当前内容会先保存为一个新的历史版本。"))return;
+  if(!itemId||!revisionId||!confirmEditorLeave()||!window.confirm("恢复这个历史版本吗？当前内容会先保存为一个新的历史版本。未保存的本机草稿将被清除。"))return;
   button.disabled=true;button.textContent="恢复中…";
   try{
     const previousKind=state.page,result=await api("/api/items/"+encodeURIComponent(itemId)+"/revisions/"+encodeURIComponent(revisionId)+"/restore",{method:"POST"});
