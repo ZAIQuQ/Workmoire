@@ -17,7 +17,7 @@ introducing a large runtime dependency stack.
 - A read-only relationship map shows hierarchy and cross-links together; nodes open the original content without exposing bodies through the graph endpoint.
 - Global quick capture via the dashboard or Ctrl/⌘ + Shift + N puts a thought directly into the inbox.
 - Unsubmitted quick captures can be restored or cleared from browser-local drafts; they are never uploaded automatically.
-- Work logs keep a separate civil date from their title, so renaming a log does not lose its day; the daily action reopens the first log for that date and a day may contain multiple logs.
+- Work logs keep a separate civil date from their title, so renaming a log does not lose its day; the daily action always starts a fresh log and a day may contain multiple logs.
 - The dashboard activity timeline links back to active content and uploaded files.
 - Existing notes, project plans, papers, and logs can be saved as a new inbox copy for reuse as a template.
 - A focus mode hides navigation while writing long papers, plans, or logs.
@@ -50,6 +50,7 @@ introducing a large runtime dependency stack.
 - Search the file space by filename or the title of its associated note, project, paper, or log.
 - One-click JSON export of notes, metadata, saved revisions, activity history, and cross-links (without passwords).
 - Transactional JSON import that rebuilds hierarchy and cross-links without importing credentials or file binaries.
+- Complete ZIP archive export/import for active content and attachment bytes, with checksum and path validation.
 - Signed, expiring login cookies and basic login rate limiting.
 - SQLite WAL mode and a small activity trail.
 - Optional local Codex整理助手，默认关闭，不上传内容到外部服务。
@@ -81,15 +82,25 @@ Copy .env.example to .env and run:
 
 The named volume stores the database and uploaded files. Back up that volume
 before upgrading or moving the service.
-The JSON export contains file metadata; use `backup.sh` when the uploaded file
-contents themselves must be migrated.
+From the account menu, `导出知识库 JSON` produces a portable metadata export;
+`下载完整归档` produces a self-contained ZIP containing active content,
+relationships, history, attachment metadata, and attachment bytes. Both import
+actions append records without overwriting existing content. Complete archives
+are bounded to 256 MB and are validated for path traversal, checksums, and
+transactional rollback. Scheduled `backup.sh` snapshots remain the preferred
+operational backup because they also include deleted items and files.
+Deleting a content item keeps its attachments in the independent file space;
+manage those files separately from the recycle bin.
 
 `backup.sh` writes a SQLite-consistent database snapshot and a compressed file
 archive. It retains the last 14 days by default; set
-`WORKSPACE_BACKUP_RETENTION_DAYS` to change that policy. A generic systemd
-service and timer are provided in `deploy/systemd/*.example`. Copy them into
-your systemd configuration, replace the example user and paths, then enable
-the timer. Keep the backup directory outside the Git checkout.
+`WORKSPACE_BACKUP_RETENTION_DAYS` to change that policy. Generic systemd
+service and timer examples are provided in `deploy/systemd/*.example`. Copy
+them into your systemd configuration, create the dedicated `workmoire` user
+and data directory, replace the example paths, and put
+`WORKSPACE_SESSION_SECRET` and `WORKSPACE_SETUP_TOKEN` in the private
+`EnvironmentFile` before enabling the service and timer. Keep the backup
+directory outside the Git checkout.
 
 ## Project maintenance
 
@@ -108,6 +119,9 @@ a loopback-bound process publicly reachable. The built-in threaded server uses
 a 30-second request socket timeout and an explicit accept queue; keep a
 production HTTPS reverse proxy or private network in front of it for stronger
 connection and TLS controls.
+When HTTPS terminates in front of Workmoire, set `WORKSPACE_COOKIE_SECURE=true`
+so session cookies cannot be sent over a plaintext connection. A direct
+`ip:5200` HTTP deployment is suitable only for a trusted private network.
 
 The project is intentionally independent of any existing service on the
 machine. Choose a free port and data directory when deploying beside another

@@ -1,5 +1,6 @@
 """Coverage for public bootstrap protection and HTTP connection limits."""
 import json
+import io
 import socket
 import tempfile
 import threading
@@ -7,6 +8,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from contextlib import redirect_stdout
 from unittest.mock import patch
 
 import workspace_server as app
@@ -134,6 +136,33 @@ class ServerSecurityHttpTests(unittest.TestCase):
             request.close()
             client.close()
             server.server_close()
+
+    def test_negative_content_length_is_rejected_before_reading_body(self):
+        self.start_server("127.0.0.1")
+        client = socket.create_connection(self.server.server_address, timeout=3)
+        try:
+            client.sendall(
+                b"POST /api/login HTTP/1.1\r\n"
+                b"Host: localhost\r\n"
+                b"Content-Type: application/json\r\n"
+                b"Content-Length: -1\r\n"
+                b"Connection: close\r\n\r\n"
+                b"{}"
+            )
+            response = client.recv(4096)
+            self.assertIn(b"400", response.split(b"\r\n", 1)[0])
+        finally:
+            client.close()
+
+    def test_request_logging_drops_query_strings(self):
+        handler = object.__new__(app.WorkspaceHandler)
+        handler.address_string = lambda: "127.0.0.1"
+        output = io.StringIO()
+        with redirect_stdout(output):
+            handler.log_message('"%s" %s %s', 'GET /api/items?q=private-thought HTTP/1.1', 200, '-')
+        line = output.getvalue()
+        self.assertIn("GET /api/items 200", line)
+        self.assertNotIn("private-thought", line)
 
 
 if __name__ == "__main__":

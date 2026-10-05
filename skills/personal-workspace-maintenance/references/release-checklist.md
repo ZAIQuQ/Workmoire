@@ -17,10 +17,12 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - When file-space listing changes, verify server-side search, total/offset metadata, load-more behavior, and attachment lists after upload or deletion.
 - Verify first-run protection on synthetic servers: a non-loopback bind without `WORKSPACE_SETUP_TOKEN` must reject setup, a loopback bind may allow local setup, and a configured token must reject incorrect values and accept the correct one. Check the bounded server's request timeout and queue attributes.
 - When import/export changes, test a synthetic export with relationships and verify the import is transactional and excludes credentials and file binaries.
+- When complete archive export/import changes, inspect the ZIP manifest and attachment bytes, restore a linked file through the archive path, reject traversal/symlink/size/hash tampering, and verify a failed import leaves no database rows or staged files.
 - When hierarchy import changes, include a self-parent and a multi-item cycle fixture and verify both are rejected with no partial items.
 - When deletion behavior changes, test the full trash lifecycle: active queries hide deleted rows, restore returns them, and permanent deletion removes the row and file bytes.
 - When hierarchy deletion changes, restore a parent with active children, verify unchanged links return, explicit parent edits win, and cycle attempts are skipped safely.
 - When upload behavior changes, submit an invalid item association and verify no staged orphan file remains after the rejected request.
+- When content deletion changes, verify attached file bytes remain independently visible and can be restored or purged through the file-space recycle bin.
 - When editor behavior changes, verify local drafts are revision-scoped, restorable or dismissible, and cleared after a successful save or deletion.
 - When work-log dates change, verify additive migration on a database copy, strict leap-date validation, title renames, exact server-side date filtering, history/export/import coverage, and browser-local date navigation.
 - When session or “today” boundaries change, test that legacy unversioned cookies are rejected after the session-version migration and that stats/review use an explicitly supplied browser civil date.
@@ -41,9 +43,11 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 ## Deployment
 
 - Transfer only the intended source files and static assets.
+- For systemd distributions, review the service example's dedicated user, read-only system paths, writable data allowlist, and loopback/HTTPS boundary before enabling it.
 - Check the port and existing services before restarting.
 - Run systemctl is-active personal-workspace.service.
 - Check /healthz, /api/session, ss -lntp, and recent journalctl output.
+- If HTTPS is enabled, verify `WORKSPACE_COOKIE_SECURE=true` and inspect the login response for a `Secure` session cookie; keep direct HTTP restricted to a trusted private network.
 - Probe `HEAD /healthz` and `HEAD /static/app.js` when the service is behind a monitor or reverse proxy.
 - If a backup timer is enabled, check `systemctl list-timers`, the latest successful run, and the backup directory's free space.
 - Record the deployed commit and any cloud security-group or HTTPS requirement.

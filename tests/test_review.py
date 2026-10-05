@@ -109,6 +109,28 @@ class ReviewHttpTests(unittest.TestCase):
         self.assertEqual(review["inbox"], [])
         self.assertEqual(review["overdue"], [])
 
+    def test_item_list_due_filters_match_review_queues(self):
+        today = "2026-06-15"
+        overdue = self.create("Filtered overdue", due_date="2026-06-14", status="active")
+        due_today = self.create("Filtered today", kind="paper", due_date=today, status="active")
+        stale = self.create("Filtered stale", status="active")
+        excluded_inbox = self.create("Inbox with old date", due_date="2026-06-01", status="inbox")
+        excluded_done = self.create("Done with old date", due_date="2026-06-01", status="done")
+        with app.open_db() as db:
+            db.execute("UPDATE items SET updated_at=? WHERE id=?", ("2020-01-01T00:00:00Z", stale["id"]))
+            db.commit()
+
+        def ids(query):
+            return {item["id"] for item in self.request(query)["items"]}
+
+        self.assertEqual(ids("/api/items?due=overdue&today=" + today), {overdue["id"]})
+        self.assertEqual(ids("/api/items?due=today&today=" + today), {due_today["id"]})
+        self.assertEqual(ids("/api/items?due=stale&today=" + today), {stale["id"]})
+        self.assertNotIn(excluded_inbox["id"], ids("/api/items?due=overdue&today=" + today))
+        self.assertNotIn(excluded_done["id"], ids("/api/items?due=overdue&today=" + today))
+        self.request("/api/items?due=unknown", status=400)
+        self.request("/api/items?due=today&today=2026-6-15", status=400)
+
     def test_item_can_change_kind_without_reentering_content(self):
         item = self.create("Captured idea", kind="note", content="keep this thought", status="inbox")
         converted = self.request(

@@ -20,9 +20,12 @@ import secrets
 import shlex
 import shutil
 import sqlite3
+import stat
 import subprocess
+import tempfile
 import time
 import uuid
+import zipfile
 from contextlib import closing
 from datetime import date, datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -69,6 +72,7 @@ CODEX_REASONING_EFFORT = os.environ.get("WORKSPACE_CODEX_REASONING_EFFORT", "low
 if CODEX_REASONING_EFFORT not in {"low", "medium", "high", "xhigh"}:
     CODEX_REASONING_EFFORT = "low"
 SETUP_TOKEN = os.environ.get("WORKSPACE_SETUP_TOKEN", "").strip()
+COOKIE_SECURE = os.environ.get("WORKSPACE_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes", "on"}
 try:
     ASSISTANT_TIMEOUT = min(max(int(os.environ.get("WORKSPACE_ASSISTANT_TIMEOUT", "45")), 5), 120)
 except ValueError:
@@ -77,6 +81,10 @@ except ValueError:
 SESSION_TTL = 60 * 60 * 24 * 14
 MAX_JSON = 2 * 1024 * 1024
 MAX_UPLOAD = 64 * 1024 * 1024
+MAX_ARCHIVE_UPLOAD = 256 * 1024 * 1024
+MAX_ARCHIVE_MANIFEST = 32 * 1024 * 1024
+MAX_ARCHIVE_MEMBERS = 10000
+MAX_ARCHIVE_UNCOMPRESSED = 256 * 1024 * 1024
 KINDS = {"note", "project", "paper", "log"}
 STATUSES = {"inbox", "active", "done", "paused"}
 ACTIVITY_LABELS = {
@@ -562,7 +570,12 @@ def linked_items(con: sqlite3.Connection, item_id: int) -> list[dict]:
 
 
 def parse_json(handler: BaseHTTPRequestHandler) -> dict:
-    length = int(handler.headers.get("Content-Length", "0"))
+    try:
+        length = int(handler.headers.get("Content-Length", "0"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("请求长度无效") from exc
+    if length < 0:
+        raise ValueError("请求长度无效")
     if length > MAX_JSON:
         raise ValueError("请求内容过大")
     raw = handler.rfile.read(length)
@@ -633,7 +646,15 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
     server_version = "Workmoire/1.0"
 
     def log_message(self, fmt: str, *args: object) -> None:
-        print("%s %s" % (self.address_string(), fmt % args), flush=True)
+        # Request lines can contain private search terms and item titles in the
+        # query string.  Keep the useful method/path/status signal while
+        # deliberately dropping the query before it reaches journald/stdout.
+        request_line = str(args[0]) if args else ""
+        parts = request_line.split()
+        method = parts[0] if parts else "REQUEST"
+        safe_path = urlparse(parts[1]).path if len(parts) > 1 else "-"
+        status = str(args[1]) if len(args) > 1 else "-"
+        print("%s %s %s %s" % (self.address_string(), method, safe_path, status), flush=True)
 
     def current_user(self) -> str | None:
         cookies = SimpleCookie()
@@ -683,6 +704,199 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         print("request failed: %s" % type(exc).__name__, flush=True)
         self.error(fallback, status)
 
+    def _archive_download(self) -> None:
+        """Create and stream a self-contained snapshot without buffering it in RAM."""
+        archive_path: Path | None = None
+        con = open_db()
+        try:
+            # A read transaction keeps the metadata snapshot coherent while
+            # the corresponding files are copied.  WAL allows normal writes
+            # to continue while this stream is being prepared.
+            con.execute("BEGIN")
+            items = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY id")]
+            active_ids = {int(item["id"]) for item in items}
+            files: list[dict] = []
+            file_sources: list[tuple[dict, Path]] = []
+            total_size = 0
+            files_root = FILES_DIR.resolve()
+            for row in con.execute("SELECT id,name,stored_name,size,content_type,item_id,created_at FROM files WHERE deleted_at='' ORDER BY id"):
+                candidate = (FILES_DIR / str(row["stored_name"])).resolve()
+                if candidate.parent != files_root or not candidate.is_file():
+                    raise ValueError("文件数据缺失，无法创建完整归档")
+                size = candidate.stat().st_size
+                if size > MAX_UPLOAD:
+                    raise ValueError("归档中存在超过 64 MB 的文件")
+                total_size += size
+                if total_size > MAX_ARCHIVE_UNCOMPRESSED:
+                    raise ValueError("归档文件总大小超过 256 MB 限制")
+                archive_name = "files/" + str(row["id"])
+                digest = hashlib.sha256()
+                with candidate.open("rb") as stream:
+                    while chunk := stream.read(1024 * 1024):
+                        digest.update(chunk)
+                entry = {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "size": size,
+                    "content_type": row["content_type"],
+                    "item_id": row["item_id"] if row["item_id"] in active_ids else None,
+                    "created_at": row["created_at"],
+                    "archive_path": archive_name,
+                    "sha256": digest.hexdigest(),
+                }
+                files.append(entry)
+                file_sources.append((entry, candidate))
+            activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY id")]
+            revisions = [dict(row) for row in con.execute(
+                "SELECT id,item_id,kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,created_at "
+                "FROM item_revisions WHERE item_id IN (SELECT id FROM items WHERE deleted_at='') ORDER BY id"
+            )]
+            links = [dict(row) for row in con.execute(
+                "SELECT l.source_id,l.target_id FROM item_links l "
+                "JOIN items a ON a.id=l.source_id JOIN items b ON b.id=l.target_id "
+                "WHERE a.deleted_at='' AND b.deleted_at='' ORDER BY l.source_id,l.target_id"
+            )]
+            manifest = {
+                "format": "workmoire-archive",
+                "version": 1,
+                "exported_at": utc_now(),
+                "items": items,
+                "links": links,
+                "files": files,
+                "activity": activity,
+                "revisions": revisions,
+            }
+            manifest_raw = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8")
+            if len(manifest_raw) > MAX_ARCHIVE_MANIFEST:
+                raise ValueError("归档清单超过 32 MB 限制")
+            con.commit()
+            archive_fd, archive_name = tempfile.mkstemp(prefix=".workmoire-export-", suffix=".zip", dir=DATA_DIR)
+            os.close(archive_fd)
+            archive_path = Path(archive_name)
+            with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=False) as archive:
+                archive.writestr("manifest.json", manifest_raw)
+                for entry, source in file_sources:
+                    with source.open("rb") as source_stream, archive.open(entry["archive_path"], "w") as target:
+                        while chunk := source_stream.read(1024 * 1024):
+                            target.write(chunk)
+            size = archive_path.stat().st_size
+            if size > MAX_ARCHIVE_UPLOAD:
+                raise ValueError("归档文件超过 256 MB 限制")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Disposition", 'attachment; filename="workmoire-archive.zip"')
+            self.add_security_headers()
+            self.send_header("Content-Length", str(size))
+            self.end_headers()
+            with archive_path.open("rb") as stream:
+                while chunk := stream.read(1024 * 1024):
+                    self.wfile.write(chunk)
+        finally:
+            con.close()
+            if archive_path is not None:
+                archive_path.unlink(missing_ok=True)
+
+    def _receive_archive_upload(self) -> Path:
+        """Parse a bounded multipart upload into a private temporary file."""
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("归档请求长度无效") from exc
+        if length <= 0 or length > MAX_ARCHIVE_UPLOAD:
+            raise ValueError("归档大小必须在 1 到 256 MB 之间")
+        content_type = self.headers.get("Content-Type", "")
+        if not content_type.lower().startswith("multipart/form-data"):
+            raise ValueError("归档上传必须使用 multipart/form-data")
+        form = cgi.FieldStorage(
+            fp=self.rfile,
+            headers=self.headers,
+            environ={"REQUEST_METHOD": "POST", "CONTENT_TYPE": content_type, "CONTENT_LENGTH": str(length)},
+        )
+        field = form["file"] if "file" in form else None
+        if field is None or not getattr(field, "filename", None):
+            raise ValueError("没有选择归档文件")
+        target_fd, target_name = tempfile.mkstemp(prefix=".workmoire-import-", suffix=".zip", dir=DATA_DIR)
+        os.close(target_fd)
+        target = Path(target_name)
+        try:
+            written = 0
+            with target.open("wb") as stream:
+                while chunk := field.file.read(1024 * 1024):
+                    written += len(chunk)
+                    if written > MAX_ARCHIVE_UPLOAD:
+                        raise ValueError("归档文件超过 256 MB 限制")
+                    stream.write(chunk)
+            return target
+        except Exception:
+            target.unlink(missing_ok=True)
+            raise
+
+    @staticmethod
+    def _validate_archive_name(name: str) -> None:
+        if not name or "\\" in name or name.startswith("/") or "//" in name:
+            raise ValueError("归档中包含不安全的路径")
+        parts = name.split("/")
+        if any(part in ("", ".", "..") for part in parts):
+            raise ValueError("归档中包含不安全的路径")
+
+    def _prepare_import_records(self, data: dict) -> tuple[list, list, list, set[str]]:
+        """Validate JSON export records before either import endpoint writes."""
+        if data.get("format") not in {"workmoire-export", "workmoire-archive"} or data.get("version") != 1:
+            raise ValueError("不是受支持的 Workmoire 导出文件")
+        raw_items = data.get("items")
+        if not isinstance(raw_items, list) or len(raw_items) > 5000:
+            raise ValueError("导出文件中的内容数量无效")
+        prepared = []
+        source_ids = set()
+        for index, raw_item in enumerate(raw_items, 1):
+            if not isinstance(raw_item, dict):
+                raise ValueError("第 %d 条内容格式无效" % index)
+            source_id = raw_item.get("id")
+            if source_id is None or str(source_id) in source_ids:
+                raise ValueError("第 %d 条内容的 ID 无效或重复" % index)
+            source_ids.add(str(source_id))
+            prepared.append((source_id, self.normalized_item(raw_item)))
+        parent_by_source = {str(source_id): item["parent_id"] for source_id, item in prepared}
+        for source_id, item in prepared:
+            parent = item["parent_id"]
+            if parent is None or str(parent) not in source_ids:
+                continue
+            seen = {str(source_id)}
+            current = str(parent)
+            while current in parent_by_source:
+                if current in seen:
+                    raise ValueError("导入内容的层级关系存在循环")
+                seen.add(current)
+                next_parent = parent_by_source[current]
+                if next_parent is None or str(next_parent) not in source_ids:
+                    break
+                current = str(next_parent)
+        raw_links = data.get("links", [])
+        if not isinstance(raw_links, list) or len(raw_links) > 20000:
+            raise ValueError("导出文件中的关联数量无效")
+        prepared_links = []
+        for link in raw_links:
+            if not isinstance(link, dict):
+                raise ValueError("关联格式无效")
+            source, target = str(link.get("source_id")), str(link.get("target_id"))
+            if source not in source_ids or target not in source_ids or source == target:
+                raise ValueError("关联必须指向导出文件中不同的两条内容")
+            prepared_links.append((source, target))
+        raw_revisions = data.get("revisions", [])
+        if not isinstance(raw_revisions, list) or len(raw_revisions) > 100000:
+            raise ValueError("导出文件中的历史版本数量无效")
+        prepared_revisions = []
+        for index, raw_revision in enumerate(raw_revisions, 1):
+            if not isinstance(raw_revision, dict):
+                raise ValueError("第 %d 条历史版本格式无效" % index)
+            source_item = str(raw_revision.get("item_id"))
+            if source_item not in source_ids:
+                raise ValueError("第 %d 条历史版本未指向导出内容" % index)
+            normalized_revision = self.normalized_item(raw_revision)
+            created_at = str(raw_revision.get("created_at", "")).strip()[:64] or utc_now()
+            prepared_revisions.append((source_item, normalized_revision, created_at))
+        return prepared, prepared_links, prepared_revisions, source_ids
+
     def require_user(self) -> str | None:
         user = self.current_user()
         if not user:
@@ -691,7 +905,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         return user
 
     def login_cookie(self, username: str, session_version: int | None = None) -> str:
-        return "workspace_session=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=%d" % (encode_session(username, session_version), SESSION_TTL)
+        secure = "; Secure" if COOKIE_SECURE else ""
+        return "workspace_session=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=%d%s" % (encode_session(username, session_version), SESSION_TTL, secure)
 
     def set_login_cookie(self, username: str, session_version: int | None = None) -> None:
         self.send_header(
@@ -748,6 +963,14 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 {"format": "workmoire-export", "version": 1, "exported_at": utc_now(), "items": items, "links": links, "files": files, "activity": activity, "revisions": revisions},
                 "workmoire-export.json",
             )
+            return
+        if path == "/api/export-archive":
+            if not self.require_user():
+                return
+            try:
+                self._archive_download()
+            except Exception as exc:
+                self.request_error(exc, "归档暂时无法生成", 500)
             return
         if path == "/api/stats":
             if not self.require_user():
@@ -982,8 +1205,17 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             sort = params.get("sort", ["updated"])[0]
             search = params.get("q", [""])[0].strip()
             raw_entry_date = params.get("entry_date", [""])[0].strip()
+            due_filter = params.get("due", [""])[0].strip()
             try:
                 entry_date = optional_entry_date(raw_entry_date)
+            except ValueError as exc:
+                self.error(str(exc), 400)
+                return
+            if due_filter not in {"", "overdue", "today", "stale"}:
+                self.error("期限筛选无效", 400)
+                return
+            try:
+                filter_today = optional_entry_date(params.get("today", [""])[0]) or date.today().isoformat()
             except ValueError as exc:
                 self.error(str(exc), 400)
                 return
@@ -1025,6 +1257,15 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if entry_date:
                 clauses.append("entry_date=?")
                 values.append(entry_date)
+            if due_filter == "overdue":
+                clauses.extend(["status!='inbox'", "status!='done'", "due_date != ''", "due_date < ?"])
+                values.append(filter_today)
+            elif due_filter == "today":
+                clauses.extend(["status!='inbox'", "status!='done'", "due_date = ?"])
+                values.append(filter_today)
+            elif due_filter == "stale":
+                clauses.extend(["status='active'", "due_date = ''", "updated_at < ?"])
+                values.append(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 7 * 86400)))
             if search:
                 clauses.append("(title LIKE ? OR summary LIKE ? OR content LIKE ? OR tags LIKE ?)")
                 needle = "%" + search + "%"
@@ -1271,7 +1512,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 self.request_error(exc)
             return
         if path == "/api/logout":
-            self.json_response({"ok": True}, 200, [("Set-Cookie", "workspace_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0")])
+            secure = "; Secure" if COOKIE_SECURE else ""
+            self.json_response({"ok": True}, 200, [("Set-Cookie", "workspace_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0%s" % secure)])
             return
         if path.startswith("/api/items/") and path.endswith("/restore"):
             user = self.require_user()
@@ -1428,17 +1670,18 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if not user:
                 return
             file_id = unquote(path.split("/")[4])
-            con = open_db()
-            row = con.execute("SELECT * FROM files WHERE id=? AND deleted_at!=''", (file_id,)).fetchone()
-            if not row:
-                con.close()
-                self.error("回收站中不存在这个文件", 404)
-                return
-            con.execute("UPDATE files SET deleted_at='' WHERE id=?", (file_id,))
-            log_activity(con, "restore_file", "file", file_id, row["name"])
-            con.commit()
-            restored = con.execute("SELECT id,name,size,content_type,created_at FROM files WHERE id=?", (file_id,)).fetchone()
-            con.close()
+            with closing(open_db()) as con, con:
+                con.execute("BEGIN IMMEDIATE")
+                row = con.execute("SELECT * FROM files WHERE id=? AND deleted_at!=''", (file_id,)).fetchone()
+                if not row:
+                    self.error("回收站中不存在这个文件", 404)
+                    return
+                restored_count = con.execute("UPDATE files SET deleted_at='' WHERE id=? AND deleted_at!=''", (file_id,)).rowcount
+                if restored_count != 1:
+                    self.error("回收站中的文件状态已变化，请刷新后重试", 409)
+                    return
+                log_activity(con, "restore_file", "file", file_id, row["name"])
+                restored = con.execute("SELECT id,name,size,content_type,created_at FROM files WHERE id=?", (file_id,)).fetchone()
             self.json_response({"file": dict(restored)})
             return
         if path == "/api/assistant":
@@ -1549,6 +1792,168 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 self.json_response({"ok": True, "imported_items": len(prepared), "imported_revisions": len(prepared_revisions), "skipped_files": len(data.get("files", [])) if isinstance(data.get("files", []), list) else 0}, 201)
             except Exception as exc:
                 self.request_error(exc)
+            return
+        if path == "/api/import-archive":
+            user = self.require_user()
+            if not user:
+                return
+            upload_path: Path | None = None
+            staging_dir: Path | None = None
+            moved_files: list[Path] = []
+            try:
+                upload_path = self._receive_archive_upload()
+                with zipfile.ZipFile(upload_path, "r") as archive:
+                    infos = archive.infolist()
+                    if len(infos) > MAX_ARCHIVE_MEMBERS:
+                        raise ValueError("归档中的文件数量过多")
+                    names = set()
+                    total_uncompressed = 0
+                    for info in infos:
+                        name = info.filename
+                        self._validate_archive_name(name)
+                        if name in names:
+                            raise ValueError("归档中存在重复路径")
+                        names.add(name)
+                        if info.flag_bits & 0x1:
+                            raise ValueError("归档不支持加密文件")
+                        file_type = (info.external_attr >> 16) & 0o170000
+                        if file_type == stat.S_IFLNK:
+                            raise ValueError("归档不允许符号链接")
+                        if info.is_dir() or info.file_size > MAX_UPLOAD:
+                            raise ValueError("归档中的文件大小无效")
+                        total_uncompressed += info.file_size
+                        if total_uncompressed > MAX_ARCHIVE_UNCOMPRESSED:
+                            raise ValueError("归档解压后的总大小超过 256 MB 限制")
+                    if "manifest.json" not in names:
+                        raise ValueError("归档缺少 manifest.json")
+                    with archive.open("manifest.json", "r") as manifest_stream:
+                        raw_manifest = manifest_stream.read(MAX_ARCHIVE_MANIFEST + 1)
+                    if len(raw_manifest) > MAX_ARCHIVE_MANIFEST:
+                        raise ValueError("归档清单过大")
+                    try:
+                        manifest = json.loads(raw_manifest.decode("utf-8"))
+                    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                        raise ValueError("归档清单格式无效") from exc
+                    if not isinstance(manifest, dict):
+                        raise ValueError("归档清单格式无效")
+                    prepared, prepared_links, prepared_revisions, source_ids = self._prepare_import_records(manifest)
+                    raw_files = manifest.get("files", [])
+                    if not isinstance(raw_files, list) or len(raw_files) > 5000:
+                        raise ValueError("归档中的附件数量无效")
+                    listed_paths: set[str] = set()
+                    staged_files: list[dict] = []
+                    staging_dir = Path(tempfile.mkdtemp(prefix=".workmoire-import-files-", dir=DATA_DIR))
+                    for index, raw_file in enumerate(raw_files, 1):
+                        if not isinstance(raw_file, dict):
+                            raise ValueError("第 %d 条附件格式无效" % index)
+                        archive_name = str(raw_file.get("archive_path", ""))
+                        if not archive_name.startswith("files/") or archive_name.count("/") != 1:
+                            raise ValueError("第 %d 条附件路径无效" % index)
+                        self._validate_archive_name(archive_name)
+                        if archive_name in listed_paths or archive_name not in names:
+                            raise ValueError("第 %d 条附件路径无效或重复" % index)
+                        listed_paths.add(archive_name)
+                        source_id = raw_file.get("item_id")
+                        source_item = str(source_id) if source_id is not None else None
+                        if source_item is not None and source_item not in source_ids:
+                            source_item = None
+                        original_name = Path(str(raw_file.get("name", "附件"))).name[:200]
+                        if not original_name:
+                            original_name = "附件"
+                        content_type = str(raw_file.get("content_type", "application/octet-stream"))[:200] or "application/octet-stream"
+                        try:
+                            declared_size = int(raw_file.get("size", -1))
+                        except (TypeError, ValueError) as exc:
+                            raise ValueError("第 %d 条附件大小无效" % index) from exc
+                        if declared_size < 0 or declared_size > MAX_UPLOAD:
+                            raise ValueError("第 %d 条附件大小无效" % index)
+                        info = archive.getinfo(archive_name)
+                        if declared_size != info.file_size:
+                            raise ValueError("第 %d 条附件大小与归档不一致" % index)
+                        expected_hash = str(raw_file.get("sha256", "")).lower()
+                        if expected_hash and not re.fullmatch(r"[0-9a-f]{64}", expected_hash):
+                            raise ValueError("第 %d 条附件校验值无效" % index)
+                        suffix = Path(original_name).suffix.lower()
+                        if len(suffix) > 32 or not re.fullmatch(r"\.[a-z0-9._-]+", suffix):
+                            suffix = ""
+                        file_id = uuid.uuid4().hex
+                        staged = staging_dir / file_id
+                        digest = hashlib.sha256()
+                        written = 0
+                        with archive.open(info, "r") as source, staged.open("wb") as target:
+                            while chunk := source.read(1024 * 1024):
+                                written += len(chunk)
+                                if written > MAX_UPLOAD:
+                                    raise ValueError("附件大小超过 64 MB 限制")
+                                digest.update(chunk)
+                                target.write(chunk)
+                        if written != declared_size or (expected_hash and digest.hexdigest() != expected_hash):
+                            raise ValueError("第 %d 条附件校验失败" % index)
+                        created_at = str(raw_file.get("created_at", "")).strip()[:64] or utc_now()
+                        staged_files.append({
+                            "id": file_id,
+                            "name": original_name,
+                            "stored_name": file_id + suffix,
+                            "size": written,
+                            "content_type": content_type,
+                            "source_item": source_item,
+                            "created_at": created_at,
+                            "staged": staged,
+                        })
+                    unexpected = [name for name in names if name != "manifest.json" and name not in listed_paths]
+                    if unexpected:
+                        raise ValueError("归档包含未登记的附件")
+                    unknown = [name for name in names if name != "manifest.json" and not name.startswith("files/")]
+                    if unknown:
+                        raise ValueError("归档包含不支持的文件")
+                    with closing(open_db()) as con, con:
+                        con.execute("BEGIN IMMEDIATE")
+                        id_map = {}
+                        now = utc_now()
+                        for source_id, item in prepared:
+                            cursor = con.execute(
+                                "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                                (item["kind"], item["title"], item["summary"], item["content"], item["tags"], item["status"], item["priority"], item["due_date"], item["entry_date"], None, item["pinned"], "", now, now),
+                            )
+                            id_map[str(source_id)] = cursor.lastrowid
+                        for source_id, item in prepared:
+                            parent_id = item["parent_id"]
+                            if parent_id is not None and str(parent_id) in id_map:
+                                con.execute("UPDATE items SET parent_id=? WHERE id=?", (id_map[str(parent_id)], id_map[str(source_id)]))
+                            log_activity(con, "import", "item", id_map[str(source_id)], item["title"])
+                        for source_id, target_id in prepared_links:
+                            source, target = canonical_link(id_map[source_id], id_map[target_id])
+                            con.execute("INSERT OR IGNORE INTO item_links(source_id,target_id,created_at) VALUES(?,?,?)", (source, target, now))
+                        for source_item, revision, created_at in prepared_revisions:
+                            parent_id = revision["parent_id"]
+                            mapped_parent = id_map.get(str(parent_id)) if parent_id is not None else None
+                            con.execute(
+                                "INSERT INTO item_revisions(item_id,kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                                (id_map[source_item], revision["kind"], revision["title"], revision["summary"], revision["content"], revision["tags"], revision["status"], revision["priority"], revision["due_date"], revision["entry_date"], mapped_parent, revision["pinned"], created_at),
+                            )
+                        for file_record in staged_files:
+                            target = FILES_DIR / file_record["stored_name"]
+                            shutil.move(str(file_record["staged"]), target)
+                            moved_files.append(target)
+                            mapped_item = id_map.get(file_record["source_item"]) if file_record["source_item"] is not None else None
+                            con.execute(
+                                "INSERT INTO files(id,name,stored_name,size,content_type,item_id,deleted_at,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                                (file_record["id"], file_record["name"], file_record["stored_name"], file_record["size"], file_record["content_type"], mapped_item, "", file_record["created_at"]),
+                            )
+                            log_activity(con, "import", "file", file_record["id"], file_record["name"])
+                    self.json_response({"ok": True, "imported_items": len(prepared), "imported_revisions": len(prepared_revisions), "imported_files": len(staged_files)}, 201)
+            except Exception as exc:
+                for moved in moved_files:
+                    moved.unlink(missing_ok=True)
+                if isinstance(exc, (zipfile.BadZipFile, zipfile.LargeZipFile)):
+                    self.error("归档格式无效", 400)
+                else:
+                    self.request_error(exc)
+            finally:
+                if staging_dir is not None:
+                    shutil.rmtree(staging_dir, ignore_errors=True)
+                if upload_path is not None:
+                    upload_path.unlink(missing_ok=True)
             return
         if path == "/api/items/bulk":
             user = self.require_user()
@@ -1862,30 +2267,32 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             except ValueError:
                 self.error("无效的内容 ID")
                 return
-            con = open_db()
-            row = con.execute("SELECT title FROM items WHERE id=? AND deleted_at!=''", (item_id,)).fetchone()
-            if not row:
-                con.close()
-                self.error("回收站中不存在这条内容", 404)
-                return
-            con.execute("DELETE FROM items WHERE id=?", (item_id,))
-            log_activity(con, "purge", "item", item_id, row["title"])
-            con.commit()
-            con.close()
+            with closing(open_db()) as con, con:
+                con.execute("BEGIN IMMEDIATE")
+                row = con.execute("SELECT title FROM items WHERE id=? AND deleted_at!=''", (item_id,)).fetchone()
+                if not row:
+                    self.error("回收站中不存在这条内容", 404)
+                    return
+                deleted = con.execute("DELETE FROM items WHERE id=? AND deleted_at!=''", (item_id,)).rowcount
+                if deleted != 1:
+                    self.error("回收站中的内容状态已变化，请刷新后重试", 409)
+                    return
+                log_activity(con, "purge", "item", item_id, row["title"])
             self.json_response({"ok": True})
             return
         if path.startswith("/api/trash/files/"):
             file_id = unquote(path.rsplit("/", 1)[1])
-            con = open_db()
-            row = con.execute("SELECT name,stored_name FROM files WHERE id=? AND deleted_at!=''", (file_id,)).fetchone()
-            if not row:
-                con.close()
-                self.error("回收站中不存在这个文件", 404)
-                return
-            con.execute("DELETE FROM files WHERE id=?", (file_id,))
-            log_activity(con, "purge_file", "file", file_id, row["name"])
-            con.commit()
-            con.close()
+            with closing(open_db()) as con, con:
+                con.execute("BEGIN IMMEDIATE")
+                row = con.execute("SELECT name,stored_name FROM files WHERE id=? AND deleted_at!=''", (file_id,)).fetchone()
+                if not row:
+                    self.error("回收站中不存在这个文件", 404)
+                    return
+                deleted = con.execute("DELETE FROM files WHERE id=? AND deleted_at!=''", (file_id,)).rowcount
+                if deleted != 1:
+                    self.error("回收站中的文件状态已变化，请刷新后重试", 409)
+                    return
+                log_activity(con, "purge_file", "file", file_id, row["name"])
             (FILES_DIR / row["stored_name"]).unlink(missing_ok=True)
             self.json_response({"ok": True})
             return

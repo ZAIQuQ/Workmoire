@@ -110,3 +110,18 @@ changes belong in normal commit history.
   totals, and a browser load-more control so a large attachment archive remains
   discoverable. Updated the API client, README/release gates, tests, and skill
   together.
+- Added a complete systemd service example with an unprivileged user,
+  read-only system paths, a dedicated writable data directory, and an explicit
+  loopback/HTTPS boundary so the documented open-source deployment is usable
+  without inventing a unit file.
+- Rejected negative JSON content lengths before reading the socket, made
+  restore/purge mutations share an immediate SQLite lock, and added an explicit
+  `WORKSPACE_COOKIE_SECURE` switch for HTTPS deployments. Updated security
+  tests and the private-network deployment guidance.
+- Added a bounded self-contained ZIP archive export/import path with attachment
+  bytes, SHA-256 verification, traversal and symlink checks, staging cleanup,
+  and transactional rollback. Added complete-archive controls to the account
+  menu and documented that attachments remain independent when their content
+  item is deleted. Added due-date queue filters, direct full-queue navigation,
+  and fresh same-day log creation; request logs now omit query strings so
+  search terms do not enter journald.

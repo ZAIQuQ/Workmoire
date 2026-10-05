@@ -47,7 +47,7 @@
       </nav>
       <div class="sidebar-bottom">
         <button id="settings-button" class="account-button"><span class="avatar">U</span><span id="account-name">个人账号</span><span class="dots">···</span></button>
-        <div id="settings-menu" class="settings-menu is-hidden"><button id="export-data">导出知识库</button><button id="import-data">导入知识库</button><button id="change-password">修改密码</button><button id="logout">退出登录</button></div>
+        <div id="settings-menu" class="settings-menu is-hidden"><button id="export-data">导出知识库 JSON</button><button id="export-archive">下载完整归档</button><button id="import-data">导入知识库 JSON</button><button id="import-archive">导入完整归档</button><button id="change-password">修改密码</button><button id="logout">退出登录</button></div>
         <div class="server-status"><i></i><span id="server-status-label">本地服务在线</span></div>
       </div>
     </aside>
@@ -67,6 +67,7 @@
   <dialog id="search-dialog" class="dialog"><div class="dialog-card search-dialog-card"><div class="search-box"><span>⌕</span><input id="global-search" placeholder="搜索标题、摘要、标签和正文…" autocomplete="off"><kbd>ESC</kbd></div><div class="search-filters"><select id="global-search-kind" class="control-input" aria-label="按内容类型筛选"><option value="">全部内容</option><option value="note">知识库</option><option value="project">项目空间</option><option value="paper">论文大纲</option><option value="log">工作日志</option></select><select id="global-search-status" class="control-input" aria-label="按内容状态筛选"><option value="">全部状态</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></div><div id="search-results" class="search-results"><div class="search-empty">输入关键词开始搜索</div></div></div></dialog>
   <dialog id="assistant-dialog" class="dialog"><div class="dialog-card assistant-dialog-card"><div class="dialog-head"><h2>本地整理助手</h2><button id="assistant-close" class="icon-button" aria-label="关闭">×</button></div><p class="assistant-note">内容只会发送给服务器上显式配置的本地 Codex，不会写入数据库。生成结果不会自动修改内容。</p><label class="form-field"><span>整理方式</span><select id="assistant-task"><option value="summarize">提炼摘要</option><option value="outline">整理大纲</option><option value="next_steps">生成下一步</option><option value="review">检查结构</option></select></label><pre id="assistant-result" class="assistant-result">选择任务后开始整理。</pre><div class="dialog-actions assistant-apply-actions"><button id="assistant-apply-summary" class="button button-secondary is-hidden">填入摘要</button><button id="assistant-apply-content" class="button button-secondary is-hidden">追加到正文</button><span class="spacer"></span><button id="assistant-run" class="button button-primary">开始整理</button></div></div></dialog>
   <input id="import-input" class="file-input" type="file" accept="application/json,.json">
+  <input id="import-archive-input" class="file-input" type="file" accept="application/zip,.zip">
   <script src="/static/app.js"></script>
 </body>
 </html>

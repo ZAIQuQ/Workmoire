@@ -107,6 +107,18 @@ def main():
                 assert page.context.request.get(
                     "http://127.0.0.1:%d/api/items?kind=log&entry_date=2026-01-02" % server.server_port
                 ).json()["total"] == 1
+                # The dashboard quick action always starts a fresh log, even
+                # when another entry already exists for the same civil day.
+                page.locator('[data-page="dashboard"]').click()
+                for title in ("Synthetic quick log one", "Synthetic quick log two"):
+                    page.locator("#quick-log").click()
+                    page.locator("#edit-title").fill(title)
+                    page.locator("#save-content").click()
+                    expect(page.locator("#save-indicator")).to_contain_text("已保存")
+                    page.locator('[data-page="dashboard"]').click()
+                assert page.context.request.get(
+                    "http://127.0.0.1:%d/api/items?kind=log&entry_date=%s" % (server.server_port, date.today().isoformat())
+                ).json()["total"] == 2
                 calendar_response = page.context.request.post(
                     "http://127.0.0.1:%d/api/items" % server.server_port,
                     data={"kind": "project", "title": "Synthetic calendar project", "due_date": date.today().isoformat(), "status": "active"},
@@ -140,7 +152,7 @@ def main():
                 expect(page.locator("#edit-title")).to_have_value("Synthetic browser note")
                 page.locator('[data-page="graph"]').click()
                 expect(page.locator("#page-content h1")).to_have_text("关系地图")
-                expect(page.locator(".graph-node")).to_have_count(5)
+                expect(page.locator(".graph-node")).to_have_count(7)
                 expect(page.locator(".graph-edge")).to_have_count(1)
                 page.locator('.graph-node[data-id="%d"]' % project_id).click()
                 expect(page.locator("#edit-title")).to_have_value("Synthetic linked project")

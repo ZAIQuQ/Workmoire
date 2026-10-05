@@ -1,0 +1,38 @@
+[Unit]
+Description=Workmoire private workspace
+After=network.target local-fs.target
+Wants=network.target
+
+[Service]
+Type=simple
+# Create a dedicated unprivileged user and group before enabling this unit.
+User=workmoire
+Group=workmoire
+WorkingDirectory=/opt/workmoire
+EnvironmentFile=-/etc/workmoire/workmoire.env
+Environment=WORKSPACE_HOST=127.0.0.1
+Environment=WORKSPACE_PORT=5200
+Environment=WORKSPACE_DATA_DIR=/var/lib/workmoire/data
+ExecStart=/usr/bin/python3 /opt/workmoire/workspace_server.py
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=15s
+UMask=0077
+
+# The application only needs to write its dedicated data directory. Put an
+# HTTPS reverse proxy or a private network in front of the loopback listener.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/var/lib/workmoire
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
