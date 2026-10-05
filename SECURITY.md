@@ -22,4 +22,7 @@ recovery path after permanent deletion.
 
 Set a random `WORKSPACE_SETUP_TOKEN` before exposing a fresh instance. It is
 accepted only during the one-time account initialization and must stay outside
-the public repository.
+the public repository. The server rejects first-run setup without that token
+when its listener is bound to a non-loopback address; configure it even when a
+reverse proxy exposes a loopback-bound process because the application cannot
+infer the proxy's public reach.
