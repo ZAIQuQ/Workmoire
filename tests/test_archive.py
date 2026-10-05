@@ -116,6 +116,44 @@ class ArchiveHttpTests(unittest.TestCase):
             imported = con.execute("SELECT stored_name FROM files WHERE id!=?", (file_id,)).fetchone()
         self.assertEqual((app.FILES_DIR / imported["stored_name"]).read_bytes(), b"archive bytes")
 
+    def test_archive_preserves_timestamps_and_history_activity(self):
+        item = self.create_item()
+        self.upload_file(item["id"])
+        manifest, members = self.export_archive()
+        old_created = "2024-01-02T03:04:05.000000Z"
+        old_updated = "2024-02-03T04:05:06.000000Z"
+        manifest["items"][0]["created_at"] = old_created
+        manifest["items"][0]["updated_at"] = old_updated
+        manifest["activity"].append({
+            "id": 999999,
+            "action": "note",
+            "target_type": "item",
+            "target_id": item["id"],
+            "label": "历史活动保留",
+            "created_at": old_created,
+        })
+        archive_bytes = io.BytesIO()
+        with zipfile.ZipFile(archive_bytes, "w") as archive:
+            archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False).encode("utf-8"))
+            for name, content in members.items():
+                archive.writestr(name, content)
+        body, content_type = self.multipart("timestamps.zip", archive_bytes.getvalue())
+        result = json.loads(self.request("/api/import-archive", "POST", body=body, headers={"Content-Type": content_type}, status=201))
+        self.assertGreaterEqual(result["imported_activity"], 1)
+        with app.open_db() as con:
+            imported = con.execute(
+                "SELECT id,created_at,updated_at FROM items WHERE title=? ORDER BY id DESC LIMIT 1",
+                ("Archive project",),
+            ).fetchone()
+            activity = con.execute(
+                "SELECT target_id,created_at FROM activity WHERE label=? ORDER BY id DESC LIMIT 1",
+                ("历史活动保留",),
+            ).fetchone()
+        self.assertEqual(imported["created_at"], old_created)
+        self.assertEqual(imported["updated_at"], old_updated)
+        self.assertEqual(activity["target_id"], str(imported["id"]))
+        self.assertEqual(activity["created_at"], old_created)
+
     def test_archive_rejects_extra_members_and_bad_checksums_transactionally(self):
         item = self.create_item()
         self.upload_file(item["id"])
@@ -129,6 +167,16 @@ class ArchiveHttpTests(unittest.TestCase):
             archive.writestr("manifest.json", base)
             archive.writestr("extra.txt", b"unexpected")
         body, content_type = self.multipart("bad.zip", malicious.getvalue())
+        self.request("/api/import-archive", "POST", body=body, headers={"Content-Type": content_type}, status=400)
+
+        invalid_link_manifest = dict(manifest)
+        invalid_link_manifest["files"] = [dict(manifest["files"][0], item_id="missing-item")]
+        invalid_link = io.BytesIO()
+        with zipfile.ZipFile(invalid_link, "w") as archive:
+            archive.writestr("manifest.json", json.dumps(invalid_link_manifest).encode("utf-8"))
+            for name, content in members.items():
+                archive.writestr(name, content)
+        body, content_type = self.multipart("bad-file-link.zip", invalid_link.getvalue())
         self.request("/api/import-archive", "POST", body=body, headers={"Content-Type": content_type}, status=400)
 
         tampered = io.BytesIO()

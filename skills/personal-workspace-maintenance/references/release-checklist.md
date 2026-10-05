@@ -15,9 +15,11 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - When list filters or sorting change, verify status/tag/search filters and every supported sort across multiple cursor pages, reject a cursor reused with a different sort, and confirm the browser preserves the server order.
 - When bounded auxiliary views change, verify review and calendar totals, calendar items beyond the compact day view, trash load-more controls, and full-archive parent/tag candidates.
 - When file-space listing changes, verify server-side search, total/offset metadata, load-more behavior, and attachment lists after upload or deletion.
+- When file association changes, verify linked/unlinked filters, filtered byte totals, authenticated attach/detach, and that a deleted item leaves its file independently manageable.
 - Verify first-run protection on synthetic servers: a non-loopback bind without `WORKSPACE_SETUP_TOKEN` must reject setup, a loopback bind may allow local setup, and a configured token must reject incorrect values and accept the correct one. Check the bounded server's request timeout and queue attributes.
 - When import/export changes, test a synthetic export with relationships and verify the import is transactional and excludes credentials and file binaries.
 - When complete archive export/import changes, inspect the ZIP manifest and attachment bytes, restore a linked file through the archive path, reject traversal/symlink/size/hash tampering, and verify a failed import leaves no database rows or staged files.
+- When archive timeline handling changes, verify valid item/file timestamps and mapped activity survive import, while malformed timestamps or unknown attachment IDs leave no partial rows.
 - When hierarchy import changes, include a self-parent and a multi-item cycle fixture and verify both are rejected with no partial items.
 - When deletion behavior changes, test the full trash lifecycle: active queries hide deleted rows, restore returns them, and permanent deletion removes the row and file bytes.
 - When hierarchy deletion changes, restore a parent with active children, verify unchanged links return, explicit parent edits win, and cycle attempts are skipped safely.

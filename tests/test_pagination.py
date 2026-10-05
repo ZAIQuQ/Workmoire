@@ -70,6 +70,20 @@ class PaginationHttpTests(unittest.TestCase):
     def test_invalid_cursor_is_rejected(self):
         self.request("/api/items?cursor=not-a-valid-cursor", status=400)
 
+    def test_item_list_omits_full_body_but_keeps_task_summary(self):
+        content = "- [ ] First task\n- [x] Finished task\n" + ("long body " * 200)
+        item = self.request(
+            "/api/items", "POST", {"kind": "note", "title": "Long list item", "content": content}, status=201
+        )["item"]
+        listed = self.request("/api/items?limit=10")["items"]
+        summary = next(row for row in listed if row["id"] == item["id"])
+        self.assertNotIn("content", summary)
+        self.assertEqual(summary["task_total"], 2)
+        self.assertEqual(summary["task_done"], 1)
+        self.assertTrue(summary["content_preview"].startswith("- [ ] First task"))
+        detail = self.request("/api/items/%d" % item["id"])["item"]
+        self.assertEqual(detail["content"], content)
+
     def test_sort_aware_cursors_cover_the_full_archive(self):
         self.request("/api/items", "POST", {"kind": "note", "title": "Zulu", "priority": 1, "due_date": "", "tags": "alpha"}, status=201)
         self.request("/api/items", "POST", {"kind": "note", "title": "Alpha", "priority": 3, "due_date": "2026-01-03"}, status=201)

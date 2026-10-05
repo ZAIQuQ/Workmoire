@@ -80,6 +80,20 @@ class SearchHttpTests(unittest.TestCase):
         self.assertLess(ids.index(tag_match["id"]), ids.index(body_match["id"]))
         self.assertLess(ids.index(title_match["id"]), ids.index(pinned_body_match["id"]))
 
+    def test_search_is_offset_paginated_and_returns_lightweight_items(self):
+        for index in range(5):
+            self.create("Indexed %d" % index, content="needle body %d" % index)
+        first = self.request("/api/search?q=needle&limit=2")
+        self.assertEqual(first["item_total"], 5)
+        self.assertEqual(len(first["items"]), 2)
+        self.assertEqual(first["offset"], 0)
+        self.assertEqual(first["next_offset"], 2)
+        self.assertNotIn("content", first["items"][0])
+        second = self.request("/api/search?q=needle&limit=2&offset=2")
+        self.assertEqual(second["offset"], 2)
+        self.assertEqual(len(second["items"]), 2)
+        self.assertTrue({item["id"] for item in first["items"]}.isdisjoint(item["id"] for item in second["items"]))
+
 
 if __name__ == "__main__":
     unittest.main()

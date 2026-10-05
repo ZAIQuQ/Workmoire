@@ -1,7 +1,7 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",all:"全部内容",review:"今日复盘",calendar:"计划日历",graph:"关系地图",trash:"回收站"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷",review:"✦",calendar:"▦",graph:"⌘",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],itemsCursor:null,itemsTotal:0,allItemsCursor:null,allItemsTotal:0,selected:null,savedSnapshot:null,selectedIds:new Set(),visibleItemIds:[],stats:null,reviewData:null,graphData:null,graphFilter:"",calendarDate:new Date(),logDate:"",editorTab:"write",listTag:"",listStatus:"",listDue:"",listSort:"updated",listQuery:"",listSearchTimer:null,itemsRequest:0,fileSearch:"",fileRows:[],fileTotal:0,fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null};
+const state={page:"dashboard",items:[],allItems:[],allItemsCursor:null,itemsCursor:null,itemsTotal:0,allItemsTotal:0,selected:null,savedSnapshot:null,selectedIds:new Set(),visibleItemIds:[],stats:null,reviewData:null,graphData:null,graphFilter:"",calendarDate:new Date(),logDate:"",editorTab:"write",listTag:"",listStatus:"",listDue:"",listSort:"updated",listQuery:"",listSearchTimer:null,itemsRequest:0,fileSearch:"",fileLinked:"",fileRows:[],fileTotal:0,fileBytes:0,fileItemOptions:[],fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null,searchQuery:"",searchOffset:0,searchItems:[],searchFiles:[],searchNextOffset:null};
 const captureDraftKey="workmoire:capture-draft";
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
@@ -91,7 +91,7 @@ function taskStats(source){
   return {total:matches.length,done:matches.filter(line=>line.slice(3,4).toLowerCase()==="x").length};
 }
 function taskProgressMarkup(source){
-  const stats=taskStats(source);
+  const stats=source&&typeof source==="object"&&Number.isFinite(Number(source.task_total))?{total:Number(source.task_total),done:Number(source.task_done||0)}:taskStats(source);
   return stats.total?'<span class="task-progress" title="任务完成进度">✓ '+stats.done+'/'+stats.total+'</span>':"";
 }
 function dueItemMarkup(item){const overdue=Boolean(item.overdue);return '<div class="due-item '+(overdue?"is-overdue":"")+'" data-id="'+item.id+'" data-kind="'+item.kind+'"><div class="due-date">'+(overdue?"已逾期 · ":"")+esc(formatDueDate(item.due_date))+'</div><div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+'</div></div>'+statusPill(item.status)+'<button class="due-complete" data-id="'+item.id+'" type="button">完成</button></div>'}
@@ -320,7 +320,7 @@ async function openReviewItem(event){
   try{
     const result=await api("/api/items/"+encodeURIComponent(itemId));
     if(!await goPage(result.item.kind))return;
-    state.selected=state.items.find(item=>String(item.id)===String(itemId))||result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
+    state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
   }catch(error){window.alert(error.message)}
 }
 async function updateReviewStatus(event,status){
@@ -359,7 +359,7 @@ async function openCalendarItem(event){
   try{
     const result=await api("/api/items/"+encodeURIComponent(event.currentTarget.dataset.id));
     if(!await goPage(result.item.kind))return;
-    state.selected=state.items.find(item=>String(item.id)===String(result.item.id))||result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
+    state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
   }catch(error){window.alert(error.message)}
 }
 async function renderCalendar(){
@@ -392,7 +392,7 @@ async function openGraphNode(event){
   try{
     const result=await api("/api/items/"+encodeURIComponent(event.currentTarget.dataset.id));
     if(!await goPage(result.item.kind))return;
-    state.selected=state.items.find(item=>String(item.id)===String(result.item.id))||result.item;
+    state.selected=result.item;
     state.savedSnapshot=editorSnapshot(state.selected);
     renderContentPage();
   }catch(error){window.alert(error.message)}
@@ -510,7 +510,8 @@ async function bulkUpdateItems(action,status=""){
     await loadItems();
     if(selectedId&&ids.includes(Number(selectedId))){
       const refreshed=state.items.find(item=>Number(item.id)===Number(selectedId));
-      state.selected=refreshed||null;state.savedSnapshot=refreshed?editorSnapshot(refreshed):null;
+      if(refreshed){if(state.selected)Object.assign(state.selected,refreshed);else state.selected=refreshed;state.savedSnapshot=editorSnapshot(state.selected)}
+      else{state.selected=null;state.savedSnapshot=null}
     }
     state.selectedIds.clear();drawItemList();drawEditor();
     if($("#save-indicator"))$("#save-indicator").textContent=(result.updated||0)+" 项已更新";
@@ -525,16 +526,19 @@ function drawListPagination(){
   $("#load-more-items")?.addEventListener("click",loadMoreItems);
 }
 function drawItemList(){
-  const query=$("#list-search")?.value.toLowerCase()||"",status=$("#list-status")?.value||state.listStatus||"",sort=$("#list-sort")?.value||state.listSort;state.listStatus=status;state.listSort=sort;
+  const status=$("#list-status")?.value||state.listStatus||"",sort=$("#list-sort")?.value||state.listSort;state.listStatus=status;state.listSort=sort;
   drawTagFilter();
   // The API owns the global order so cursor pages cannot be reordered
   // differently by the browser (especially for locale-sensitive titles).
-  const items=state.items.filter(item=>(!status||item.status===status)&&(!state.listTag||item.tags_list?.includes(state.listTag)||item.tags?.split(",").includes(state.listTag))&&(!query||(item.title+" "+item.summary+" "+item.tags+" "+item.content).toLowerCase().includes(query)));
+  // Search, status, and tag filters are already applied server-side. The
+  // list DTO intentionally omits full content, so filtering again in the
+  // browser would hide a valid body-only search hit.
+  const items=state.items.filter(item=>(!status||item.status===status)&&(!state.listTag||item.tags_list?.includes(state.listTag)||item.tags?.split(",").includes(state.listTag)));
   state.visibleItemIds=items.map(item=>item.id);
   const box=$("#item-list");
   if(!items.length){box.innerHTML='<div class="empty-state"><strong>这里还没有内容</strong><p>点击右上角，先创建第一条。</p></div>';drawBulkToolbar();drawListPagination();return}
-  box.innerHTML=items.map(item=>'<div class="content-item '+(state.selected&&String(state.selected.id)===String(item.id)?"is-selected":"")+'" data-id="'+item.id+'"><div class="content-item-head"><label class="item-select"><input type="checkbox" data-id="'+item.id+'" '+(state.selectedIds.has(String(item.id))?"checked":"")+'><span class="sr-only">选择 '+esc(item.title||"未命名")+'</span></label><div class="content-item-title">'+esc(item.title||"未命名")+'</div><button class="pin-toggle '+(item.pinned?"is-pinned":"")+'" data-id="'+item.id+'" title="'+(item.pinned?"取消置顶":"置顶内容")+'" aria-label="'+(item.pinned?"取消置顶":"置顶内容")+'">★</button></div><div class="content-item-summary">'+esc(item.summary||"暂无摘要")+'</div><div class="content-item-meta">'+priorityMarkup(item.priority||2)+taskProgressMarkup(item.content)+(item.kind==="log"&&item.entry_date?'<span>'+esc(formatDueDate(item.entry_date))+'</span>':"")+'<span>'+relativeDate(item.updated_at)+'</span><span class="spacer"></span>'+statusPill(item.status)+'</div></div>').join("");
-  $$(".content-item").forEach(row=>row.onclick=event=>{if(event.target.closest("button,label,input"))return;if(!confirmEditorLeave())return;state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";drawItemList();drawEditor()});
+  box.innerHTML=items.map(item=>'<div class="content-item '+(state.selected&&String(state.selected.id)===String(item.id)?"is-selected":"")+'" data-id="'+item.id+'"><div class="content-item-head"><label class="item-select"><input type="checkbox" data-id="'+item.id+'" '+(state.selectedIds.has(String(item.id))?"checked":"")+'><span class="sr-only">选择 '+esc(item.title||"未命名")+'</span></label><div class="content-item-title">'+esc(item.title||"未命名")+'</div><button class="pin-toggle '+(item.pinned?"is-pinned":"")+'" data-id="'+item.id+'" title="'+(item.pinned?"取消置顶":"置顶内容")+'" aria-label="'+(item.pinned?"取消置顶":"置顶内容")+'">★</button></div><div class="content-item-summary">'+esc(item.summary||"暂无摘要")+'</div><div class="content-item-meta">'+priorityMarkup(item.priority||2)+taskProgressMarkup(item)+(item.kind==="log"&&item.entry_date?'<span>'+esc(formatDueDate(item.entry_date))+'</span>':"")+'<span>'+relativeDate(item.updated_at)+'</span><span class="spacer"></span>'+statusPill(item.status)+'</div></div>').join("");
+  $$(".content-item").forEach(row=>row.onclick=async event=>{if(event.target.closest("button,label,input"))return;if(!confirmEditorLeave())return;try{const result=await api("/api/items/"+encodeURIComponent(row.dataset.id));state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";drawItemList();drawEditor()}catch(error){window.alert(error.message)}});
   $$(".item-select input").forEach(input=>input.onchange=event=>{event.stopPropagation();const id=String(input.dataset.id);if(input.checked)state.selectedIds.add(id);else state.selectedIds.delete(id);drawBulkToolbar()});
   $$(".pin-toggle").forEach(button=>button.onclick=async event=>{event.stopPropagation();if(!confirmEditorLeave())return;const item=state.items.find(candidate=>String(candidate.id)===button.dataset.id);if(!item)return;try{const result=await api("/api/items/"+item.id+"/pin",{method:"POST",body:JSON.stringify({pinned:!item.pinned})});Object.assign(item,result.item);const all=state.allItems.find(candidate=>String(candidate.id)===button.dataset.id);if(all)Object.assign(all,result.item);if(state.selected&&String(state.selected.id)===button.dataset.id){Object.assign(state.selected,result.item);state.savedSnapshot=editorSnapshot(result.item);drawEditor()}drawItemList()}catch(error){window.alert(error.message)}});
   $("#bulk-status")?.addEventListener("change",drawBulkToolbar);drawBulkToolbar();drawListPagination();
@@ -645,7 +649,7 @@ function drawEditor(){
   const relationMarkup=hierarchyMarkup+relatedMarkup;
   const attachmentMarkup=item.id?'<section class="attachment-panel"><div class="attachment-head"><div><strong>关联文件</strong><small>只显示属于这条内容的附件</small></div><label class="button button-secondary attachment-upload">上传文件<input id="item-file-input" class="file-input" type="file"></label></div><div id="item-file-list" class="item-file-list"></div></section>':'<section class="attachment-panel attachment-empty"><strong>关联文件</strong><span>保存内容后可以上传论文、数据或项目资料。</span></section>';
   const historyMarkup=item.id?'<section class="history-panel"><div class="history-head"><div><strong>编辑历史</strong><small>每次保存前的版本最多保留 100 个</small></div></div><div id="item-history" class="history-list"><span class="history-empty">加载中…</span></div></section>':'';
-  editor.innerHTML=draftNotice+'<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><div id="task-progress" class="editor-task-progress"></div><textarea id="edit-content" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>内容类型</span><select id="edit-kind">'+kindOptions+'</select></label><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label id="entry-date-field" class="form-field '+(item.kind==="log"?"":"is-hidden")+'"><span>日志日期</span><input id="edit-entry-date" type="date" value="'+esc(item.entry_date||"")+'"></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label><label class="form-field"><span>上级内容</span><select id="edit-parent"><option value="">无上级内容</option>'+parentOptions+'</select></label><label class="form-check"><input id="edit-pinned" type="checkbox" '+(item.pinned?"checked":"")+'><span>置顶内容</span></label></div></div>'+relationMarkup+attachmentMarkup+historyMarkup+'<div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span>'+'<button id="focus-mode" class="button button-secondary">'+(state.focusMode?"退出专注":"专注模式")+'</button>'+(item.id?'<button id="duplicate-content" class="button button-secondary">另存副本</button>':"")+'<button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
+  editor.innerHTML=draftNotice+'<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><div id="task-progress" class="editor-task-progress"></div><textarea id="edit-content" maxlength="'+(1024*1024)+'" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>内容类型</span><select id="edit-kind">'+kindOptions+'</select></label><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label id="entry-date-field" class="form-field '+(item.kind==="log"?"":"is-hidden")+'"><span>日志日期</span><input id="edit-entry-date" type="date" value="'+esc(item.entry_date||"")+'"></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label><label class="form-field"><span>上级内容</span><select id="edit-parent"><option value="">无上级内容</option>'+parentOptions+'</select></label><label class="form-check"><input id="edit-pinned" type="checkbox" '+(item.pinned?"checked":"")+'><span>置顶内容</span></label></div></div>'+relationMarkup+attachmentMarkup+historyMarkup+'<div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span>'+'<button id="focus-mode" class="button button-secondary">'+(state.focusMode?"退出专注":"专注模式")+'</button>'+(item.id?'<button id="duplicate-content" class="button button-secondary">另存副本</button>':"")+'<button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
   $("#edit-kind").value=item.kind||state.page;$("#edit-status").value=item.status||"inbox";$("#edit-priority").value=String(item.priority||2);$("#edit-parent").value=item.parent_id==null?"":String(item.parent_id);
   $("#edit-kind").onchange=()=>{const isLog=$("#edit-kind").value==="log";$("#entry-date-field").classList.toggle("is-hidden",!isLog);if(isLog&&!$("#edit-entry-date").value)$("#edit-entry-date").value=state.selected?.entry_date||state.logDate||localDateValue()};
   $$(".editor-tab").forEach(tab=>tab.onclick=()=>{collectEditorIntoState();state.editorTab=tab.dataset.tab;drawEditor()});
@@ -756,11 +760,15 @@ async function uploadItemFile(file,itemId){
   const form=new FormData();form.append("file",file);form.append("item_id",String(itemId));
   try{await api("/api/files",{method:"POST",body:form});await renderItemFiles(itemId)}catch(error){window.alert(error.message)}
 }
+function fileItemOptions(selectedId){
+  return '<option value="">未关联</option>'+state.fileItemOptions.map(item=>'<option value="'+item.id+'" '+(String(item.id)===String(selectedId??"")?'selected':"")+'>'+esc((labels[item.kind]||"内容")+" · "+(item.title||"未命名"))+'</option>').join("");
+}
 function renderFileList(files,total=files.length,nextOffset=null){
   const list=$("#file-list"),count=$("#file-count");
-  if(count)count.textContent=total>files.length?files.length+" / "+total+" 个文件":total+" 个文件";
+  if(count)count.textContent=(total>files.length?files.length+" / "+total:total)+" 个文件 · "+formatBytes(state.fileBytes);
   if(!files.length){list.innerHTML=state.fileSearch?'<div class="empty-state"><strong>没有匹配文件</strong><p>试试文件名或关联内容标题中的其他关键词。</p></div>':'<div class="empty-state"><strong>还没有文件</strong><p>上传第一份资料，让它和你的思路放在一起。</p></div>';return}
-  list.innerHTML=files.map(file=>'<div class="file-row"><span class="file-symbol">↧</span><div><a href="/files/'+encodeURIComponent(file.id)+'" target="_blank">'+esc(file.name)+'</a><div class="file-size">'+formatBytes(file.size)+" · "+formatDate(file.created_at,true)+(file.item_title?" · "+esc(file.item_title):"")+'</div></div><span class="spacer"></span><button class="file-delete" data-id="'+file.id+'" title="删除">×</button></div>').join("")+(nextOffset!=null?'<button id="file-list-more" class="button button-secondary">加载更多文件</button>':"");
+  list.innerHTML=files.map(file=>'<div class="file-row"><span class="file-symbol">↧</span><div><a href="/files/'+encodeURIComponent(file.id)+'" target="_blank">'+esc(file.name)+'</a><div class="file-size">'+formatBytes(file.size)+" · "+formatDate(file.created_at,true)+(file.item_title?" · "+esc(file.item_title):" · 未关联")+'</div></div><select class="file-link-select" data-id="'+esc(file.id)+'" aria-label="关联内容">'+fileItemOptions(file.item_id && file.item_title?file.item_id:null)+'</select><button class="file-delete" data-id="'+file.id+'" title="删除">×</button></div>').join("")+(nextOffset!=null?'<button id="file-list-more" class="button button-secondary">加载更多文件</button>':"");
+  $$(".file-link-select").forEach(select=>select.onchange=async()=>{select.disabled=true;try{const result=await api("/api/files/"+encodeURIComponent(select.dataset.id),{method:"PATCH",body:JSON.stringify({item_id:select.value?Number(select.value):null})});const row=state.fileRows.find(candidate=>String(candidate.id)===String(select.dataset.id));if(row)Object.assign(row,result.file);await loadFileList()}catch(error){window.alert(error.message);select.disabled=false}});
   $$(".file-delete").forEach(button=>button.onclick=async()=>{if(window.confirm("把这个文件移入回收站吗？之后仍可恢复。")){await api("/api/files/"+button.dataset.id,{method:"DELETE"});await loadFileList()}});
   $("#file-list-more")?.addEventListener("click",()=>loadFileList(nextOffset,true));
 }
@@ -769,20 +777,25 @@ async function loadFileList(offset=0,append=false){
   const controller=new AbortController();state.fileSearchController=controller;
   const params=new URLSearchParams({limit:"200",offset:String(offset)}),query=state.fileSearch.trim();
   if(query)params.set("q",query);
+  if(state.fileLinked)params.set("linked",state.fileLinked);
   try{
     const data=await api("/api/files?"+params.toString(),{signal:controller.signal});
     if(!controller.signal.aborted&&state.page==="files"){
       state.fileRows=append?state.fileRows.concat(data.files||[]):(data.files||[]);
       state.fileTotal=Number(data.total??state.fileRows.length);
+      state.fileBytes=Number(data.total_bytes||0);
       renderFileList(state.fileRows,state.fileTotal,data.next_offset??null);
     }
   }catch(error){if(error.name!=="AbortError"&&$("#file-list"))$("#file-list").innerHTML='<div class="empty-state"><strong>文件列表暂时不可用</strong><p>请稍后重试。</p></div>'}
 }
 async function renderFiles(){
-  state.fileSearch="";state.fileRows=[];state.fileTotal=0;
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>文件空间</h1><p>把论文、数据和项目资料放在一个可回看的位置。</p></div></div><section class="surface file-surface"><label id="upload-zone" class="upload-zone"><strong>拖拽文件到这里，或点击选择文件</strong><span>文件会保存在当前服务器的私有数据目录</span><small>单个文件最大 64 MB</small><input id="file-input" class="file-input" type="file"></label><div class="file-toolbar"><label class="input-with-icon file-search"><span>⌕</span><input id="file-search" class="control-input" type="search" placeholder="搜索文件名或关联内容" autocomplete="off"></label><span id="file-count" class="file-count"></span></div><div id="file-list" class="file-list"></div></section>';
+  state.fileSearch="";state.fileLinked="";state.fileRows=[];state.fileTotal=0;state.fileBytes=0;
+  let cursor="";state.fileItemOptions=[];
+  do{const params=new URLSearchParams({limit:"500",sort:"title"});if(cursor)params.set("cursor",cursor);const result=await api("/api/items?"+params.toString());state.fileItemOptions=state.fileItemOptions.concat(result.items||[]);cursor=result.next_cursor||""}while(cursor&&state.fileItemOptions.length<5000);
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>文件空间</h1><p>把论文、数据和项目资料放在一个可回看的位置。</p></div></div><section class="surface file-surface"><label id="upload-zone" class="upload-zone"><strong>拖拽文件到这里，或点击选择文件</strong><span>文件会保存在当前服务器的私有数据目录</span><small>单个文件最大 64 MB</small><input id="file-input" class="file-input" type="file"></label><div class="file-toolbar"><label class="input-with-icon file-search"><span>⌕</span><input id="file-search" class="control-input" type="search" placeholder="搜索文件名或关联内容" autocomplete="off"></label><select id="file-linked" class="control-input" aria-label="文件关联筛选"><option value="">全部文件</option><option value="no">未关联</option><option value="yes">已关联</option></select><span id="file-count" class="file-count"></span></div><div id="file-list" class="file-list"></div></section>';
   const zone=$("#upload-zone"),input=$("#file-input");input.onchange=()=>uploadFile(input.files[0]);["dragenter","dragover"].forEach(event=>zone.addEventListener(event,e=>{e.preventDefault();zone.classList.add("dragover")}));["dragleave","drop"].forEach(event=>zone.addEventListener(event,e=>{e.preventDefault();zone.classList.remove("dragover")}));zone.addEventListener("drop",e=>uploadFile(e.dataTransfer.files[0]));
   $("#file-search").oninput=event=>{state.fileSearch=event.target.value;clearTimeout(state.fileSearchTimer);state.fileSearchTimer=setTimeout(loadFileList,160)};
+  $("#file-linked").onchange=event=>{state.fileLinked=event.target.value;loadFileList()};
   await loadFileList();
 }
 function formatBytes(bytes){if(bytes<1024)return bytes+" B";if(bytes<1024*1024)return (bytes/1024).toFixed(1)+" KB";return (bytes/1024/1024).toFixed(1)+" MB"}
@@ -805,22 +818,26 @@ $("#assistant-close").onclick=()=>$("#assistant-dialog").close();$("#assistant-r
 $("#capture-form").addEventListener("submit",saveCapture);
 $("#capture-title").addEventListener("input",scheduleCaptureDraft);$("#capture-content").addEventListener("input",scheduleCaptureDraft);$("#restore-capture-draft").onclick=restoreCaptureDraft;$("#discard-capture-draft").onclick=discardCaptureDraft;
 $("#global-search-trigger").onclick=()=>{$("#search-dialog").showModal();$("#global-search").focus()};
-async function searchGlobal(query){
+async function searchGlobal(query,append=false){
   const box=$("#search-results");
   if(state.searchController)state.searchController.abort();
   if(!query){box.innerHTML='<div class="search-empty">输入关键词开始搜索</div>';return}
-  const controller=new AbortController();state.searchController=controller;box.innerHTML='<div class="search-empty">搜索中…</div>';
+  if(!append||query!==state.searchQuery){state.searchQuery=query;state.searchOffset=0;state.searchItems=[];state.searchFiles=[];state.searchNextOffset=null}
+  const controller=new AbortController();state.searchController=controller;if(!append)box.innerHTML='<div class="search-empty">搜索中…</div>';
   try{
     const kind=$("#global-search-kind").value,status=$("#global-search-status").value;
-    const params=new URLSearchParams({q:query,limit:"30"});if(kind)params.set("kind",kind);if(status)params.set("status",status);
+    const params=new URLSearchParams({q:query,limit:"50",offset:String(state.searchOffset)});if(kind)params.set("kind",kind);if(status)params.set("status",status);
     const result=await api("/api/search?"+params.toString(),{signal:controller.signal});
     if(controller.signal.aborted)return;
-    const items=result.items||[],files=result.files||[];
+    state.searchItems=state.searchItems.concat(result.items||[]);state.searchFiles=state.searchFiles.concat(result.files||[]);state.searchNextOffset=result.next_offset??null;
+    const items=state.searchItems,files=state.searchFiles;
     const itemMarkup=items.map(item=>'<div class="search-result search-item-result" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="search-result-body"><strong>'+esc(item.title)+'</strong><div class="search-snippet">'+esc(item.snippet||item.summary||"暂无摘要")+'</div><div class="recent-meta">'+esc(labels[item.kind])+" · "+esc(statusLabels[item.status]||item.status)+" · "+relativeDate(item.updated_at)+'</div></div></div>').join("");
     const fileMarkup=files.map(file=>'<div class="search-result search-file-result" data-id="'+esc(file.id)+'"><span class="file-symbol">↧</span><div><strong>'+esc(file.name)+'</strong><div class="recent-meta">文件 · '+formatBytes(file.size)+(file.item_title?" · "+esc(file.item_title):"")+'</div></div></div>').join("");
-    box.innerHTML=itemMarkup||fileMarkup?((itemMarkup?'<div class="search-section-label">内容</div>'+itemMarkup:"")+(fileMarkup?'<div class="search-section-label">文件</div>'+fileMarkup:"")):'<div class="search-empty">没有找到匹配内容或文件</div>';
+    const moreMarkup=state.searchNextOffset!=null?'<button id="search-more" class="button button-secondary search-more">加载更多搜索结果</button>':"";
+    box.innerHTML=itemMarkup||fileMarkup?((itemMarkup?'<div class="search-section-label">内容</div>'+itemMarkup:"")+(fileMarkup?'<div class="search-section-label">文件</div>'+fileMarkup:"")+moreMarkup):'<div class="search-empty">没有找到匹配内容或文件</div>';
     $$("#search-results .search-item-result").forEach(row=>row.onclick=async()=>{try{const result=await api("/api/items/"+encodeURIComponent(row.dataset.id));if(!await goPage(result.item.kind))return;$("#search-dialog").close();state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()}catch(error){window.alert(error.message)}});
     $$("#search-results .search-file-result").forEach(row=>row.onclick=()=>{window.open("/files/"+encodeURIComponent(row.dataset.id),"_blank","noopener")});
+    $("#search-more")?.addEventListener("click",async event=>{event.currentTarget.disabled=true;state.searchOffset=state.searchNextOffset;await searchGlobal(query,true)});
   }catch(error){if(error.name!=="AbortError")box.innerHTML='<div class="search-empty">搜索暂时不可用，请稍后重试</div>'}
 }
 $("#global-search").oninput=()=>searchGlobal($("#global-search").value.trim());

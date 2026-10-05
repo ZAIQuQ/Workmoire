@@ -125,3 +125,15 @@ changes belong in normal commit history.
   item is deleted. Added due-date queue filters, direct full-queue navigation,
   and fresh same-day log creation; request logs now omit query strings so
   search terms do not enter journald.
+- Synchronized the in-process login-failure limiter across threaded requests,
+  cleared stale failure state after successful authentication, and rejected
+  archive attachments that point to unknown imported content. Added regression
+  coverage for invalid archive associations and recorded the rule in the
+  maintenance skill.
+- Reduced repeated body transfer by adding lightweight item summaries to all
+  bounded navigation/search responses, added offset pagination for global
+  search, and kept detail reads full-text. Added a 1 MiB body cap with a
+  matching editor limit. The file space now reports byte totals, filters
+  linked/unlinked files, and supports authenticated reassociation; complete
+  archive imports preserve validated timestamps and remappable activity rows.
+  Updated source, UI, tests, README, release gates, and this skill together.

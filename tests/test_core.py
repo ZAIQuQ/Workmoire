@@ -93,6 +93,14 @@ class WorkspaceCoreTests(unittest.TestCase):
                 "due_date": "2026-02-30",
             })
 
+    def test_item_rejects_unbounded_body(self):
+        with self.assertRaises(ValueError):
+            app.WorkspaceHandler.normalized_item(None, {
+                "kind": "paper",
+                "title": "large outline",
+                "content": "x" * (app.MAX_ITEM_CONTENT + 1),
+            })
+
     def test_item_pin_is_normalized(self):
         item = app.WorkspaceHandler.normalized_item(None, {
             "kind": "note",

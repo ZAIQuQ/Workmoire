@@ -23,6 +23,7 @@ import sqlite3
 import stat
 import subprocess
 import tempfile
+import threading
 import time
 import uuid
 import zipfile
@@ -81,6 +82,7 @@ except ValueError:
 SESSION_TTL = 60 * 60 * 24 * 14
 MAX_JSON = 2 * 1024 * 1024
 MAX_UPLOAD = 64 * 1024 * 1024
+MAX_ITEM_CONTENT = 1024 * 1024
 MAX_ARCHIVE_UPLOAD = 256 * 1024 * 1024
 MAX_ARCHIVE_MANIFEST = 32 * 1024 * 1024
 MAX_ARCHIVE_MEMBERS = 10000
@@ -103,8 +105,11 @@ ACTIVITY_LABELS = {
     "unpin": "取消置顶",
     "link": "关联内容",
     "unlink": "解除内容关联",
+    "attach": "关联文件",
+    "detach": "解除文件关联",
 }
 LOGIN_FAILURES: dict[str, list[float]] = {}
+LOGIN_FAILURES_LOCK = threading.Lock()
 ASSISTANT_TASKS = {
     "summarize": "用 5 条以内的要点总结这份材料，保留关键事实和未解决问题。",
     "outline": "把这份材料整理成清晰的层级大纲，指出缺失的论证环节。",
@@ -468,6 +473,25 @@ def as_item(row: sqlite3.Row) -> dict:
     return result
 
 
+def as_item_summary(row: sqlite3.Row) -> dict:
+    """Serialize an item for archive lists without sending its full body.
+
+    Item lists are fetched repeatedly while navigating the workspace and are
+    also used to populate parent/relationship selectors. Returning the full
+    Markdown body for every row makes those requests grow with the archive's
+    total text size. Keep a short preview and task counters for list UI while
+    leaving the complete body to the authenticated item-detail endpoint.
+    """
+    result = {key: row[key] for key in row.keys() if key != "content"}
+    result["tags_list"] = [x for x in result.get("tags", "").split(",") if x]
+    content = str(row["content"] or "") if "content" in row.keys() else ""
+    task_lines = re.findall(r"^- \[([ xX])\] .+$", content, re.MULTILINE)
+    result["task_total"] = len(task_lines)
+    result["task_done"] = sum(mark.lower() == "x" for mark in task_lines)
+    result["content_preview"] = content[:280] + ("…" if len(content) > 280 else "")
+    return result
+
+
 REVISION_FIELDS = ("kind", "title", "summary", "content", "tags", "status", "priority", "due_date", "entry_date", "parent_id", "pinned")
 
 
@@ -556,6 +580,18 @@ def canonical_link(source_id: int, target_id: int) -> tuple[int, int]:
     return (source_id, target_id) if source_id < target_id else (target_id, source_id)
 
 
+def imported_timestamp(value: object, field: str) -> str:
+    """Validate a timestamp copied from a complete archive."""
+    raw = str(value or "").strip()
+    if not raw or len(raw) > 64:
+        raise ValueError("归档中的%s时间无效" % field)
+    try:
+        datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("归档中的%s时间无效" % field) from exc
+    return raw
+
+
 def linked_items(con: sqlite3.Connection, item_id: int) -> list[dict]:
     rows = con.execute(
         """
@@ -566,7 +602,7 @@ def linked_items(con: sqlite3.Connection, item_id: int) -> list[dict]:
         """,
         (item_id, item_id, item_id),
     ).fetchall()
-    return [as_item(row) for row in rows]
+    return [as_item_summary(row) for row in rows]
 
 
 def parse_json(handler: BaseHTTPRequestHandler) -> dict:
@@ -984,11 +1020,11 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             con = open_db()
             counts = {row["kind"]: row["count"] for row in con.execute("SELECT kind, COUNT(*) AS count FROM items WHERE deleted_at='' GROUP BY kind")}
             status_counts = {row["status"]: row["count"] for row in con.execute("SELECT status, COUNT(*) AS count FROM items WHERE deleted_at='' GROUP BY status")}
-            inbox = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND status='inbox' ORDER BY pinned DESC, updated_at DESC LIMIT 8")]
-            recent = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY pinned DESC, updated_at DESC LIMIT 8")]
-            pinned = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND pinned=1 ORDER BY updated_at DESC LIMIT 6")]
-            overdue = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND due_date != '' AND due_date < ? AND status != 'done' ORDER BY due_date ASC, updated_at DESC LIMIT 8", (today,))]
-            upcoming = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND due_date != '' AND due_date >= ? AND status != 'done' ORDER BY due_date ASC, updated_at DESC LIMIT 8", (today,))]
+            inbox = [as_item_summary(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND status='inbox' ORDER BY pinned DESC, updated_at DESC LIMIT 8")]
+            recent = [as_item_summary(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY pinned DESC, updated_at DESC LIMIT 8")]
+            pinned = [as_item_summary(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND pinned=1 ORDER BY updated_at DESC LIMIT 6")]
+            overdue = [as_item_summary(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND due_date != '' AND due_date < ? AND status != 'done' ORDER BY due_date ASC, updated_at DESC LIMIT 8", (today,))]
+            upcoming = [as_item_summary(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND due_date != '' AND due_date >= ? AND status != 'done' ORDER BY due_date ASC, updated_at DESC LIMIT 8", (today,))]
             activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY created_at DESC LIMIT 8")]
             file_bytes = con.execute("SELECT COALESCE(SUM(size),0) FROM files WHERE deleted_at='' ").fetchone()[0]
             trash_counts = {
@@ -1009,21 +1045,21 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 return
             cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 7 * 86400))
             con = open_db()
-            inbox = [as_item(row) for row in con.execute(
+            inbox = [as_item_summary(row) for row in con.execute(
                 "SELECT * FROM items WHERE deleted_at='' AND status='inbox' "
                 "ORDER BY pinned DESC, priority DESC, updated_at DESC LIMIT 12"
             )]
-            overdue = [as_item(row) for row in con.execute(
+            overdue = [as_item_summary(row) for row in con.execute(
                 "SELECT * FROM items WHERE deleted_at='' AND status!='inbox' AND status!='done' "
                 "AND due_date != '' AND due_date < ? ORDER BY due_date ASC, priority DESC, updated_at DESC LIMIT 12",
                 (today,),
             )]
-            today_items = [as_item(row) for row in con.execute(
+            today_items = [as_item_summary(row) for row in con.execute(
                 "SELECT * FROM items WHERE deleted_at='' AND status!='inbox' AND status!='done' "
                 "AND due_date = ? ORDER BY priority DESC, updated_at DESC LIMIT 12",
                 (today,),
             )]
-            stale = [as_item(row) for row in con.execute(
+            stale = [as_item_summary(row) for row in con.execute(
                 "SELECT * FROM items WHERE deleted_at='' AND status='active' AND due_date='' "
                 "AND updated_at < ? ORDER BY updated_at ASC LIMIT 12",
                 (cutoff,),
@@ -1052,7 +1088,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             next_first = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
             con = open_db()
             total = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND due_date >= ? AND due_date < ?", (first_day.isoformat(), next_first.isoformat())).fetchone()[0]
-            items = [as_item(row) for row in con.execute(
+            items = [as_item_summary(row) for row in con.execute(
                 "SELECT * FROM items WHERE deleted_at='' AND due_date >= ? AND due_date < ? "
                 "ORDER BY due_date ASC, pinned DESC, priority DESC, updated_at DESC LIMIT 500",
                 (first_day.isoformat(), next_first.isoformat()),
@@ -1107,7 +1143,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             con = open_db()
             item_total = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at!=''").fetchone()[0]
             file_total = con.execute("SELECT COUNT(*) FROM files WHERE deleted_at!=''").fetchone()[0]
-            items = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at!='' ORDER BY deleted_at DESC, id DESC LIMIT 200 OFFSET ?", (item_offset,))]
+            items = [as_item_summary(row) for row in con.execute("SELECT * FROM items WHERE deleted_at!='' ORDER BY deleted_at DESC, id DESC LIMIT 200 OFFSET ?", (item_offset,))]
             files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,item_id,created_at,deleted_at FROM files WHERE deleted_at!='' ORDER BY deleted_at DESC, id DESC LIMIT 200 OFFSET ?", (file_offset,))]
             con.close()
             self.json_response({"items": items, "files": files, "totals": {"items": item_total, "files": file_total}, "offsets": {"items": item_offset, "files": file_offset}, "next_offsets": {"items": item_offset + len(items) if item_offset + len(items) < item_total else None, "files": file_offset + len(files) if file_offset + len(files) < file_total else None}})
@@ -1127,6 +1163,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 return
             try:
                 limit = min(max(int(params.get("limit", ["30"])[0]), 1), 50)
+                offset = max(int(params.get("offset", ["0"])[0]), 0)
             except ValueError:
                 self.error("无效的数量限制", 400)
                 return
@@ -1143,14 +1180,16 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if status:
                 item_clauses.append("status=?")
                 item_values.append(status)
+            item_where = " AND ".join(item_clauses)
+            item_total = con.execute("SELECT COUNT(*) FROM items WHERE %s" % item_where, item_values).fetchone()[0]
             item_score = "CASE WHEN title LIKE ? THEN 16 ELSE 0 END + CASE WHEN summary LIKE ? THEN 8 ELSE 0 END + CASE WHEN tags LIKE ? THEN 6 ELSE 0 END + CASE WHEN content LIKE ? THEN 3 ELSE 0 END"
             item_rows = con.execute(
-                "SELECT * FROM items WHERE %s ORDER BY (%s) DESC, pinned DESC, updated_at DESC, id DESC LIMIT ?" % (" AND ".join(item_clauses), item_score),
-                item_values + [pattern, pattern, pattern, pattern] + [limit],
+                "SELECT * FROM items WHERE %s ORDER BY (%s) DESC, pinned DESC, updated_at DESC, id DESC LIMIT ? OFFSET ?" % (item_where, item_score),
+                item_values + [pattern, pattern, pattern, pattern] + [limit, offset],
             ).fetchall()
             items = []
             for row in item_rows:
-                item = as_item(row)
+                item = as_item_summary(row)
                 item["snippet"] = search_snippet(row, query)
                 items.append(item)
             file_clauses = ["f.deleted_at=''", "(f.name LIKE ? OR COALESCE(i.title,'') LIKE ?)"]
@@ -1161,13 +1200,16 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if status:
                 file_clauses.append("i.status=?")
                 file_values.append(status)
+            file_where = " AND ".join(file_clauses)
+            file_total = con.execute("SELECT COUNT(*) FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s" % file_where, file_values).fetchone()[0]
             file_score = "CASE WHEN f.name LIKE ? THEN 8 ELSE 0 END + CASE WHEN COALESCE(i.title,'') LIKE ? THEN 6 ELSE 0 END"
             files = [dict(row) for row in con.execute(
-                "SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s ORDER BY (%s) DESC, f.created_at DESC, f.id DESC LIMIT ?" % (" AND ".join(file_clauses), file_score),
-                file_values + [pattern, pattern] + [limit],
+                "SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s ORDER BY (%s) DESC, f.created_at DESC, f.id DESC LIMIT ? OFFSET ?" % (file_where, file_score),
+                file_values + [pattern, pattern] + [limit, offset],
             ).fetchall()]
             con.close()
-            self.json_response({"items": items, "files": files})
+            next_offset = offset + limit if offset + limit < max(item_total, file_total) else None
+            self.json_response({"items": items, "files": files, "item_total": item_total, "file_total": file_total, "offset": offset, "next_offset": next_offset})
             return
         if path.startswith("/api/items/") and path.endswith("/revisions"):
             if not self.require_user():
@@ -1300,7 +1342,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             has_more = len(rows) > limit
             rows = rows[:limit]
             con.close()
-            self.json_response({"items": [as_item(row) for row in rows], "total": total, "sort": sort, "next_cursor": encode_item_cursor(rows[-1], sort) if has_more and rows else None})
+            self.json_response({"items": [as_item_summary(row) for row in rows], "total": total, "sort": sort, "next_cursor": encode_item_cursor(rows[-1], sort) if has_more and rows else None})
             return
         if path.startswith("/api/items/") and path.endswith("/links"):
             if not self.require_user():
@@ -1341,6 +1383,10 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 return
             params = parse_qs(parsed.query)
             raw_item_id = params.get("item_id", [""])[0]
+            linked_filter = params.get("linked", [""])[0]
+            if linked_filter not in {"", "yes", "no"}:
+                self.error("文件关联筛选无效", 400)
+                return
             try:
                 limit = min(max(int(params.get("limit", ["200"])[0]), 1), 200)
                 offset = max(int(params.get("offset", ["0"])[0]), 0)
@@ -1362,12 +1408,17 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     return
                 clauses.append("f.item_id=?")
                 values.append(item_id)
+            if linked_filter == "yes":
+                clauses.append("i.id IS NOT NULL")
+            elif linked_filter == "no":
+                clauses.append("i.id IS NULL")
             con = open_db()
             where = " AND ".join(clauses)
             total = con.execute("SELECT COUNT(*) FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s" % where, values).fetchone()[0]
+            total_bytes = con.execute("SELECT COALESCE(SUM(f.size),0) FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s" % where, values).fetchone()[0]
             rows = con.execute("SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s ORDER BY f.created_at DESC, f.id DESC LIMIT ? OFFSET ?" % where, values + [limit, offset]).fetchall()
             con.close()
-            self.json_response({"files": [dict(row) for row in rows], "total": total, "offset": offset, "next_offset": offset + len(rows) if offset + len(rows) < total else None})
+            self.json_response({"files": [dict(row) for row in rows], "total": total, "total_bytes": total_bytes, "offset": offset, "next_offset": offset + len(rows) if offset + len(rows) < total else None})
             return
         if path.startswith("/files/"):
             if not self.require_user():
@@ -1489,17 +1540,22 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 username = str(data.get("username", "")).strip()
                 address = self.client_address[0]
                 now = time.time()
-                LOGIN_FAILURES[address] = [stamp for stamp in LOGIN_FAILURES.get(address, []) if stamp > now - 600]
-                if len(LOGIN_FAILURES[address]) >= 10:
+                with LOGIN_FAILURES_LOCK:
+                    LOGIN_FAILURES[address] = [stamp for stamp in LOGIN_FAILURES.get(address, []) if stamp > now - 600]
+                    blocked = len(LOGIN_FAILURES[address]) >= 10
+                if blocked:
                     self.error("登录尝试过多，请稍后再试", 429)
                     return
                 con = open_db()
                 row = con.execute("SELECT username,password_hash,session_version FROM users WHERE id=1").fetchone()
                 con.close()
                 if not row or row["username"] != username or not password_matches(str(data.get("password", "")), row["password_hash"]):
-                    LOGIN_FAILURES.setdefault(address, []).append(now)
+                    with LOGIN_FAILURES_LOCK:
+                        LOGIN_FAILURES.setdefault(address, []).append(now)
                     self.error("账号或密码错误", 401)
                     return
+                with LOGIN_FAILURES_LOCK:
+                    LOGIN_FAILURES.pop(address, None)
                 payload = json.dumps({"username": row["username"]}, ensure_ascii=False).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -1760,7 +1816,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     if source_item not in source_ids:
                         raise ValueError("第 %d 条历史版本未指向导出内容" % index)
                     normalized_revision = self.normalized_item(raw_revision)
-                    created_at = str(raw_revision.get("created_at", "")).strip()[:64] or utc_now()
+                    raw_created_at = raw_revision.get("created_at")
+                    created_at = imported_timestamp(raw_created_at, "历史版本") if raw_created_at else utc_now()
                     prepared_revisions.append((source_item, normalized_revision, created_at))
                 with closing(open_db()) as con, con:
                     con.execute("BEGIN IMMEDIATE")
@@ -1837,11 +1894,39 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     if not isinstance(manifest, dict):
                         raise ValueError("归档清单格式无效")
                     prepared, prepared_links, prepared_revisions, source_ids = self._prepare_import_records(manifest)
+                    raw_items = manifest.get("items", [])
+                    item_times: dict[str, tuple[str, str]] = {}
+                    for index, raw_item in enumerate(raw_items, 1):
+                        source_id = str(raw_item.get("id")) if isinstance(raw_item, dict) else ""
+                        if source_id not in source_ids:
+                            raise ValueError("第 %d 条内容时间无效" % index)
+                        created_at = imported_timestamp(raw_item.get("created_at"), "内容创建")
+                        updated_at = imported_timestamp(raw_item.get("updated_at"), "内容更新")
+                        item_times[source_id] = (created_at, updated_at)
+                    raw_activity = manifest.get("activity", [])
+                    if not isinstance(raw_activity, list) or len(raw_activity) > 200000:
+                        raise ValueError("归档中的活动数量无效")
+                    prepared_activity: list[tuple[str, str, str | None, str, str]] = []
+                    for index, raw_event in enumerate(raw_activity, 1):
+                        if not isinstance(raw_event, dict):
+                            raise ValueError("第 %d 条活动格式无效" % index)
+                        action = str(raw_event.get("action", "")).strip()
+                        target_type = str(raw_event.get("target_type", "")).strip()
+                        label = str(raw_event.get("label", "")).strip()
+                        target_id = raw_event.get("target_id")
+                        if not action or len(action) > 64 or not target_type or len(target_type) > 32 or len(label) > 500:
+                            raise ValueError("第 %d 条活动字段无效" % index)
+                        source_target = str(target_id) if target_id is not None else None
+                        if source_target is not None and len(source_target) > 128:
+                            raise ValueError("第 %d 条活动目标无效" % index)
+                        created_at = imported_timestamp(raw_event.get("created_at"), "活动")
+                        prepared_activity.append((action, target_type, source_target, label, created_at))
                     raw_files = manifest.get("files", [])
                     if not isinstance(raw_files, list) or len(raw_files) > 5000:
                         raise ValueError("归档中的附件数量无效")
                     listed_paths: set[str] = set()
                     staged_files: list[dict] = []
+                    file_source_ids: set[str] = set()
                     staging_dir = Path(tempfile.mkdtemp(prefix=".workmoire-import-files-", dir=DATA_DIR))
                     for index, raw_file in enumerate(raw_files, 1):
                         if not isinstance(raw_file, dict):
@@ -1856,7 +1941,11 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                         source_id = raw_file.get("item_id")
                         source_item = str(source_id) if source_id is not None else None
                         if source_item is not None and source_item not in source_ids:
-                            source_item = None
+                            raise ValueError("第 %d 条附件未指向归档中的内容" % index)
+                        source_file = str(raw_file.get("id", "")).strip()
+                        if not source_file or len(source_file) > 128 or source_file in file_source_ids:
+                            raise ValueError("第 %d 条附件 ID 无效或重复" % index)
+                        file_source_ids.add(source_file)
                         original_name = Path(str(raw_file.get("name", "附件"))).name[:200]
                         if not original_name:
                             original_name = "附件"
@@ -1889,9 +1978,10 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                                 target.write(chunk)
                         if written != declared_size or (expected_hash and digest.hexdigest() != expected_hash):
                             raise ValueError("第 %d 条附件校验失败" % index)
-                        created_at = str(raw_file.get("created_at", "")).strip()[:64] or utc_now()
+                        created_at = imported_timestamp(raw_file.get("created_at"), "附件创建")
                         staged_files.append({
                             "id": file_id,
+                            "source_id": source_file,
                             "name": original_name,
                             "stored_name": file_id + suffix,
                             "size": written,
@@ -1909,11 +1999,11 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     with closing(open_db()) as con, con:
                         con.execute("BEGIN IMMEDIATE")
                         id_map = {}
-                        now = utc_now()
                         for source_id, item in prepared:
+                            created_at, updated_at = item_times[str(source_id)]
                             cursor = con.execute(
                                 "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                                (item["kind"], item["title"], item["summary"], item["content"], item["tags"], item["status"], item["priority"], item["due_date"], item["entry_date"], None, item["pinned"], "", now, now),
+                                (item["kind"], item["title"], item["summary"], item["content"], item["tags"], item["status"], item["priority"], item["due_date"], item["entry_date"], None, item["pinned"], "", created_at, updated_at),
                             )
                             id_map[str(source_id)] = cursor.lastrowid
                         for source_id, item in prepared:
@@ -1923,7 +2013,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                             log_activity(con, "import", "item", id_map[str(source_id)], item["title"])
                         for source_id, target_id in prepared_links:
                             source, target = canonical_link(id_map[source_id], id_map[target_id])
-                            con.execute("INSERT OR IGNORE INTO item_links(source_id,target_id,created_at) VALUES(?,?,?)", (source, target, now))
+                            con.execute("INSERT OR IGNORE INTO item_links(source_id,target_id,created_at) VALUES(?,?,?)", (source, target, utc_now()))
                         for source_item, revision, created_at in prepared_revisions:
                             parent_id = revision["parent_id"]
                             mapped_parent = id_map.get(str(parent_id)) if parent_id is not None else None
@@ -1931,17 +2021,37 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                                 "INSERT INTO item_revisions(item_id,kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                                 (id_map[source_item], revision["kind"], revision["title"], revision["summary"], revision["content"], revision["tags"], revision["status"], revision["priority"], revision["due_date"], revision["entry_date"], mapped_parent, revision["pinned"], created_at),
                             )
+                        file_id_map: dict[str, str] = {}
                         for file_record in staged_files:
                             target = FILES_DIR / file_record["stored_name"]
                             shutil.move(str(file_record["staged"]), target)
                             moved_files.append(target)
+                            file_id_map[file_record["source_id"]] = file_record["id"]
                             mapped_item = id_map.get(file_record["source_item"]) if file_record["source_item"] is not None else None
                             con.execute(
                                 "INSERT INTO files(id,name,stored_name,size,content_type,item_id,deleted_at,created_at) VALUES(?,?,?,?,?,?,?,?)",
                                 (file_record["id"], file_record["name"], file_record["stored_name"], file_record["size"], file_record["content_type"], mapped_item, "", file_record["created_at"]),
                             )
                             log_activity(con, "import", "file", file_record["id"], file_record["name"])
-                    self.json_response({"ok": True, "imported_items": len(prepared), "imported_revisions": len(prepared_revisions), "imported_files": len(staged_files)}, 201)
+                        imported_activity = 0
+                        for action, target_type, source_target, label, created_at in prepared_activity:
+                            if target_type == "item":
+                                mapped_target = id_map.get(source_target or "")
+                                if mapped_target is None:
+                                    continue
+                                target_id = str(mapped_target)
+                            elif target_type == "file":
+                                target_id = file_id_map.get(source_target or "")
+                                if target_id is None:
+                                    continue
+                            else:
+                                target_id = source_target
+                            con.execute(
+                                "INSERT INTO activity(action,target_type,target_id,label,created_at) VALUES(?,?,?,?,?)",
+                                (action, target_type, target_id, label, created_at),
+                            )
+                            imported_activity += 1
+                    self.json_response({"ok": True, "imported_items": len(prepared), "imported_revisions": len(prepared_revisions), "imported_files": len(staged_files), "imported_activity": imported_activity}, 201)
             except Exception as exc:
                 for moved in moved_files:
                     moved.unlink(missing_ok=True)
@@ -2108,6 +2218,51 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             return
         self.error("未找到接口", 404)
 
+    def do_PATCH(self) -> None:
+        path = urlparse(self.path).path
+        user = self.require_user()
+        if not user:
+            return
+        if not path.startswith("/api/files/"):
+            self.error("未找到接口", 404)
+            return
+        file_id = unquote(path[len("/api/files/"):])
+        if not file_id or "/" in file_id:
+            self.error("文件 ID 无效", 400)
+            return
+        try:
+            data = parse_json(self)
+            raw_item_id = data.get("item_id")
+            item_id = None if raw_item_id in (None, "") else int(raw_item_id)
+            if item_id is not None and item_id <= 0:
+                raise ValueError("关联内容 ID 无效")
+            with closing(open_db()) as con, con:
+                con.execute("BEGIN IMMEDIATE")
+                file_row = con.execute("SELECT id,name,item_id FROM files WHERE id=? AND deleted_at=''", (file_id,)).fetchone()
+                if not file_row:
+                    self.error("文件不存在", 404)
+                    return
+                if item_id is not None:
+                    item_row = con.execute("SELECT id,title FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
+                    if not item_row:
+                        self.error("关联内容不存在", 404)
+                        return
+                else:
+                    item_row = None
+                if file_row["item_id"] != item_id:
+                    con.execute("UPDATE files SET item_id=? WHERE id=? AND deleted_at=''", (item_id, file_id))
+                    log_activity(con, "attach" if item_id is not None else "detach", "file", file_id, file_row["name"])
+                result = con.execute(
+                    "SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title "
+                    "FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE f.id=?",
+                    (file_id,),
+                ).fetchone()
+            self.json_response({"file": dict(result)})
+        except (TypeError, ValueError) as exc:
+            self.request_error(exc)
+        except Exception as exc:
+            self.request_error(exc)
+
     def normalized_item(self, data: dict) -> dict:
         kind = str(data.get("kind", "")).strip()
         title = str(data.get("title", "")).strip()
@@ -2117,6 +2272,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             raise ValueError("标题不能为空")
         if len(title) > 200:
             raise ValueError("标题不能超过 200 个字符")
+        content = str(data.get("content", ""))
+        if len(content) > MAX_ITEM_CONTENT:
+            raise ValueError("正文不能超过 1 MB")
         status = str(data.get("status", "inbox"))
         if status not in STATUSES:
             status = "inbox"
@@ -2144,7 +2302,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             "kind": kind,
             "title": title,
             "summary": str(data.get("summary", "")).strip()[:500],
-            "content": str(data.get("content", "")),
+            "content": content,
             "tags": safe_tags(data.get("tags", "")),
             "status": status,
             "priority": priority,

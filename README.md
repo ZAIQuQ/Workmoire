@@ -29,8 +29,12 @@ introducing a large runtime dependency stack.
   and all list sorts are evaluated across the full archive before cursor
   pagination, so “highest priority”, “earliest due”, and title order do not
   silently stop at the first page.
+- Bounded list and dashboard responses return metadata summaries instead of
+  repeating full Markdown bodies; opening an item fetches its complete body.
 - Global search covers content and uploaded files, including a file's associated content title.
 - Global search shows a matching context preview and can be narrowed by content type or status.
+- Global search is offset-paginated with a load-more action, so body-only matches
+  beyond the first page remain reachable.
 - Search ranks title matches ahead of summaries, tags, and body-only matches so a precise idea is easier to recover.
 - Hierarchical relationships between related notes, projects, papers, and logs.
 - Clickable parent and child links make those relationships navigable from the editor.
@@ -41,6 +45,8 @@ introducing a large runtime dependency stack.
 - Select several items in a content space to change their status in one transaction or move them to the recoverable trash; bulk actions are authenticated and limited to 100 items.
 - Recoverable deletion with a private trash area for content and uploaded files; safe restores retain unchanged hierarchy links when the original parent is available.
 - File space uses server-side search and load-more pagination, so large attachment archives remain navigable without loading every row at once.
+- File space reports filtered byte totals, can show only linked or unlinked files,
+  and lets you attach an existing file to an active item or detach it later.
 - Trashed items stay out of search, active statistics, and item exports until restored.
 - Pin important papers, projects, or notes so they stay visible in lists and the dashboard.
 - Keep unsaved edits as browser-local drafts, with an explicit restore or ignore action.
@@ -51,6 +57,9 @@ introducing a large runtime dependency stack.
 - One-click JSON export of notes, metadata, saved revisions, activity history, and cross-links (without passwords).
 - Transactional JSON import that rebuilds hierarchy and cross-links without importing credentials or file binaries.
 - Complete ZIP archive export/import for active content and attachment bytes, with checksum and path validation.
+- Complete archive imports preserve valid item/file timestamps and resolvable
+  activity history while remapping IDs transactionally.
+- Item bodies are capped at 1 MiB to keep revisions, exports, and browser edits bounded.
 - Signed, expiring login cookies and basic login rate limiting.
 - SQLite WAL mode and a small activity trail.
 - Optional local Codex整理助手，默认关闭，不上传内容到外部服务。
@@ -90,7 +99,8 @@ are bounded to 256 MB and are validated for path traversal, checksums, and
 transactional rollback. Scheduled `backup.sh` snapshots remain the preferred
 operational backup because they also include deleted items and files.
 Deleting a content item keeps its attachments in the independent file space;
-manage those files separately from the recycle bin.
+manage those files separately from the recycle bin. The file-space association
+selector can reconnect an unlinked attachment to any active item.
 
 `backup.sh` writes a SQLite-consistent database snapshot and a compressed file
 archive. It retains the last 14 days by default; set
