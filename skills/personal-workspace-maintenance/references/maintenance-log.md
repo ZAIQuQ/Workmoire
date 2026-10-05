@@ -100,3 +100,9 @@ changes belong in normal commit history.
   candidates, tags, review queues, calendars, and trash; repeated unchanged
   saves now keep timestamps and history stable. Added browser coverage for a
   work-log date move so the active civil-day view follows the saved item.
+- Preserved original hierarchy links in a separate trash metadata table,
+  validated links during restore, honored explicit parent edits, and advanced
+  versions when a trash operation detaches active children. File uploads now
+  keep their metadata insert transactional and remove staged bytes after a
+  failed association or database write. Updated source, tests, release gates,
+  and this skill together.

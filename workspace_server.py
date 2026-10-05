@@ -242,8 +242,17 @@ def init_db() -> None:
           created_at TEXT NOT NULL,
           FOREIGN KEY(item_id) REFERENCES items(id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS item_trash_meta(
+          item_id INTEGER PRIMARY KEY,
+          parent_id INTEGER,
+          trashed_at TEXT NOT NULL,
+          FOREIGN KEY(item_id) REFERENCES items(id) ON DELETE CASCADE,
+          FOREIGN KEY(parent_id) REFERENCES items(id) ON DELETE SET NULL
+        );
         CREATE INDEX IF NOT EXISTS idx_item_revisions_item_created
           ON item_revisions(item_id, created_at DESC, id DESC);
+        CREATE INDEX IF NOT EXISTS idx_item_trash_meta_parent
+          ON item_trash_meta(parent_id);
         """
     )
     user_columns = {row["name"] for row in con.execute("PRAGMA table_info(users)")}
@@ -465,6 +474,40 @@ def record_revision(con: sqlite3.Connection, row: sqlite3.Row) -> None:
         "(SELECT id FROM item_revisions WHERE item_id=? ORDER BY id DESC LIMIT 100)",
         (row["id"], row["id"]),
     )
+
+
+def remember_trash_relationships(con: sqlite3.Connection, item_ids: list[int], trashed_at: str) -> None:
+    """Save parent links before trashing roots and their active children."""
+    if not item_ids:
+        return
+    placeholders = ",".join("?" for _ in item_ids)
+    roots = con.execute(
+        "SELECT * FROM items WHERE id IN (%s) AND deleted_at=''" % placeholders,
+        item_ids,
+    ).fetchall()
+    children = con.execute(
+        "SELECT * FROM items WHERE parent_id IN (%s) AND deleted_at=''" % placeholders,
+        item_ids,
+    ).fetchall()
+    seen = set()
+    for row in [*roots, *children]:
+        if row["id"] in seen:
+            continue
+        seen.add(row["id"])
+        if row["parent_id"] is not None:
+            record_revision(con, row)
+            con.execute(
+                "INSERT INTO item_trash_meta(item_id,parent_id,trashed_at) VALUES(?,?,?) "
+                "ON CONFLICT(item_id) DO UPDATE SET parent_id=excluded.parent_id,trashed_at=excluded.trashed_at",
+                (row["id"], row["parent_id"], trashed_at),
+            )
+        else:
+            # A detached child may be trashed again before its parent returns.
+            # Keep its pending original link instead of replacing it with NULL.
+            con.execute(
+                "INSERT OR IGNORE INTO item_trash_meta(item_id,parent_id,trashed_at) VALUES(?,?,?)",
+                (row["id"], None, trashed_at),
+            )
 
 
 def search_snippet(row: sqlite3.Row, query: str) -> str:
@@ -1246,6 +1289,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     self.error("历史版本不存在", 404)
                     return
                 self.validate_parent(con, revision["parent_id"], item_id)
+                con.execute("DELETE FROM item_trash_meta WHERE item_id=?", (item_id,))
                 record_revision(con, current)
                 stamp = utc_now()
                 con.execute(
@@ -1329,11 +1373,45 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     if not row:
                         self.error("回收站中不存在这条内容", 404)
                         return
+                    meta = con.execute("SELECT parent_id FROM item_trash_meta WHERE item_id=?", (item_id,)).fetchone()
+                    original_parent_id = meta["parent_id"] if meta else None
+                    parent_id = original_parent_id
+                    skipped_relationships = 0
+                    restored_relationships = 0
+                    if parent_id is not None and not con.execute("SELECT 1 FROM items WHERE id=? AND deleted_at=''", (parent_id,)).fetchone():
+                        parent_id = None
+                    if parent_id is not None:
+                        try:
+                            self.validate_parent(con, parent_id, item_id)
+                        except ValueError:
+                            parent_id = None
+                            skipped_relationships += 1
+                        else:
+                            restored_relationships += 1
                     stamp = utc_now()
-                    con.execute("UPDATE items SET deleted_at='', updated_at=? WHERE id=?", (stamp, item_id))
+                    con.execute("UPDATE items SET deleted_at='', updated_at=?, parent_id=? WHERE id=?", (stamp, parent_id, item_id))
+                    if original_parent_id is None or parent_id is not None or skipped_relationships:
+                        con.execute("DELETE FROM item_trash_meta WHERE item_id=?", (item_id,))
+                    child_rows = con.execute(
+                        "SELECT i.* FROM items i JOIN item_trash_meta m ON m.item_id=i.id "
+                        "WHERE i.deleted_at='' AND m.parent_id=? ORDER BY i.id",
+                        (item_id,),
+                    ).fetchall()
+                    for child in child_rows:
+                        con.execute("DELETE FROM item_trash_meta WHERE item_id=?", (child["id"],))
+                        if child["parent_id"] is not None:
+                            continue
+                        try:
+                            self.validate_parent(con, item_id, child["id"])
+                        except ValueError:
+                            skipped_relationships += 1
+                            continue
+                        record_revision(con, child)
+                        con.execute("UPDATE items SET parent_id=?,updated_at=? WHERE id=?", (item_id, stamp, child["id"]))
+                        restored_relationships += 1
                     log_activity(con, "restore", "item", item_id, row["title"])
                     restored = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
-                self.json_response({"item": as_item(restored)})
+                self.json_response({"item": as_item(restored), "restored_relationships": restored_relationships, "skipped_relationships": skipped_relationships})
             except Exception as exc:
                 self.request_error(exc)
             return
@@ -1506,13 +1584,14 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                             log_activity(con, "update", "item", row["id"], row["title"])
                             updated_ids.append(row["id"])
                     else:
+                        remember_trash_relationships(con, item_ids, stamp)
                         con.execute(
                             "UPDATE items SET deleted_at=?,updated_at=?,parent_id=NULL WHERE id IN (%s)" % placeholders,
                             [stamp, stamp, *item_ids],
                         )
                         con.execute(
-                            "UPDATE items SET parent_id=NULL WHERE parent_id IN (%s) AND deleted_at=''" % placeholders,
-                            item_ids,
+                            "UPDATE items SET parent_id=NULL,updated_at=? WHERE parent_id IN (%s) AND deleted_at=''" % placeholders,
+                            [stamp, *item_ids],
                         )
                         for row in rows:
                             log_activity(con, "trash", "item", row["id"], row["title"])
@@ -1546,6 +1625,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             user = self.require_user()
             if not user:
                 return
+            target = None
+            committed = False
             try:
                 length = int(self.headers.get("Content-Length", "0"))
                 if length <= 0 or length > MAX_UPLOAD:
@@ -1572,20 +1653,20 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 with target.open("wb") as stream:
                     while chunk := field.file.read(1024 * 1024):
                         stream.write(chunk)
-                con = open_db()
-                if item_id is not None and not con.execute("SELECT 1 FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone():
-                    con.close()
-                    target.unlink(missing_ok=True)
-                    raise ValueError("关联内容不存在")
-                con.execute(
-                    "INSERT INTO files(id,name,stored_name,size,content_type,item_id,created_at) VALUES(?,?,?,?,?,?,?)",
-                    (file_id, original, stored_name, target.stat().st_size, field.type or mimetypes.guess_type(original)[0] or "application/octet-stream", item_id, utc_now()),
-                )
-                log_activity(con, "upload", "file", file_id, original)
-                con.commit()
-                con.close()
+                with closing(open_db()) as con, con:
+                    con.execute("BEGIN IMMEDIATE")
+                    if item_id is not None and not con.execute("SELECT 1 FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone():
+                        raise ValueError("关联内容不存在")
+                    con.execute(
+                        "INSERT INTO files(id,name,stored_name,size,content_type,item_id,created_at) VALUES(?,?,?,?,?,?,?)",
+                        (file_id, original, stored_name, target.stat().st_size, field.type or mimetypes.guess_type(original)[0] or "application/octet-stream", item_id, utc_now()),
+                    )
+                    log_activity(con, "upload", "file", file_id, original)
+                committed = True
                 self.json_response({"ok": True, "id": file_id, "item_id": item_id}, 201)
             except Exception as exc:
+                if target is not None and not committed:
+                    target.unlink(missing_ok=True)
                 self.request_error(exc)
             return
         if path == "/api/password":
@@ -1703,8 +1784,17 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     if "entry_date" not in raw_data:
                         data["entry_date"] = exists["entry_date"]
                     changed = any(exists[field] != data[field] for field in REVISION_FIELDS)
+                    pending_trash_link = con.execute("SELECT 1 FROM item_trash_meta WHERE item_id=?", (item_id,)).fetchone()
+                    if pending_trash_link and data["parent_id"] == exists["parent_id"]:
+                        # A successful explicit save while a parent is in the
+                        # trash is the user's decision to keep the current
+                        # detached state, even when the payload is otherwise
+                        # unchanged.
+                        con.execute("DELETE FROM item_trash_meta WHERE item_id=?", (item_id,))
                     if changed:
                         self.validate_parent(con, data["parent_id"], item_id)
+                        if data["parent_id"] != exists["parent_id"]:
+                            con.execute("DELETE FROM item_trash_meta WHERE item_id=?", (item_id,))
                         record_revision(con, exists)
                         stamp = utc_now()
                         con.execute(
@@ -1797,16 +1887,15 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             except ValueError:
                 self.error("无效的内容 ID")
                 return
-            con = open_db()
-            row = con.execute("SELECT title FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
-            if row:
-                stamp = utc_now()
+            with closing(open_db()) as con, con:
                 con.execute("BEGIN IMMEDIATE")
-                con.execute("UPDATE items SET deleted_at=?, updated_at=?, parent_id=NULL WHERE id=?", (stamp, stamp, item_id))
-                con.execute("UPDATE items SET parent_id=NULL WHERE parent_id=? AND deleted_at=''", (item_id,))
-                log_activity(con, "trash", "item", item_id, row["title"])
-                con.commit()
-            con.close()
+                row = con.execute("SELECT title FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
+                if row:
+                    stamp = utc_now()
+                    remember_trash_relationships(con, [item_id], stamp)
+                    con.execute("UPDATE items SET deleted_at=?, updated_at=?, parent_id=NULL WHERE id=?", (stamp, stamp, item_id))
+                    con.execute("UPDATE items SET parent_id=NULL,updated_at=? WHERE parent_id=? AND deleted_at=''", (stamp, item_id))
+                    log_activity(con, "trash", "item", item_id, row["title"])
             self.json_response({"ok": True})
             return
         if path.startswith("/api/files/"):

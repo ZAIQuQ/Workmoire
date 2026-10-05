@@ -18,6 +18,8 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - When import/export changes, test a synthetic export with relationships and verify the import is transactional and excludes credentials and file binaries.
 - When hierarchy import changes, include a self-parent and a multi-item cycle fixture and verify both are rejected with no partial items.
 - When deletion behavior changes, test the full trash lifecycle: active queries hide deleted rows, restore returns them, and permanent deletion removes the row and file bytes.
+- When hierarchy deletion changes, restore a parent with active children, verify unchanged links return, explicit parent edits win, and cycle attempts are skipped safely.
+- When upload behavior changes, submit an invalid item association and verify no staged orphan file remains after the rejected request.
 - When editor behavior changes, verify local drafts are revision-scoped, restorable or dismissible, and cleared after a successful save or deletion.
 - When work-log dates change, verify additive migration on a database copy, strict leap-date validation, title renames, exact server-side date filtering, history/export/import coverage, and browser-local date navigation.
 - When session or “today” boundaries change, test that legacy unversioned cookies are rejected after the session-version migration and that stats/review use an explicitly supplied browser civil date.

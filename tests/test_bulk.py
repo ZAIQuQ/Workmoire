@@ -88,6 +88,9 @@ class BulkHttpTests(unittest.TestCase):
         self.request("/api/trash/items/%d/restore" % child["id"], "POST")
         restored = self.request("/api/items/%d" % child["id"])["item"]
         self.assertIsNone(restored["parent_id"])
+        self.request("/api/trash/items/%d/restore" % parent["id"], "POST")
+        restored = self.request("/api/items/%d" % child["id"])["item"]
+        self.assertEqual(restored["parent_id"], parent["id"])
         self.request("/api/items/bulk", "POST", {"ids": [survivor["id"], 999999], "action": "trash"}, status=400)
         self.assertEqual(self.request("/api/items/%d" % survivor["id"])["item"]["deleted_at"], "")
         self.request("/api/items/bulk", "POST", {"ids": list(range(1, 102)), "action": "trash"}, status=400)

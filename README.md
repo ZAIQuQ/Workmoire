@@ -39,7 +39,7 @@ introducing a large runtime dependency stack.
 - Content spaces use stable cursor pagination with an explicit load-more affordance, so a growing archive remains discoverable beyond the first page.
 - Work-log spaces can filter by an exact \`YYYY-MM-DD\` date and move between days without relying on UTC timestamps. Dashboard due dates and daily review use the browser's local civil date explicitly, avoiding a server-timezone mismatch.
 - Select several items in a content space to change their status in one transaction or move them to the recoverable trash; bulk actions are authenticated and limited to 100 items.
-- Recoverable deletion with a private trash area for content and uploaded files.
+- Recoverable deletion with a private trash area for content and uploaded files; safe restores retain unchanged hierarchy links when the original parent is available.
 - Trashed items stay out of search, active statistics, and item exports until restored.
 - Pin important papers, projects, or notes so they stay visible in lists and the dashboard.
 - Keep unsaved edits as browser-local drafts, with an explicit restore or ignore action.

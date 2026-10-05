@@ -65,7 +65,7 @@ class TrashHttpTests(unittest.TestCase):
         self.assertEqual(status, expected)
         return json.loads(raw.decode("utf-8"))
 
-    def upload_file(self, item_id, name="linked.txt", payload=b"linked file"):
+    def upload_file(self, item_id, name="linked.txt", payload=b"linked file", expected=201):
         boundary = "----workmoire-test-boundary"
         body = (
             ("--%s\r\n" % boundary).encode()
@@ -86,9 +86,15 @@ class TrashHttpTests(unittest.TestCase):
             headers={"Content-Type": "multipart/form-data; boundary=" + boundary},
             method="POST",
         )
-        response = self.opener.open(request, timeout=3)
-        self.assertEqual(response.status, 201)
-        return json.loads(response.read().decode("utf-8"))
+        try:
+            response = self.opener.open(request, timeout=3)
+            status = response.status
+            raw = response.read()
+        except urllib.error.HTTPError as error:
+            status = error.code
+            raw = error.read()
+        self.assertEqual(status, expected)
+        return json.loads(raw.decode("utf-8"))
 
     def test_z_dashboard_splits_overdue_and_upcoming_open_items(self):
         yesterday = (date.today() - timedelta(days=1)).isoformat()
@@ -144,6 +150,9 @@ class TrashHttpTests(unittest.TestCase):
             {"kind": "note", "title": "Child", "parent_id": parent["id"]},
             expected=201,
         )["item"]
+        before_orphan_check = {path.name for path in app.FILES_DIR.iterdir()}
+        self.upload_file(999999, name="rejected.txt", expected=400)
+        self.assertEqual(before_orphan_check, {path.name for path in app.FILES_DIR.iterdir()})
         linked_items = self.request(
             "/api/items/%d/links" % parent["id"],
             "POST",
@@ -183,10 +192,12 @@ class TrashHttpTests(unittest.TestCase):
         self.request("/api/files/%s" % linked["id"], "DELETE")
         self.request("/api/trash/files/%s" % linked["id"], "DELETE")
 
+        child_before_detach = self.request("/api/items/%d" % child["id"])["item"]
         self.request("/api/items/%d" % parent["id"], "DELETE")
         active = self.request("/api/items?limit=20")["items"]
         self.assertEqual([item["id"] for item in active], [child["id"]])
         self.assertIsNone(active[0]["parent_id"])
+        self.assertNotEqual(active[0]["updated_at"], child_before_detach["updated_at"])
         self.assertEqual(self.request("/api/items/%d/links" % child["id"])["items"], [])
         trash = self.request("/api/trash")
         self.assertEqual([item["id"] for item in trash["items"]], [parent["id"]])
@@ -216,6 +227,40 @@ class TrashHttpTests(unittest.TestCase):
 
         restored = self.request("/api/trash/items/%d/restore" % parent["id"], "POST")["item"]
         self.assertEqual(restored["title"], "Parent")
+        self.assertEqual(self.request("/api/items/%d" % child["id"])["item"]["parent_id"], parent["id"])
+        pending_parent = self.request("/api/items", "POST", {"kind": "project", "title": "Pending parent"}, expected=201)["item"]
+        pending_child = self.request("/api/items", "POST", {"kind": "note", "title": "Pending child", "parent_id": pending_parent["id"]}, expected=201)["item"]
+        self.request("/api/items/%d" % pending_parent["id"], "DELETE")
+        detached = self.request("/api/items/%d" % pending_child["id"])["item"]
+        self.request(
+            "/api/items/%d" % pending_child["id"],
+            "PUT",
+            {field: detached[field] for field in ("kind", "title", "summary", "content", "tags", "status", "priority", "due_date", "entry_date", "parent_id", "pinned")},
+        )
+        self.request("/api/trash/items/%d/restore" % pending_parent["id"], "POST")
+        self.assertIsNone(self.request("/api/items/%d" % pending_child["id"])["item"]["parent_id"])
+        current_child = self.request("/api/items/%d" % child["id"])["item"]
+        self.request(
+            "/api/items/%d" % child["id"],
+            "PUT",
+            {field: current_child[field] for field in ("kind", "title", "summary", "content", "tags", "status", "priority", "due_date", "entry_date", "pinned")} | {"parent_id": None},
+        )
+        self.request("/api/items/%d" % parent["id"], "DELETE")
+        self.request("/api/trash/items/%d/restore" % parent["id"], "POST")
+        self.assertIsNone(self.request("/api/items/%d" % child["id"])["item"]["parent_id"])
+        cycle_root = self.request("/api/items", "POST", {"kind": "project", "title": "Cycle root"}, expected=201)["item"]
+        cycle_parent = self.request("/api/items", "POST", {"kind": "project", "title": "Cycle parent", "parent_id": cycle_root["id"]}, expected=201)["item"]
+        cycle_child = self.request("/api/items", "POST", {"kind": "note", "title": "Cycle child", "parent_id": cycle_parent["id"]}, expected=201)["item"]
+        self.request("/api/items/%d" % cycle_parent["id"], "DELETE")
+        root_now = self.request("/api/items/%d" % cycle_root["id"])["item"]
+        self.request(
+            "/api/items/%d" % cycle_root["id"],
+            "PUT",
+            {field: root_now[field] for field in ("kind", "title", "summary", "content", "tags", "status", "priority", "due_date", "entry_date", "pinned")} | {"parent_id": cycle_child["id"]},
+        )
+        restored_cycle = self.request("/api/trash/items/%d/restore" % cycle_parent["id"], "POST")
+        self.assertGreaterEqual(restored_cycle["skipped_relationships"], 1)
+        self.assertIsNone(self.request("/api/items/%d" % cycle_child["id"])["item"]["parent_id"])
         self.assertEqual(
             [item["id"] for item in self.request("/api/items/%d/links" % parent["id"])["items"]],
             [child["id"]],
@@ -263,6 +308,7 @@ class TrashMigrationTests(unittest.TestCase):
                 self.assertIn("deleted_at", file_columns)
                 self.assertIn("session_version", user_columns)
                 self.assertIn("item_links", link_tables)
+                self.assertIn("item_trash_meta", link_tables)
             finally:
                 app.DATA_DIR, app.FILES_DIR, app.DB_PATH = saved
 
