@@ -471,6 +471,25 @@ def parse_json(handler: BaseHTTPRequestHandler) -> dict:
     return data
 
 
+def encode_item_cursor(row: sqlite3.Row) -> str:
+    payload = json.dumps([int(row["pinned"]), str(row["updated_at"]), int(row["id"])], separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+
+
+def decode_item_cursor(value: str) -> tuple[int, str, int] | None:
+    if not value:
+        return None
+    try:
+        raw = base64.urlsafe_b64decode((value + "===").encode("ascii"))
+        pinned, updated_at, item_id = json.loads(raw.decode("utf-8"))
+        pinned, updated_at, item_id = int(pinned), str(updated_at), int(item_id)
+    except (ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError, UnicodeError):
+        raise ValueError("无效的分页游标")
+    if pinned not in (0, 1) or not updated_at or len(updated_at) > 64 or item_id < 1:
+        raise ValueError("无效的分页游标")
+    return pinned, updated_at, item_id
+
+
 class WorkspaceHandler(BaseHTTPRequestHandler):
     server_version = "Workmoire/1.0"
 
@@ -801,6 +820,11 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             except ValueError:
                 self.error("无效的数量限制", 400)
                 return
+            try:
+                cursor = decode_item_cursor(params.get("cursor", [""])[0].strip())
+            except ValueError as exc:
+                self.error(str(exc), 400)
+                return
             clauses, values = ["deleted_at=''"], []
             if kind in KINDS:
                 clauses.append("kind=?")
@@ -812,11 +836,18 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 clauses.append("(title LIKE ? OR summary LIKE ? OR content LIKE ? OR tags LIKE ?)")
                 needle = "%" + search + "%"
                 values.extend([needle] * 4)
-            where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
             con = open_db()
-            rows = con.execute("SELECT * FROM items%s ORDER BY pinned DESC, updated_at DESC LIMIT ?" % where, values + [limit]).fetchall()
+            total = con.execute("SELECT COUNT(*) FROM items WHERE " + " AND ".join(clauses), values).fetchone()[0]
+            if cursor:
+                pinned, updated_at, item_id = cursor
+                clauses.append("(pinned < ? OR (pinned=? AND updated_at < ?) OR (pinned=? AND updated_at=? AND id < ?))")
+                values.extend([pinned, pinned, updated_at, pinned, updated_at, item_id])
+            where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+            rows = con.execute("SELECT * FROM items%s ORDER BY pinned DESC, updated_at DESC, id DESC LIMIT ?" % where, values + [limit + 1]).fetchall()
+            has_more = len(rows) > limit
+            rows = rows[:limit]
             con.close()
-            self.json_response({"items": [as_item(row) for row in rows]})
+            self.json_response({"items": [as_item(row) for row in rows], "total": total, "next_cursor": encode_item_cursor(rows[-1]) if has_more and rows else None})
             return
         if path.startswith("/api/items/") and path.endswith("/links"):
             if not self.require_user():

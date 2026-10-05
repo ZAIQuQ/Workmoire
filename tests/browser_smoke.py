@@ -208,6 +208,31 @@ def main():
                 page.locator(".purge-file").click()
                 expect(page.locator(".purge-file")).to_have_count(0)
                 assert not list(app.FILES_DIR.iterdir()), "purged file bytes still exist"
+                pagination_items = []
+                for index in range(101):
+                    pagination_response = page.context.request.post(
+                        "http://127.0.0.1:%d/api/items" % server.server_port,
+                        data={"kind": "note", "title": "Synthetic page %03d" % index},
+                    )
+                    assert pagination_response.status == 201
+                    pagination_items.append(pagination_response.json()["item"]["id"])
+                page.locator('[data-page="note"]').click()
+                expect(page.locator("#load-more-items")).to_be_visible()
+                page.locator("#load-more-items").click()
+                expect(page.locator("#load-more-items")).to_have_count(0)
+                for start in (0, 100):
+                    pagination_cleanup = page.context.request.post(
+                        "http://127.0.0.1:%d/api/items/bulk" % server.server_port,
+                        data={"ids": pagination_items[start:start + 100], "action": "trash"},
+                    )
+                    assert pagination_cleanup.status == 200
+                for pagination_id in pagination_items:
+                    pagination_purge = page.context.request.delete(
+                        "http://127.0.0.1:%d/api/trash/items/%d" % (server.server_port, pagination_id),
+                    )
+                    assert pagination_purge.status == 200
+                page.reload()
+                expect(page.locator("#page-content h1")).to_have_text("总览")
                 page.set_viewport_size({"width": 390, "height": 844})
                 page.locator("#mobile-menu").click()
                 page.locator('[data-page="note"]').click()

@@ -79,3 +79,6 @@ changes belong in normal commit history.
 - Added optimistic edit conflict protection with microsecond item timestamps,
   a `409` response carrying the current item, and a browser-local draft fallback
   so concurrent tabs cannot silently overwrite a paper, project, or log.
+- Added stable cursor pagination and an explicit load-more control for content
+  spaces so older material remains discoverable as the archive grows past the
+  first client page.

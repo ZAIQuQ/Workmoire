@@ -33,6 +33,7 @@ introducing a large runtime dependency stack.
 - Clickable parent and child links make those relationships navigable from the editor.
 - Add reversible many-to-many links between any active notes, projects, papers, and logs to connect ideas across the hierarchy.
 - Filter and sort each content space by tags, priority, deadlines, or title without leaving the current workspace.
+- Content spaces use stable cursor pagination with an explicit load-more affordance, so a growing archive remains discoverable beyond the first page.
 - Select several items in a content space to change their status in one transaction or move them to the recoverable trash; bulk actions are authenticated and limited to 100 items.
 - Recoverable deletion with a private trash area for content and uploaded files.
 - Trashed items stay out of search, active statistics, and item exports until restored.

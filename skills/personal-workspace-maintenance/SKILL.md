@@ -31,6 +31,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 - Keep automated public-boundary checks generic: never embed a real deployment address, personal domain, or other private identifier as a denylist fixture. Use synthetic patterns in CI and review actual addresses, emails, and paths before publishing.
 - Keep search ranking deterministic and privacy-preserving: rank metadata matches ahead of body-only matches without exposing deleted content or adding an external indexing service.
 - Open search and activity results through an authenticated item lookup rather than assuming the current client list contains the result; navigation must remain correct when list views are bounded or filtered.
+- Keep growing content spaces discoverable with stable cursor pagination and an explicit load-more control; bounded list responses must report their total and never silently imply that only the first page exists.
 
 ## Working workflow
 
