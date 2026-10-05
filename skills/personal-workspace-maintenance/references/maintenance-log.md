@@ -137,3 +137,13 @@ changes belong in normal commit history.
   linked/unlinked files, and supports authenticated reassociation; complete
   archive imports preserve validated timestamps and remappable activity rows.
   Updated source, UI, tests, README, release gates, and this skill together.
+- Added SQLite indexes for active lists, workflow queues, hierarchy, pins,
+  files, and activity, and bounded metadata-only JSON exports by row counts and
+  a 32 MB response limit. Larger recovery remains available through the
+  complete archive or scheduled backups. Updated source, tests, README, release
+  gates, and this skill together.
+- Replaced browser-wide candidate preloads with bounded server-side search for
+  parent, related-content, file-association, and tag pickers. Parent selection
+  excludes the current item's descendant subtree, and each picker preserves a
+  selected item outside the first page. Updated source, tests, README, release
+  gates, and this skill together.

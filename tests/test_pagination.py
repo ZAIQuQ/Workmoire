@@ -84,6 +84,20 @@ class PaginationHttpTests(unittest.TestCase):
         detail = self.request("/api/items/%d" % item["id"])["item"]
         self.assertEqual(detail["content"], content)
 
+    def test_candidate_and_tag_endpoints_are_bounded_and_searchable(self):
+        parent = self.request("/api/items", "POST", {"kind": "project", "title": "Candidate parent", "tags": "research"}, status=201)["item"]
+        child = self.request("/api/items", "POST", {"kind": "note", "title": "Candidate child", "tags": "research,writing", "parent_id": parent["id"]}, status=201)["item"]
+        other = self.request("/api/items", "POST", {"kind": "paper", "title": "Candidate paper", "tags": "writing"}, status=201)["item"]
+        candidates = self.request("/api/item-candidates?q=paper&limit=1")
+        self.assertEqual(candidates["total"], 1)
+        self.assertEqual(candidates["items"][0]["id"], other["id"])
+        parent_candidates = self.request("/api/item-candidates?mode=parent&exclude_id=%d" % parent["id"])
+        self.assertNotIn(child["id"], [row["id"] for row in parent_candidates["items"]])
+        tags = self.request("/api/tags?limit=1")
+        self.assertEqual(tags["total"], 2)
+        self.assertEqual(tags["tags"][0]["tag"], "research")
+        self.assertIsNotNone(tags["next_offset"])
+
     def test_sort_aware_cursors_cover_the_full_archive(self):
         self.request("/api/items", "POST", {"kind": "note", "title": "Zulu", "priority": 1, "due_date": "", "tags": "alpha"}, status=201)
         self.request("/api/items", "POST", {"kind": "note", "title": "Alpha", "priority": 3, "due_date": "2026-01-03"}, status=201)

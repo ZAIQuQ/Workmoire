@@ -41,6 +41,9 @@ introducing a large runtime dependency stack.
 - Add reversible many-to-many links between any active notes, projects, papers, and logs to connect ideas across the hierarchy.
 - Filter and sort each content space by tags, priority, deadlines, or title without leaving the current workspace.
 - Content spaces use stable cursor pagination with an explicit load-more affordance, so a growing archive remains discoverable beyond the first page.
+- Parent, related-content, file-association, and tag pickers use bounded
+  server-side search with load-more controls, so editing does not preload the
+  entire knowledge base into the browser.
 - Work-log spaces can filter by an exact \`YYYY-MM-DD\` date and move between days without relying on UTC timestamps. Dashboard due dates and daily review use the browser's local civil date explicitly, avoiding a server-timezone mismatch.
 - Select several items in a content space to change their status in one transaction or move them to the recoverable trash; bulk actions are authenticated and limited to 100 items.
 - Recoverable deletion with a private trash area for content and uploaded files; safe restores retain unchanged hierarchy links when the original parent is available.
@@ -60,6 +63,9 @@ introducing a large runtime dependency stack.
 - Complete archive imports preserve valid item/file timestamps and resolvable
   activity history while remapping IDs transactionally.
 - Item bodies are capped at 1 MiB to keep revisions, exports, and browser edits bounded.
+- Common active-list, workflow, hierarchy, file, and activity queries use SQLite
+  indexes; metadata-only JSON export/import documents are capped at 32 MB and
+  larger recoveries should use the complete archive or scheduled backup.
 - Signed, expiring login cookies and basic login rate limiting.
 - SQLite WAL mode and a small activity trail.
 - Optional local Codex整理助手，默认关闭，不上传内容到外部服务。

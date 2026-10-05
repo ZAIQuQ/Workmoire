@@ -1,7 +1,7 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",all:"全部内容",review:"今日复盘",calendar:"计划日历",graph:"关系地图",trash:"回收站"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷",review:"✦",calendar:"▦",graph:"⌘",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],allItemsCursor:null,itemsCursor:null,itemsTotal:0,allItemsTotal:0,selected:null,savedSnapshot:null,selectedIds:new Set(),visibleItemIds:[],stats:null,reviewData:null,graphData:null,graphFilter:"",calendarDate:new Date(),logDate:"",editorTab:"write",listTag:"",listStatus:"",listDue:"",listSort:"updated",listQuery:"",listSearchTimer:null,itemsRequest:0,fileSearch:"",fileLinked:"",fileRows:[],fileTotal:0,fileBytes:0,fileItemOptions:[],fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null,searchQuery:"",searchOffset:0,searchItems:[],searchFiles:[],searchNextOffset:null};
+const state={page:"dashboard",items:[],itemsCursor:null,itemsTotal:0,selected:null,savedSnapshot:null,selectedIds:new Set(),visibleItemIds:[],stats:null,reviewData:null,graphData:null,graphFilter:"",calendarDate:new Date(),logDate:"",editorTab:"write",listTag:"",listStatus:"",listDue:"",listSort:"updated",listQuery:"",listSearchTimer:null,itemsRequest:0,fileSearch:"",fileLinked:"",fileRows:[],fileTotal:0,fileBytes:0,fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null,searchQuery:"",searchOffset:0,searchItems:[],searchFiles:[],searchNextOffset:null};
 const captureDraftKey="workmoire:capture-draft";
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
@@ -243,16 +243,7 @@ async function loadItems(query="",append=false){
   if(requestId!==state.itemsRequest)return;
   state.items=append?state.items.concat(result.items||[]):(result.items||[]);
   state.itemsCursor=result.next_cursor||null;state.itemsTotal=Number(result.total||state.items.length);
-  if(!query&&!append){
-    let cursor="",allItems=[],allTotal=0;
-    do{
-      const allParams=new URLSearchParams({limit:"500",sort:"updated"});if(cursor)allParams.set("cursor",cursor);
-      const allResult=await api("/api/items?"+allParams.toString());
-      if(requestId!==state.itemsRequest)return;
-      allItems=allItems.concat(allResult.items||[]);allTotal=Number(allResult.total||allItems.length);cursor=allResult.next_cursor||"";
-    }while(cursor);
-    state.allItems=allItems;state.allItemsCursor=null;state.allItemsTotal=allTotal;
-  }
+
 }
 function scheduleListSearch(){
   clearTimeout(state.listSearchTimer);
@@ -537,10 +528,10 @@ function drawItemList(){
   state.visibleItemIds=items.map(item=>item.id);
   const box=$("#item-list");
   if(!items.length){box.innerHTML='<div class="empty-state"><strong>这里还没有内容</strong><p>点击右上角，先创建第一条。</p></div>';drawBulkToolbar();drawListPagination();return}
-  box.innerHTML=items.map(item=>'<div class="content-item '+(state.selected&&String(state.selected.id)===String(item.id)?"is-selected":"")+'" data-id="'+item.id+'"><div class="content-item-head"><label class="item-select"><input type="checkbox" data-id="'+item.id+'" '+(state.selectedIds.has(String(item.id))?"checked":"")+'><span class="sr-only">选择 '+esc(item.title||"未命名")+'</span></label><div class="content-item-title">'+esc(item.title||"未命名")+'</div><button class="pin-toggle '+(item.pinned?"is-pinned":"")+'" data-id="'+item.id+'" title="'+(item.pinned?"取消置顶":"置顶内容")+'" aria-label="'+(item.pinned?"取消置顶":"置顶内容")+'">★</button></div><div class="content-item-summary">'+esc(item.summary||"暂无摘要")+'</div><div class="content-item-meta">'+priorityMarkup(item.priority||2)+taskProgressMarkup(item)+(item.kind==="log"&&item.entry_date?'<span>'+esc(formatDueDate(item.entry_date))+'</span>':"")+'<span>'+relativeDate(item.updated_at)+'</span><span class="spacer"></span>'+statusPill(item.status)+'</div></div>').join("");
+  box.innerHTML=items.map(item=>'<div class="content-item '+(state.selected&&String(state.selected.id)===String(item.id)?"is-selected":"")+'" data-id="'+item.id+'"><div class="content-item-head"><label class="item-select"><input type="checkbox" data-id="'+item.id+'" '+(state.selectedIds.has(String(item.id))?"checked":"")+'><span class="sr-only">选择 '+esc(item.title||"未命名")+'</span></label><div class="content-item-title">'+esc(item.title||"未命名")+'</div><button class="pin-toggle '+(item.pinned?"is-pinned":"")+'" data-id="'+item.id+'" title="'+(item.pinned?"取消置顶":"置顶内容")+'" aria-label="'+(item.pinned?"取消置顶":"置顶内容")+'">★</button></div><div class="content-item-summary">'+esc(item.summary||item.content_preview||"暂无摘要")+'</div><div class="content-item-meta">'+priorityMarkup(item.priority||2)+taskProgressMarkup(item)+(item.kind==="log"&&item.entry_date?'<span>'+esc(formatDueDate(item.entry_date))+'</span>':"")+'<span>'+relativeDate(item.updated_at)+'</span><span class="spacer"></span>'+statusPill(item.status)+'</div></div>').join("");
   $$(".content-item").forEach(row=>row.onclick=async event=>{if(event.target.closest("button,label,input"))return;if(!confirmEditorLeave())return;try{const result=await api("/api/items/"+encodeURIComponent(row.dataset.id));state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";drawItemList();drawEditor()}catch(error){window.alert(error.message)}});
   $$(".item-select input").forEach(input=>input.onchange=event=>{event.stopPropagation();const id=String(input.dataset.id);if(input.checked)state.selectedIds.add(id);else state.selectedIds.delete(id);drawBulkToolbar()});
-  $$(".pin-toggle").forEach(button=>button.onclick=async event=>{event.stopPropagation();if(!confirmEditorLeave())return;const item=state.items.find(candidate=>String(candidate.id)===button.dataset.id);if(!item)return;try{const result=await api("/api/items/"+item.id+"/pin",{method:"POST",body:JSON.stringify({pinned:!item.pinned})});Object.assign(item,result.item);const all=state.allItems.find(candidate=>String(candidate.id)===button.dataset.id);if(all)Object.assign(all,result.item);if(state.selected&&String(state.selected.id)===button.dataset.id){Object.assign(state.selected,result.item);state.savedSnapshot=editorSnapshot(result.item);drawEditor()}drawItemList()}catch(error){window.alert(error.message)}});
+  $$(".pin-toggle").forEach(button=>button.onclick=async event=>{event.stopPropagation();if(!confirmEditorLeave())return;const item=state.items.find(candidate=>String(candidate.id)===button.dataset.id);if(!item)return;try{const result=await api("/api/items/"+item.id+"/pin",{method:"POST",body:JSON.stringify({pinned:!item.pinned})});Object.assign(item,result.item);if(state.selected&&String(state.selected.id)===button.dataset.id){Object.assign(state.selected,result.item);state.savedSnapshot=editorSnapshot(result.item);drawEditor()}drawItemList()}catch(error){window.alert(error.message)}});
   $("#bulk-status")?.addEventListener("change",drawBulkToolbar);drawBulkToolbar();drawListPagination();
 }
 function compareItems(a,b,sort){
@@ -554,14 +545,76 @@ function compareItems(a,b,sort){
 function drawTagFilter(){
   const box=$("#list-tags");
   if(!box)return;
-  const counts={},tagItems=state.allItems.length?state.allItems:state.items;tagItems.forEach(item=>(item.tags_list||String(item.tags||"").split(",").filter(Boolean)).forEach(tag=>{counts[tag]=(counts[tag]||0)+1}));
-  const tags=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a.localeCompare(b)).slice(0,18);
-  box.innerHTML=tags.length?'<button class="tag-chip '+(!state.listTag?"is-active":"")+'" data-tag="">全部</button>'+tags.map(tag=>'<button class="tag-chip '+(state.listTag===tag?"is-active":"")+'" data-tag="'+esc(tag)+'">'+esc(tag)+' <small>'+counts[tag]+'</small></button>').join(""):'';
-  $$(".tag-chip").forEach(button=>button.onclick=()=>{state.listTag=button.dataset.tag;scheduleListFilter()});
+  if(!box.querySelector("input")){
+    box.innerHTML='<input class="control-input" type="search" placeholder="查找标签" aria-label="查找标签"><div class="tag-choices"></div><button class="button button-secondary tag-more is-hidden" type="button">更多标签</button>';
+    let timer;
+    box.querySelector("input").oninput=()=>{clearTimeout(timer);timer=setTimeout(()=>loadTagChoices(box),180)};
+  }
+  loadTagChoices(box);
 }
-function relatedTargetOptions(item){
-  const excluded=new Set([String(item.id)]);
-  return (state.allItems.length?state.allItems:state.items).filter(candidate=>!excluded.has(String(candidate.id))).map(candidate=>'<option value="'+candidate.id+'">'+esc((labels[candidate.kind]||"内容")+" · "+(candidate.title||"未命名"))+'</option>').join("");
+async function loadTagChoices(box,offset=0){
+  const request=(box.request||0)+1;box.request=request;
+  const params=new URLSearchParams({limit:"18",offset:String(offset),q:box.querySelector("input").value.trim()});
+  if(["note","project","paper","log"].includes(state.page))params.set("kind",state.page);
+  try{
+    const data=await api("/api/tags?"+params);
+    if(!box.isConnected||box.request!==request)return;
+    box.tags=offset?(box.tags||[]).concat(data.tags):data.tags;
+    const tags=box.tags,selected=state.listTag;
+    box.querySelector(".tag-choices").innerHTML='<button class="tag-chip '+(!selected?"is-active":"")+'" data-tag="">全部标签</button>'+(selected&&!tags.some(row=>row.tag===selected)?'<button class="tag-chip is-active" data-tag="'+esc(selected)+'">'+esc(selected)+'</button>':"")+tags.map(row=>'<button class="tag-chip '+(selected===row.tag?"is-active":"")+'" data-tag="'+esc(row.tag)+'">'+esc(row.tag)+' <small>'+row.count+'</small></button>').join("");
+    box.querySelectorAll(".tag-chip").forEach(button=>button.onclick=()=>{state.listTag=button.dataset.tag;scheduleListFilter()});
+    const more=box.querySelector(".tag-more");more.classList.toggle("is-hidden",data.next_offset==null);more.textContent="更多标签（"+tags.length+" / "+data.total+"）";more.onclick=()=>loadTagChoices(box,data.next_offset);
+  }catch(error){if(box.isConnected&&box.request===request)box.querySelector(".tag-choices").textContent="标签暂时无法加载"}
+}
+// Each picker fetches small metadata pages on demand. Preserve the user's
+// current choice while a search is in flight; a delayed response never clears it.
+function bindItemPicker(selectId,searchId,moreId,hintId,options={}){
+  const select=$("#"+selectId),search=$("#"+searchId),more=$("#"+moreId),hint=$("#"+hintId);
+  if(!select||!search)return;
+  let request=0,timer,rows=[],next=null;
+  async function load(offset=0){
+    const version=++request;
+    const params=new URLSearchParams({limit:"50",offset:String(offset),q:search.value.trim(),...options});
+    if(select.value)params.set("selected_id",select.value);
+    try{
+      const data=await api("/api/item-candidates?"+params);
+      if(!select.isConnected||version!==request)return;
+      const value=select.value,old=select.selectedOptions[0];
+      rows=offset?rows.concat(data.items):data.items;
+      const unique=[...new Map(rows.map(item=>[String(item.id),item])).values()];
+      const preserved=value&&!unique.some(item=>String(item.id)===value)?(data.selected&&String(data.selected.id)===value?'<option value="'+esc(value)+'">'+esc(data.selected.title)+'</option>':'<option value="'+esc(value)+'">'+esc(old?.textContent||"已选内容")+'</option>'):"";
+      select.innerHTML='<option value="">'+esc(select.dataset.empty||"请选择内容…")+'</option>'+preserved+unique.map(item=>'<option value="'+item.id+'">'+esc((labels[item.kind]||"内容")+" · "+(item.title||"未命名"))+'</option>').join("");
+      select.value=value;next=data.next_offset;
+      more.classList.toggle("is-hidden",next==null);hint.textContent=unique.length+" / "+data.total+" 条候选";
+    }catch(error){if(select.isConnected&&version===request)hint.textContent="候选加载失败，请重新搜索"}
+  }
+  search.oninput=()=>{clearTimeout(timer);++request;timer=setTimeout(()=>load(),180)};
+  more.onclick=()=>{if(next!=null)load(next)};
+  load();
+}
+async function renderHierarchy(item,offset=0){
+  const panel=$("#hierarchy-panel");
+  if(!panel||!item.id)return;
+  const params=new URLSearchParams({parent_id:String(item.id),limit:"50",offset:String(offset)});
+  if(item.parent_id)params.set("selected_id",String(item.parent_id));
+  try{
+    const data=await api("/api/item-candidates?"+params);
+    if($("#hierarchy-panel")!==panel)return;
+    panel.childrenRows=offset?(panel.childrenRows||[]).concat(data.items):data.items;
+    const parent=data.selected,children=panel.childrenRows;
+    panel.innerHTML='<div class="relation-heading">层级关系</div>'+(parent?'<div class="relation-group"><span class="relation-label">上级</span><button class="related-link" data-related-id="'+parent.id+'" data-related-kind="'+parent.kind+'">'+esc(parent.title)+'</button></div>':'')+'<div class="relation-group"><span class="relation-label">下级 · '+children.length+' / '+data.total+'</span><div class="relation-children">'+children.map(child=>'<button class="related-link" data-related-id="'+child.id+'" data-related-kind="'+child.kind+'">'+kindMark(child.kind)+'<span>'+esc(child.title)+'</span></button>').join("")+'</div></div>'+(data.next_offset!=null?'<button class="button button-secondary hierarchy-more">加载更多下级</button>':"");
+    bindRelationLinks(panel);
+    panel.querySelector(".hierarchy-more")?.addEventListener("click",()=>renderHierarchy(item,data.next_offset));
+  }catch(error){if($("#hierarchy-panel")===panel)panel.textContent="层级关系暂时无法加载"}
+}
+function bindRelationLinks(root=document){
+  root.querySelectorAll(".related-link").forEach(link=>link.onclick=async()=>{
+    try{
+      const result=await api("/api/items/"+encodeURIComponent(link.dataset.relatedId));
+      if(!await goPage(result.item.kind))return;
+      state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
+    }catch(error){window.alert(error.message)}
+  });
 }
 async function renderRelatedItems(itemId){
   const list=$("#related-list");
@@ -570,8 +623,6 @@ async function renderRelatedItems(itemId){
     const result=await api("/api/items/"+encodeURIComponent(itemId)+"/links");
     if(!state.selected||String(state.selected.id)!==String(itemId)||$("#related-list")!==list)return;
     const items=result.items||[];
-    const linkedIds=new Set(items.map(item=>String(item.id)));
-    $$("#related-target option").forEach(option=>{option.disabled=linkedIds.has(option.value)});
     list.innerHTML=items.length?items.map(item=>'<div class="related-row"><button class="related-link" data-related-id="'+item.id+'" data-related-kind="'+item.kind+'">'+kindMark(item.kind)+'<span>'+esc(item.title||"未命名")+'</span></button><button class="related-remove" data-related-id="'+item.id+'" title="解除关联" aria-label="解除与 '+esc(item.title||"未命名")+' 的关联">×</button></div>').join(""):'<span class="related-empty">还没有横向关联</span>';
     $$("#related-list .related-remove").forEach(button=>button.onclick=async event=>{event.stopPropagation();button.disabled=true;try{await api("/api/items/"+encodeURIComponent(itemId)+"/links/"+encodeURIComponent(button.dataset.relatedId),{method:"DELETE"});await renderRelatedItems(itemId)}catch(error){button.disabled=false;window.alert(error.message)}});
     $$("#related-list .related-link").forEach(link=>link.onclick=async()=>{
@@ -638,18 +689,13 @@ function drawEditor(){
   const conflictDraftAvailable=Boolean(localDraft&&localDraft.conflict&&item.id);
   const draftNotice=(draftAvailable||staleDraftAvailable||conflictDraftAvailable)?'<div class="draft-notice" id="draft-notice"><span>'+(staleDraftAvailable?"发现一份基于旧版本的本机草稿，请确认后恢复":conflictDraftAvailable?"发现服务器更新前的本机未保存草稿":"发现这条内容的本机未保存草稿")+'</span><button id="restore-draft" class="button button-secondary">恢复草稿</button><button id="dismiss-draft" class="draft-dismiss">忽略</button></div>':'';
   const kindOptions=["note","project","paper","log"].map(kind=>'<option value="'+kind+'">'+labels[kind]+'</option>').join("");
-  const parentCandidates=state.allItems.length?state.allItems:state.items;
-  const parentItem=item.parent_id!=null?parentCandidates.find(candidate=>String(candidate.id)===String(item.parent_id)):null;
-  const parentFallback=item.parent_id!=null&&!parentItem?'<option value="'+esc(item.parent_id)+'">已关联的上级内容 · #'+esc(item.parent_id)+'</option>':"";
-  const parentOptions=parentFallback+parentCandidates.filter(candidate=>String(candidate.id)!==String(item.id)).map(candidate=>'<option value="'+candidate.id+'">'+esc((labels[candidate.kind]||"内容")+" · "+(candidate.title||"未命名"))+'</option>').join("");
-  const hierarchyParent=state.allItems.find(candidate=>String(candidate.id)===String(item.parent_id))||parentItem;
-  const childItems=item.id?state.allItems.filter(candidate=>String(candidate.parent_id)===String(item.id)):[];
-  const hierarchyMarkup=(hierarchyParent||childItems.length)?'<section class="relation-panel"><div class="relation-heading">层级关系</div>'+(hierarchyParent?'<div class="relation-group"><span class="relation-label">上级</span><button class="related-link" data-related-id="'+hierarchyParent.id+'" data-related-kind="'+hierarchyParent.kind+'">'+kindMark(hierarchyParent.kind)+'<span>'+esc(hierarchyParent.title)+'</span></button></div>':'')+(childItems.length?'<div class="relation-group"><span class="relation-label">下级</span><div class="relation-children">'+childItems.map(child=>'<button class="related-link" data-related-id="'+child.id+'" data-related-kind="'+child.kind+'">'+kindMark(child.kind)+'<span>'+esc(child.title)+'</span></button>').join('')+'</div></div>':'')+'</section>':'';
-  const relatedMarkup=item.id?'<section class="relation-panel related-content-panel"><div class="relation-heading">横向关联 · 更改即时保存</div><div id="related-list" class="related-list"><span class="related-empty">加载中…</span></div><div class="related-add"><select id="related-target" class="control-input" aria-label="要关联的内容"><option value="">选择要关联的内容…</option>'+relatedTargetOptions(item)+'</select><button id="add-related" class="button button-secondary" type="button">关联</button></div></section>':'';
+  const parentOptions=item.parent_id?'<option value="'+esc(item.parent_id)+'">已关联的上级内容</option>':"";
+  const hierarchyMarkup=item.id?'<section id="hierarchy-panel" class="relation-panel"><span class="related-empty">加载层级关系…</span></section>':"";
+  const relatedMarkup=item.id?'<section class="relation-panel related-content-panel"><div class="relation-heading">横向关联 · 更改即时保存</div><div id="related-list" class="related-list"><span class="related-empty">加载中…</span></div><input id="related-search" type="search" class="control-input" placeholder="按标题或标签查找关联内容" aria-label="查找关联内容"><div class="related-add"><select id="related-target" class="control-input" aria-label="要关联的内容"><option value="">选择要关联的内容…</option></select><button id="add-related" class="button button-secondary" type="button">关联</button></div><div class="picker-footer"><small id="related-hint" aria-live="polite"></small><button id="related-more" type="button" class="button button-secondary is-hidden">更多候选</button></div></section>':"";
   const relationMarkup=hierarchyMarkup+relatedMarkup;
   const attachmentMarkup=item.id?'<section class="attachment-panel"><div class="attachment-head"><div><strong>关联文件</strong><small>只显示属于这条内容的附件</small></div><label class="button button-secondary attachment-upload">上传文件<input id="item-file-input" class="file-input" type="file"></label></div><div id="item-file-list" class="item-file-list"></div></section>':'<section class="attachment-panel attachment-empty"><strong>关联文件</strong><span>保存内容后可以上传论文、数据或项目资料。</span></section>';
   const historyMarkup=item.id?'<section class="history-panel"><div class="history-head"><div><strong>编辑历史</strong><small>每次保存前的版本最多保留 100 个</small></div></div><div id="item-history" class="history-list"><span class="history-empty">加载中…</span></div></section>':'';
-  editor.innerHTML=draftNotice+'<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><div id="task-progress" class="editor-task-progress"></div><textarea id="edit-content" maxlength="'+(1024*1024)+'" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>内容类型</span><select id="edit-kind">'+kindOptions+'</select></label><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label id="entry-date-field" class="form-field '+(item.kind==="log"?"":"is-hidden")+'"><span>日志日期</span><input id="edit-entry-date" type="date" value="'+esc(item.entry_date||"")+'"></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label><label class="form-field"><span>上级内容</span><select id="edit-parent"><option value="">无上级内容</option>'+parentOptions+'</select></label><label class="form-check"><input id="edit-pinned" type="checkbox" '+(item.pinned?"checked":"")+'><span>置顶内容</span></label></div></div>'+relationMarkup+attachmentMarkup+historyMarkup+'<div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span>'+'<button id="focus-mode" class="button button-secondary">'+(state.focusMode?"退出专注":"专注模式")+'</button>'+(item.id?'<button id="duplicate-content" class="button button-secondary">另存副本</button>':"")+'<button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
+  editor.innerHTML=draftNotice+'<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><div id="task-progress" class="editor-task-progress"></div><textarea id="edit-content" maxlength="'+(1024*1024)+'" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>内容类型</span><select id="edit-kind">'+kindOptions+'</select></label><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label id="entry-date-field" class="form-field '+(item.kind==="log"?"":"is-hidden")+'"><span>日志日期</span><input id="edit-entry-date" type="date" value="'+esc(item.entry_date||"")+'"></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label><div class="form-field"><label for="edit-parent">上级内容</label><input id="parent-search" type="search" placeholder="查找上级标题或标签" aria-label="查找上级内容"><select id="edit-parent" data-empty="无上级内容"><option value="">无上级内容</option>'+parentOptions+'</select><small id="parent-hint" aria-live="polite"></small><button id="parent-more" type="button" class="button button-secondary is-hidden">更多候选</button></div><label class="form-check"><input id="edit-pinned" type="checkbox" '+(item.pinned?"checked":"")+'><span>置顶内容</span></label></div></div>'+relationMarkup+attachmentMarkup+historyMarkup+'<div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span>'+'<button id="focus-mode" class="button button-secondary">'+(state.focusMode?"退出专注":"专注模式")+'</button>'+(item.id?'<button id="duplicate-content" class="button button-secondary">另存副本</button>':"")+'<button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
   $("#edit-kind").value=item.kind||state.page;$("#edit-status").value=item.status||"inbox";$("#edit-priority").value=String(item.priority||2);$("#edit-parent").value=item.parent_id==null?"":String(item.parent_id);
   $("#edit-kind").onchange=()=>{const isLog=$("#edit-kind").value==="log";$("#entry-date-field").classList.toggle("is-hidden",!isLog);if(isLog&&!$("#edit-entry-date").value)$("#edit-entry-date").value=state.selected?.entry_date||state.logDate||localDateValue()};
   $$(".editor-tab").forEach(tab=>tab.onclick=()=>{collectEditorIntoState();state.editorTab=tab.dataset.tab;drawEditor()});
@@ -662,8 +708,9 @@ function drawEditor(){
     $("#restore-draft").onclick=()=>{Object.assign(state.selected,localDraft);clearLocalDraft(state.page,state.selected.id,state.selected.entry_date||state.logDate);drawEditor();$("#save-indicator").textContent="草稿已恢复，请保存内容"};
     $("#dismiss-draft").onclick=()=>{clearLocalDraft(state.page,state.selected.id,state.selected.entry_date||state.logDate);drawEditor()};
   }
-  $$(".related-link").forEach(link=>link.onclick=async()=>{try{const result=await api("/api/items/"+encodeURIComponent(link.dataset.relatedId));if(!await goPage(result.item.kind))return;state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()}catch(error){window.alert(error.message)}});
-  if(item.id){renderItemFiles(item.id);renderRelatedItems(item.id);renderItemHistory(item.id)}
+  bindRelationLinks(editor);
+  bindItemPicker("edit-parent","parent-search","parent-more","parent-hint",{exclude_id:String(item.id||0),mode:"parent"});
+  if(item.id){bindItemPicker("related-target","related-search","related-more","related-hint",{exclude_id:String(item.id)});renderHierarchy(item);renderItemFiles(item.id);renderRelatedItems(item.id);renderItemHistory(item.id)}
   $("#edit-title").focus();
 }
 function collectEditor(){
@@ -760,15 +807,21 @@ async function uploadItemFile(file,itemId){
   const form=new FormData();form.append("file",file);form.append("item_id",String(itemId));
   try{await api("/api/files",{method:"POST",body:form});await renderItemFiles(itemId)}catch(error){window.alert(error.message)}
 }
-function fileItemOptions(selectedId){
-  return '<option value="">未关联</option>'+state.fileItemOptions.map(item=>'<option value="'+item.id+'" '+(String(item.id)===String(selectedId??"")?'selected':"")+'>'+esc((labels[item.kind]||"内容")+" · "+(item.title||"未命名"))+'</option>').join("");
+function openFileAssociation(file){
+  $("#file-association-dialog")?.remove();
+  const dialog=document.createElement("dialog");dialog.id="file-association-dialog";dialog.className="dialog";
+  dialog.innerHTML='<form method="dialog" class="dialog-body"><h2>关联文件</h2><p>'+esc(file.name)+'</p><input id="file-item-search" type="search" class="control-input" placeholder="按标题或标签查找内容" aria-label="查找文件关联内容"><select id="file-item-target" class="control-input" data-empty="未关联" aria-label="关联到内容"><option value="">未关联</option>'+(file.item_id&&file.item_title?'<option value="'+file.item_id+'" selected>'+esc(file.item_title)+'</option>':'')+'</select><div class="picker-footer"><small id="file-item-hint" aria-live="polite"></small><button id="file-item-more" type="button" class="button button-secondary is-hidden">更多候选</button></div><p id="file-link-message" role="status"></p><div class="dialog-actions"><button class="button button-secondary" value="cancel">取消</button><button id="file-link-save" class="button button-primary" type="button">保存关联</button></div></form>';
+  document.body.appendChild(dialog);dialog.showModal();
+  dialog.addEventListener("close",()=>dialog.remove());
+  bindItemPicker("file-item-target","file-item-search","file-item-more","file-item-hint");
+  $("#file-link-save").onclick=async()=>{const button=$("#file-link-save"),select=$("#file-item-target");button.disabled=true;try{await api("/api/files/"+encodeURIComponent(file.id),{method:"PATCH",body:JSON.stringify({item_id:select.value?Number(select.value):null})});dialog.close();if(state.page==="files")await loadFileList()}catch(error){button.disabled=false;$("#file-link-message").textContent=error.message}};
 }
 function renderFileList(files,total=files.length,nextOffset=null){
   const list=$("#file-list"),count=$("#file-count");
   if(count)count.textContent=(total>files.length?files.length+" / "+total:total)+" 个文件 · "+formatBytes(state.fileBytes);
   if(!files.length){list.innerHTML=state.fileSearch?'<div class="empty-state"><strong>没有匹配文件</strong><p>试试文件名或关联内容标题中的其他关键词。</p></div>':'<div class="empty-state"><strong>还没有文件</strong><p>上传第一份资料，让它和你的思路放在一起。</p></div>';return}
-  list.innerHTML=files.map(file=>'<div class="file-row"><span class="file-symbol">↧</span><div><a href="/files/'+encodeURIComponent(file.id)+'" target="_blank">'+esc(file.name)+'</a><div class="file-size">'+formatBytes(file.size)+" · "+formatDate(file.created_at,true)+(file.item_title?" · "+esc(file.item_title):" · 未关联")+'</div></div><select class="file-link-select" data-id="'+esc(file.id)+'" aria-label="关联内容">'+fileItemOptions(file.item_id && file.item_title?file.item_id:null)+'</select><button class="file-delete" data-id="'+file.id+'" title="删除">×</button></div>').join("")+(nextOffset!=null?'<button id="file-list-more" class="button button-secondary">加载更多文件</button>':"");
-  $$(".file-link-select").forEach(select=>select.onchange=async()=>{select.disabled=true;try{const result=await api("/api/files/"+encodeURIComponent(select.dataset.id),{method:"PATCH",body:JSON.stringify({item_id:select.value?Number(select.value):null})});const row=state.fileRows.find(candidate=>String(candidate.id)===String(select.dataset.id));if(row)Object.assign(row,result.file);await loadFileList()}catch(error){window.alert(error.message);select.disabled=false}});
+  list.innerHTML=files.map(file=>'<div class="file-row"><span class="file-symbol">↧</span><div><a href="/files/'+encodeURIComponent(file.id)+'" target="_blank">'+esc(file.name)+'</a><div class="file-size">'+formatBytes(file.size)+" · "+formatDate(file.created_at,true)+(file.item_title?" · "+esc(file.item_title):" · 未关联")+'</div></div><button class="file-associate button button-secondary" data-id="'+esc(file.id)+'" type="button">'+(file.item_title?"更改关联":"关联内容")+'</button><button class="file-delete" data-id="'+file.id+'" title="删除">×</button></div>').join("")+(nextOffset!=null?'<button id="file-list-more" class="button button-secondary">加载更多文件</button>':"");
+  $$(".file-associate").forEach(button=>button.onclick=()=>{const file=state.fileRows.find(row=>String(row.id)===button.dataset.id);if(file)openFileAssociation(file)});
   $$(".file-delete").forEach(button=>button.onclick=async()=>{if(window.confirm("把这个文件移入回收站吗？之后仍可恢复。")){await api("/api/files/"+button.dataset.id,{method:"DELETE"});await loadFileList()}});
   $("#file-list-more")?.addEventListener("click",()=>loadFileList(nextOffset,true));
 }
@@ -790,8 +843,6 @@ async function loadFileList(offset=0,append=false){
 }
 async function renderFiles(){
   state.fileSearch="";state.fileLinked="";state.fileRows=[];state.fileTotal=0;state.fileBytes=0;
-  let cursor="";state.fileItemOptions=[];
-  do{const params=new URLSearchParams({limit:"500",sort:"title"});if(cursor)params.set("cursor",cursor);const result=await api("/api/items?"+params.toString());state.fileItemOptions=state.fileItemOptions.concat(result.items||[]);cursor=result.next_cursor||""}while(cursor&&state.fileItemOptions.length<5000);
   $("#page-content").innerHTML='<div class="page-title-row"><div><h1>文件空间</h1><p>把论文、数据和项目资料放在一个可回看的位置。</p></div></div><section class="surface file-surface"><label id="upload-zone" class="upload-zone"><strong>拖拽文件到这里，或点击选择文件</strong><span>文件会保存在当前服务器的私有数据目录</span><small>单个文件最大 64 MB</small><input id="file-input" class="file-input" type="file"></label><div class="file-toolbar"><label class="input-with-icon file-search"><span>⌕</span><input id="file-search" class="control-input" type="search" placeholder="搜索文件名或关联内容" autocomplete="off"></label><select id="file-linked" class="control-input" aria-label="文件关联筛选"><option value="">全部文件</option><option value="no">未关联</option><option value="yes">已关联</option></select><span id="file-count" class="file-count"></span></div><div id="file-list" class="file-list"></div></section>';
   const zone=$("#upload-zone"),input=$("#file-input");input.onchange=()=>uploadFile(input.files[0]);["dragenter","dragover"].forEach(event=>zone.addEventListener(event,e=>{e.preventDefault();zone.classList.add("dragover")}));["dragleave","drop"].forEach(event=>zone.addEventListener(event,e=>{e.preventDefault();zone.classList.remove("dragover")}));zone.addEventListener("drop",e=>uploadFile(e.dataTransfer.files[0]));
   $("#file-search").oninput=event=>{state.fileSearch=event.target.value;clearTimeout(state.fileSearchTimer);state.fileSearchTimer=setTimeout(loadFileList,160)};

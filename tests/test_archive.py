@@ -95,6 +95,10 @@ class ArchiveHttpTests(unittest.TestCase):
             members = {name: archive.read(name) for name in archive.namelist() if name != "manifest.json"}
         return manifest, members
 
+    def test_json_export_is_bounded(self):
+        with patch.object(app, "MAX_JSON_EXPORT", 100):
+            self.request("/api/export", status=413)
+
     def test_archive_round_trip_contains_attachment_bytes(self):
         item = self.create_item()
         file_id = self.upload_file(item["id"])

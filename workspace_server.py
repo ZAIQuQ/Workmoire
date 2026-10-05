@@ -81,6 +81,13 @@ except ValueError:
 
 SESSION_TTL = 60 * 60 * 24 * 14
 MAX_JSON = 2 * 1024 * 1024
+MAX_JSON_EXPORT = 32 * 1024 * 1024
+MAX_JSON_IMPORT = MAX_JSON_EXPORT
+MAX_EXPORT_ITEMS = 5000
+MAX_EXPORT_FILES = 5000
+MAX_EXPORT_REVISIONS = 100000
+MAX_EXPORT_ACTIVITY = 200000
+MAX_EXPORT_LINKS = 100000
 MAX_UPLOAD = 64 * 1024 * 1024
 MAX_ITEM_CONTENT = 1024 * 1024
 MAX_ARCHIVE_UPLOAD = 256 * 1024 * 1024
@@ -293,6 +300,19 @@ def init_db() -> None:
     if "entry_date" not in revision_columns:
         con.execute("ALTER TABLE item_revisions ADD COLUMN entry_date TEXT NOT NULL DEFAULT ''")
     con.execute("CREATE INDEX IF NOT EXISTS idx_items_log_entry_date ON items(kind, entry_date, updated_at DESC, id DESC)")
+    # Create indexes after additive migrations so an older database can gain
+    # the same workflow indexes without referencing columns that do not exist
+    # yet in the initial schema.
+    for statement in (
+        "CREATE INDEX IF NOT EXISTS idx_items_active_updated ON items(deleted_at, updated_at DESC, id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_items_active_kind_updated ON items(deleted_at, kind, updated_at DESC, id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_items_status_due ON items(deleted_at, status, due_date, priority DESC, updated_at DESC, id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_items_parent ON items(deleted_at, parent_id, id)",
+        "CREATE INDEX IF NOT EXISTS idx_items_pinned_updated ON items(deleted_at, pinned DESC, updated_at DESC, id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_files_active_created ON files(deleted_at, created_at DESC, id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_activity_created ON activity(created_at DESC, id DESC)",
+    ):
+        con.execute(statement)
     # Only recover dates whose legacy title used an unambiguous, exact date
     # format.  Free-form titles and timestamps are deliberately left blank.
     for table, should_backfill in (("items", added_item_entry_date), ("item_revisions", added_revision_entry_date)):
@@ -606,13 +626,17 @@ def linked_items(con: sqlite3.Connection, item_id: int) -> list[dict]:
 
 
 def parse_json(handler: BaseHTTPRequestHandler) -> dict:
+    return parse_json_bounded(handler, MAX_JSON)
+
+
+def parse_json_bounded(handler: BaseHTTPRequestHandler, max_bytes: int) -> dict:
     try:
         length = int(handler.headers.get("Content-Length", "0"))
     except (TypeError, ValueError) as exc:
         raise ValueError("请求长度无效") from exc
     if length < 0:
         raise ValueError("请求长度无效")
-    if length > MAX_JSON:
+    if length > max_bytes:
         raise ValueError("请求内容过大")
     raw = handler.rfile.read(length)
     data = json.loads(raw.decode("utf-8") or "{}")
@@ -715,6 +739,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
 
     def json_download(self, data: object, filename: str) -> None:
         raw = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+        if len(raw) > MAX_JSON_EXPORT:
+            self.error("JSON 导出超过 32 MB 限制，请改用完整归档", 413)
+            return
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Disposition", "attachment; filename=\"%s\"" % filename)
@@ -722,6 +749,73 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
+
+    def json_export_download(self) -> None:
+        """Generate the bounded JSON export row by row in a private temp file."""
+        con = open_db()
+        export_path: Path | None = None
+        queries = (
+            ("items", "SELECT * FROM items WHERE deleted_at='' ORDER BY id"),
+            ("links", "SELECT l.source_id,l.target_id FROM item_links l JOIN items a ON a.id=l.source_id JOIN items b ON b.id=l.target_id WHERE a.deleted_at='' AND b.deleted_at='' ORDER BY l.source_id,l.target_id"),
+            ("files", "SELECT id,name,size,content_type,item_id,created_at FROM files WHERE deleted_at='' ORDER BY id"),
+            ("activity", "SELECT * FROM activity ORDER BY id"),
+            ("revisions", "SELECT id,item_id,kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,created_at FROM item_revisions WHERE item_id IN (SELECT id FROM items WHERE deleted_at='') ORDER BY id"),
+        )
+        count_queries = (
+            ("内容", "SELECT COUNT(*) FROM items WHERE deleted_at=''", MAX_EXPORT_ITEMS),
+            ("关联", "SELECT COUNT(*) FROM item_links l JOIN items a ON a.id=l.source_id JOIN items b ON b.id=l.target_id WHERE a.deleted_at='' AND b.deleted_at=''", MAX_EXPORT_LINKS),
+            ("附件", "SELECT COUNT(*) FROM files WHERE deleted_at=''", MAX_EXPORT_FILES),
+            ("活动", "SELECT COUNT(*) FROM activity", MAX_EXPORT_ACTIVITY),
+            ("版本", "SELECT COUNT(*) FROM item_revisions WHERE item_id IN (SELECT id FROM items WHERE deleted_at='')", MAX_EXPORT_REVISIONS),
+        )
+        try:
+            con.execute("BEGIN")
+            for label, query, limit in count_queries:
+                if con.execute(query).fetchone()[0] > limit:
+                    raise OverflowError("JSON 导出%s量超过限制，请改用完整归档" % label)
+            fd, name = tempfile.mkstemp(prefix=".workmoire-json-export-", suffix=".json", dir=DATA_DIR)
+            os.close(fd)
+            export_path = Path(name)
+            written = 0
+            with export_path.open("wb") as stream:
+                def write(raw: bytes) -> None:
+                    nonlocal written
+                    written += len(raw)
+                    if written > MAX_JSON_EXPORT:
+                        raise OverflowError("JSON 导出超过 32 MB 限制，请改用完整归档")
+                    stream.write(raw)
+                write(b'{\n  "format": "workmoire-export",\n  "version": 1,\n  "exported_at": ')
+                write(json.dumps(utc_now(), ensure_ascii=False).encode("utf-8"))
+                encoder = json.JSONEncoder(ensure_ascii=False, indent=2)
+                for key, query in queries:
+                    write(b',\n  ' + json.dumps(key).encode("ascii") + b": [")
+                    first = True
+                    for row in con.execute(query):
+                        write(b"\n    " if first else b",\n    ")
+                        first = False
+                        value = as_item(row) if key == "items" else dict(row)
+                        for chunk in encoder.iterencode(value):
+                            write(chunk.encode("utf-8"))
+                    if not first:
+                        write(b"\n  ")
+                    write(b"]")
+                write(b"\n}\n")
+            con.commit()
+            size = export_path.stat().st_size
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Disposition", 'attachment; filename="workmoire-export.json"')
+            self.add_security_headers()
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(size))
+            self.end_headers()
+            with export_path.open("rb") as stream:
+                while chunk := stream.read(1024 * 1024):
+                    self.wfile.write(chunk)
+        finally:
+            con.close()
+            if export_path is not None:
+                export_path.unlink(missing_ok=True)
 
     def add_security_headers(self) -> None:
         for name, value in (
@@ -981,24 +1075,12 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         if path == "/api/export":
             if not self.require_user():
                 return
-            con = open_db()
-            items = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY id")]
-            files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,item_id,created_at FROM files WHERE deleted_at='' ORDER BY id")]
-            activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY id")]
-            revisions = [dict(row) for row in con.execute(
-                "SELECT id,item_id,kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,created_at "
-                "FROM item_revisions WHERE item_id IN (SELECT id FROM items WHERE deleted_at='') ORDER BY id"
-            )]
-            links = [dict(row) for row in con.execute(
-                "SELECT l.source_id,l.target_id FROM item_links l "
-                "JOIN items a ON a.id=l.source_id JOIN items b ON b.id=l.target_id "
-                "WHERE a.deleted_at='' AND b.deleted_at='' ORDER BY l.source_id,l.target_id"
-            )]
-            con.close()
-            self.json_download(
-                {"format": "workmoire-export", "version": 1, "exported_at": utc_now(), "items": items, "links": links, "files": files, "activity": activity, "revisions": revisions},
-                "workmoire-export.json",
-            )
+            try:
+                self.json_export_download()
+            except OverflowError as exc:
+                self.error(str(exc), 413)
+            except Exception as exc:
+                self.request_error(exc, "JSON 导出暂时无法生成", 500)
             return
         if path == "/api/export-archive":
             if not self.require_user():
@@ -1072,6 +1154,85 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             }
             con.close()
             self.json_response({"generated_at": utc_now(), "today_date": today, "inbox": inbox, "overdue": overdue, "today": today_items, "stale": stale, "totals": totals})
+            return
+        if path == "/api/item-candidates":
+            if not self.require_user():
+                return
+            params = parse_qs(parsed.query)
+            try:
+                limit = min(max(int(params.get("limit", ["50"])[0]), 1), 100)
+                offset = max(int(params.get("offset", ["0"])[0]), 0)
+                exclude_id = int(params.get("exclude_id", ["0"])[0])
+                selected_id = int(params.get("selected_id", ["0"])[0])
+                parent_id = int(params["parent_id"][0]) if "parent_id" in params else None
+                if min(exclude_id, selected_id, parent_id or 0) < 0:
+                    raise ValueError
+            except ValueError:
+                self.error("内容候选参数无效", 400)
+                return
+            query = params.get("q", [""])[0].strip()[:120]
+            mode = params.get("mode", [""])[0]
+            if mode not in {"", "parent"}:
+                self.error("内容候选模式无效", 400)
+                return
+            clauses, values = ["deleted_at=''"], []
+            if query:
+                clauses.append("(instr(lower(title), lower(?)) > 0 OR instr(lower(tags), lower(?)) > 0)")
+                values.extend([query, query])
+            if parent_id is not None:
+                clauses.append("parent_id=?")
+                values.append(parent_id)
+            if exclude_id:
+                if mode == "parent":
+                    # Exclude the full subtree so the picker cannot offer a
+                    # descendant as a parent. UNION also bounds legacy cycles.
+                    clauses.append("id NOT IN (WITH RECURSIVE descendants(id) AS (SELECT ? UNION SELECT i.id FROM items i JOIN descendants d ON i.parent_id=d.id WHERE i.deleted_at='') SELECT id FROM descendants)")
+                else:
+                    clauses.append("id!=?")
+                values.append(exclude_id)
+            columns = "id,kind,title,parent_id"
+            con = open_db()
+            try:
+                con.execute("BEGIN")
+                where = " AND ".join(clauses)
+                total = con.execute("SELECT COUNT(*) FROM items WHERE " + where, values).fetchone()[0]
+                rows = con.execute("SELECT " + columns + " FROM items WHERE " + where + " ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?", values + [limit, offset]).fetchall()
+                selected = con.execute("SELECT " + columns + " FROM items WHERE deleted_at='' AND id=?", (selected_id,)).fetchone() if selected_id else None
+            finally:
+                con.close()
+            self.json_response({"items": [dict(row) for row in rows], "selected": dict(selected) if selected else None, "total": total, "next_offset": offset + len(rows) if offset + len(rows) < total else None})
+            return
+        if path == "/api/tags":
+            if not self.require_user():
+                return
+            params = parse_qs(parsed.query)
+            kind = params.get("kind", [""])[0]
+            if kind and kind not in KINDS:
+                self.error("无效的内容类型", 400)
+                return
+            try:
+                limit = min(max(int(params.get("limit", ["18"])[0]), 1), 100)
+                offset = max(int(params.get("offset", ["0"])[0]), 0)
+            except ValueError:
+                self.error("标签分页参数无效", 400)
+                return
+            query = params.get("q", [""])[0].strip()[:120]
+            # Aggregate tag metadata inside SQLite; no item bodies or entire
+            # item archive need to be materialized in the client or server.
+            sql = """WITH RECURSIVE split(tag,rest) AS (
+                SELECT '', tags || ',' FROM items WHERE deleted_at='' AND (?='' OR kind=?)
+                UNION ALL SELECT substr(rest,1,instr(rest,',')-1), substr(rest,instr(rest,',')+1)
+                FROM split WHERE rest!=''
+            ), counts AS (SELECT tag,COUNT(*) AS count FROM split WHERE tag!='' AND instr(lower(tag),lower(?))>0 GROUP BY tag) """
+            con = open_db()
+            try:
+                con.execute("BEGIN")
+                values = (kind, kind, query)
+                total = con.execute(sql + "SELECT COUNT(*) FROM counts", values).fetchone()[0]
+                rows = con.execute(sql + "SELECT tag,count FROM counts ORDER BY count DESC,tag ASC LIMIT ? OFFSET ?", values + (limit, offset)).fetchall()
+            finally:
+                con.close()
+            self.json_response({"tags": [dict(row) for row in rows], "total": total, "next_offset": offset + len(rows) if offset + len(rows) < total else None})
             return
         if path == "/api/calendar":
             if not self.require_user():
@@ -1763,7 +1924,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if not user:
                 return
             try:
-                data = parse_json(self)
+                data = parse_json_bounded(self, MAX_JSON_IMPORT)
                 if data.get("format") != "workmoire-export" or data.get("version") != 1:
                     raise ValueError("不是受支持的 Workmoire 导出文件")
                 raw_items = data.get("items")

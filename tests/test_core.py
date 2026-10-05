@@ -109,6 +109,27 @@ class WorkspaceCoreTests(unittest.TestCase):
         })
         self.assertEqual(item["pinned"], 1)
 
+    def test_workflow_indexes_are_created(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with patch.multiple(app, DATA_DIR=root, FILES_DIR=root / "files", DB_PATH=root / "workspace.db"):
+                app.init_db()
+                with app.open_db() as con:
+                    indexes = {
+                        row["name"] for row in con.execute("PRAGMA index_list(items)")
+                    }
+                    file_indexes = {
+                        row["name"] for row in con.execute("PRAGMA index_list(files)")
+                    }
+                    activity_indexes = {
+                        row["name"] for row in con.execute("PRAGMA index_list(activity)")
+                    }
+                self.assertIn("idx_items_active_updated", indexes)
+                self.assertIn("idx_items_status_due", indexes)
+                self.assertIn("idx_items_parent", indexes)
+                self.assertIn("idx_files_active_created", file_indexes)
+                self.assertIn("idx_activity_created", activity_indexes)
+
     def test_session_secret_example_is_not_accepted(self):
         self.assertNotEqual(app.SESSION_SECRET, "replace-with-a-long-random-secret")
 
