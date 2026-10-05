@@ -61,7 +61,7 @@ async function api(path,options={}){
   if(response.status===401&&state.authenticated){
     state.authenticated=false;showApp(false);setAuthMode(false);$("#auth-error").textContent="登录已失效，请重新登录";
   }
-  if(!response.ok)throw new Error(body.error||"请求失败");
+  if(!response.ok){const error=new Error(body.error||"请求失败");error.status=response.status;error.body=body;throw error}
   return body;
 }
 function setVisible(id,visible){$(id).classList.toggle("is-hidden",!visible)}
@@ -529,7 +529,8 @@ function drawEditor(){
   const item=state.selected;
   const localDraft=item.id?readLocalDraft(state.page,item.id):null;
   const draftAvailable=Boolean(localDraft&&String(localDraft.base_updated_at||"")===String(item.updated_at||""));
-  const draftNotice=draftAvailable?'<div class="draft-notice" id="draft-notice"><span>发现这条内容的本机未保存草稿</span><button id="restore-draft" class="button button-secondary">恢复草稿</button><button id="dismiss-draft" class="draft-dismiss">忽略</button></div>':'';
+  const conflictDraftAvailable=Boolean(localDraft&&localDraft.conflict&&item.id);
+  const draftNotice=(draftAvailable||conflictDraftAvailable)?'<div class="draft-notice" id="draft-notice"><span>'+(conflictDraftAvailable?"发现服务器更新前的本机未保存草稿":"发现这条内容的本机未保存草稿")+'</span><button id="restore-draft" class="button button-secondary">恢复草稿</button><button id="dismiss-draft" class="draft-dismiss">忽略</button></div>':'';
   const kindOptions=["note","project","paper","log"].map(kind=>'<option value="'+kind+'">'+labels[kind]+'</option>').join("");
   const parentOptions=(state.allItems.length?state.allItems:state.items).filter(candidate=>String(candidate.id)!==String(item.id)).map(candidate=>'<option value="'+candidate.id+'">'+esc((labels[candidate.kind]||"内容")+" · "+(candidate.title||"未命名"))+'</option>').join("");
   const parentItem=item.parent_id!=null?state.allItems.find(candidate=>String(candidate.id)===String(item.parent_id)):null;
@@ -547,7 +548,7 @@ function drawEditor(){
   renderTaskProgress();
   $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#focus-mode").onclick=toggleFocusMode;if($("#duplicate-content"))$("#duplicate-content").onclick=duplicateItem;$("#assistant-content").onclick=openAssistant;$("#assistant-content").disabled=!state.assistant?.available;if($("#assistant-content").disabled)$("#assistant-content").title="服务器尚未配置本地 Codex";if($("#add-related"))$("#add-related").onclick=addRelatedItem;
   $$("#editor input, #editor textarea, #editor select").forEach(field=>field.addEventListener("input",scheduleLocalDraft));
-  if(draftAvailable){
+  if(draftAvailable||conflictDraftAvailable){
     $("#restore-draft").onclick=()=>{Object.assign(state.selected,localDraft);clearLocalDraft(state.page,state.selected.id);drawEditor();$("#save-indicator").textContent="草稿已恢复，请保存内容"};
     $("#dismiss-draft").onclick=()=>{clearLocalDraft(state.page,state.selected.id);drawEditor()};
   }
@@ -611,11 +612,19 @@ async function saveItem(){
   if(!data.title){indicator.textContent="请先填写标题";return}
   const button=$("#save-content");button.disabled=true;indicator.textContent="保存中…";
   try{
-    const previousKind=state.page,result=state.selected.id?await api("/api/items/"+state.selected.id,{method:"PUT",body:JSON.stringify(data)}):await api("/api/items",{method:"POST",body:JSON.stringify(data)});
+    const previousKind=state.page,payload=state.selected.id?{...data,base_updated_at:state.selected.updated_at||""}:data,result=state.selected.id?await api("/api/items/"+state.selected.id,{method:"PUT",body:JSON.stringify(payload)}):await api("/api/items",{method:"POST",body:JSON.stringify(payload)});
     const draftId=state.selected.id||null;state.selected=result.item;state.savedSnapshot=editorSnapshot(result.item);clearLocalDraft(previousKind,draftId);clearLocalDraft(result.item.kind,result.item.id||null);
     if(previousKind!==result.item.kind){state.page=result.item.kind;state.listTag="";state.listSort="updated";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===state.page));$("#page-heading").textContent=labels[state.page]}
     await loadItems();drawItemList();drawEditor();$("#save-indicator").textContent="已保存 · "+new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
-  }catch(error){indicator.textContent=error.message}
+  }catch(error){
+    if(error.status===409&&error.body?.item){
+      try{localStorage.setItem(draftKey(state.page,state.selected.id),JSON.stringify({...data,item_id:state.selected.id,base_updated_at:state.selected.updated_at||"",conflict:true,saved_at:new Date().toISOString()}))}catch(_){ }
+      indicator.textContent="服务器已有更新，当前修改未覆盖";
+      if(window.confirm("这条内容已在其他窗口更新。加载服务器版本并保留当前修改为本机草稿吗？")){
+        state.selected=error.body.item;state.savedSnapshot=editorSnapshot(state.selected);drawEditor();indicator.textContent="已加载服务器版本；当前修改已保存在本机草稿";
+      }
+    }else indicator.textContent=error.message
+  }
   finally{if($("#save-content"))$("#save-content").disabled=false}
 }
 async function deleteItem(){

@@ -65,3 +65,17 @@ changes belong in normal commit history.
 - Kept the “select all” control visible in every content space while leaving batch actions hidden until selection. This makes the shortcut discoverable without weakening the explicit confirmation boundary for changes and trash.
 - Added deterministic search relevance ordering that favors title, summary, and tag matches over body-only matches while retaining authenticated, deleted-content-free search.
 - Fixed search and activity navigation to load the selected item by authenticated ID, preventing an empty editor when a result falls outside the current client-side list window.
+
+## 2026-10-05
+
+- Made first-run setup fail closed on non-loopback listeners when
+  `WORKSPACE_SETUP_TOKEN` is empty, and exposed the same requirement through
+  `/api/session`; this prevents an unauthenticated visitor from claiming the
+  only account on a fresh public deployment.
+- Added a bounded `WorkspaceHTTPServer` with daemon threads, an explicit accept
+  queue, and a 30-second socket timeout so incomplete direct HTTP requests
+  cannot hold worker threads indefinitely. Added synthetic HTTP and server
+  property tests for both boundaries.
+- Added optimistic edit conflict protection with microsecond item timestamps,
+  a `409` response carrying the current item, and a browser-local draft fallback
+  so concurrent tabs cannot silently overwrite a paper, project, or log.

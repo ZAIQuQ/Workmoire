@@ -11,6 +11,7 @@ import base64
 import cgi
 import hashlib
 import hmac
+import ipaddress
 import json
 import mimetypes
 import os
@@ -22,7 +23,7 @@ import subprocess
 import time
 import uuid
 from contextlib import closing
-from datetime import date
+from datetime import date, datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -103,8 +104,57 @@ ASSISTANT_TASKS = {
 }
 
 
+class WorkspaceHTTPServer(ThreadingHTTPServer):
+    """Small hardening wrapper for the stdlib threaded HTTP server.
+
+    The service is often reachable directly on a cloud port.  A socket timeout
+    keeps a client that sends only part of an HTTP request from holding a worker
+    thread forever, while the explicit queue size makes the deployment
+    boundary visible instead of inheriting the stdlib backlog of five.
+    """
+
+    daemon_threads = True
+    request_queue_size = 64
+    request_timeout = 30.0
+
+    def get_request(self):
+        request, client_address = super().get_request()
+        request.settimeout(self.request_timeout)
+        return request, client_address
+
+
+# Keep the existing test/deployment entry point compatible while callers move
+# to the descriptive WorkspaceHTTPServer name.
+ThreadingHTTPServer = WorkspaceHTTPServer
+
+
+def is_loopback_bind(address: object) -> bool:
+    """Return whether a resolved listening address is local-only."""
+    value = str(address or "").strip().lower()
+    if value == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(value).is_loopback
+    except ValueError:
+        return False
+
+
+def setup_token_required_for(server: object) -> bool:
+    """Require a bootstrap token when the server is not bound locally.
+
+    Looking at the resolved bind address avoids trusting the request's source
+    address: a wildcard listener is public-capable even when this particular
+    request arrived from localhost.  An unknown address fails closed.
+    """
+    if SETUP_TOKEN:
+        return True
+    address = getattr(server, "server_address", ("",))
+    bound_host = address[0] if isinstance(address, tuple) and address else address
+    return not is_loopback_bind(bound_host)
+
+
 def utc_now() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def open_db() -> sqlite3.Connection:
@@ -512,7 +562,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             user_row = con.execute("SELECT username FROM users WHERE id=1").fetchone()
             con.close()
             user = self.current_user()
-            self.json_response({"setup": user_row is None, "setup_token_required": bool(SETUP_TOKEN), "authenticated": bool(user), "username": user})
+            self.json_response({"setup": user_row is None, "setup_token_required": setup_token_required_for(self.server), "authenticated": bool(user), "username": user})
             return
         if path == "/api/assistant/status":
             if not self.require_user():
@@ -905,6 +955,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         path = urlparse(self.path).path
         if path == "/api/setup":
+            if setup_token_required_for(self.server) and not SETUP_TOKEN:
+                self.error("公网初始化必须配置 WORKSPACE_SETUP_TOKEN", 503)
+                return
             con = open_db()
             try:
                 con.execute("BEGIN IMMEDIATE")
@@ -1414,13 +1467,20 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/items/"):
             try:
                 item_id = int(path.rsplit("/", 1)[1])
-                data = self.normalized_item(parse_json(self))
+                raw_data = parse_json(self)
+                data = self.normalized_item(raw_data)
+                base_updated_at = str(raw_data.get("base_updated_at", "")).strip()
                 stamp = utc_now()
                 con = open_db()
                 exists = con.execute("SELECT * FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
                 if not exists:
                     con.close()
                     self.error("内容不存在", 404)
+                    return
+                if base_updated_at and base_updated_at != exists["updated_at"]:
+                    current = as_item(exists)
+                    con.close()
+                    self.json_response({"error": "内容已在其他窗口更新，当前修改未保存", "item": current}, 409)
                     return
                 self.validate_parent(con, data["parent_id"], item_id)
                 record_revision(con, exists)
@@ -1543,7 +1603,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
 def main() -> None:
     init_db()
     print("workmoire listening on %s:%s, data=%s" % (HOST, PORT, DATA_DIR), flush=True)
-    ThreadingHTTPServer((HOST, PORT), WorkspaceHandler).serve_forever()
+    WorkspaceHTTPServer((HOST, PORT), WorkspaceHandler).serve_forever()
 
 
 if __name__ == "__main__":

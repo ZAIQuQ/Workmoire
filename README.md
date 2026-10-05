@@ -38,6 +38,7 @@ introducing a large runtime dependency stack.
 - Trashed items stay out of search, active statistics, and item exports until restored.
 - Pin important papers, projects, or notes so they stay visible in lists and the dashboard.
 - Keep unsaved edits as browser-local drafts, with an explicit restore or ignore action.
+- Detect stale saves from another tab or device and preserve the unsaved version as a local draft before loading the newer server copy.
 - Keep up to 100 saved pre-edit versions per item, with an explicit review and restore path.
 - Private file storage with a 64 MB per-file limit and optional links from files to notes, projects, papers, or logs.
 - Search the file space by filename or the title of its associated note, project, paper, or log.
@@ -58,8 +59,13 @@ Copy .env.example to .env, set a long random session secret, and run:
 
 Open http://127.0.0.1:5200. The first visit asks you to create the only
 account. The optional `.env` file is loaded automatically and must stay private.
-When the service is reachable beyond localhost, set `WORKSPACE_SETUP_TOKEN` in
-`.env` before the first visit. The token protects the one-time account setup.
+When the service is reachable beyond localhost, set a strong
+`WORKSPACE_SETUP_TOKEN` in `.env` before the first visit. The server refuses
+first-run setup on a non-loopback bind without that token, so an unauthenticated
+visitor cannot claim the only account. Generate one with
+`python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`; keep it outside
+the repository. If a reverse proxy exposes a loopback-bound service, configure
+the token too because the application cannot infer the proxy's public reach.
 
 ## Docker
 
@@ -89,6 +95,13 @@ The service binds to the configured host and port. If it is reachable from
 the public internet, put it behind HTTPS or a private network and restrict
 the inbound security-group rule to trusted addresses. Do not commit your
 production .env, data/, database, uploads, logs, or backups.
+
+The first-run account setup fails closed without `WORKSPACE_SETUP_TOKEN` on
+non-loopback binds. Keep the token configured even when a reverse proxy makes
+a loopback-bound process publicly reachable. The built-in threaded server uses
+a 30-second request socket timeout and an explicit accept queue; keep a
+production HTTPS reverse proxy or private network in front of it for stronger
+connection and TLS controls.
 
 The project is intentionally independent of any existing service on the
 machine. Choose a free port and data directory when deploying beside another
