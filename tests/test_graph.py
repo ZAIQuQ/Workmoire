@@ -80,7 +80,11 @@ class GraphHttpTests(unittest.TestCase):
         graph = self.request("/api/graph?limit=2")
         self.assertEqual(graph["total"], 2)
         self.assertNotIn(related["id"], {node["id"] for node in graph["nodes"]})
+        focused = self.request("/api/graph?kind=paper&q=Graph")
+        self.assertEqual(focused["total"], 1)
+        self.assertEqual(focused["nodes"][0]["id"], child["id"])
         self.request("/api/graph?limit=bad", status=400)
+        self.request("/api/graph?kind=unknown", status=400)
 
 
 if __name__ == "__main__":

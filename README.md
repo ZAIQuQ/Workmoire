@@ -62,6 +62,8 @@ introducing a large runtime dependency stack.
 - Complete ZIP archive export/import for active content and attachment bytes, with checksum and path validation.
 - Complete archive imports preserve valid item/file timestamps and resolvable
   activity history while remapping IDs transactionally.
+- The calendar exposes a load-more path for busy months, and the relationship
+  map can focus by content type, title, summary, or tag before drawing nodes.
 - Item bodies are capped at 1 MiB to keep revisions, exports, and browser edits bounded.
 - Common active-list, workflow, hierarchy, file, and activity queries use SQLite
   indexes; metadata-only JSON export/import documents are capped at 32 MB and

@@ -14,6 +14,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - When list APIs change, verify total/next-cursor metadata and a browser load-more path beyond the first page; selections and the active editor must remain usable after append.
 - When list filters or sorting change, verify status/tag/search filters and every supported sort across multiple cursor pages, reject a cursor reused with a different sort, and confirm the browser preserves the server order.
 - When bounded auxiliary views change, verify review and calendar totals, calendar items beyond the compact day view, trash load-more controls, and full-archive parent/tag candidates.
+- When calendar or graph scale behavior changes, verify calendar offset/load-more results and graph type/text focus totals, with graph edge rendering still limited to visible nodes.
 - When hierarchy, related-content, file-association, or tag pickers change, verify server-side search, load-more behavior, current-selection preservation, and rejection of self/descendant parent candidates.
 - When file-space listing changes, verify server-side search, total/offset metadata, load-more behavior, and attachment lists after upload or deletion.
 - When file association changes, verify linked/unlinked filters, filtered byte totals, authenticated attach/detach, and that a deleted item leaves its file independently manageable.

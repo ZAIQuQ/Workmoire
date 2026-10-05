@@ -147,3 +147,7 @@ changes belong in normal commit history.
   excludes the current item's descendant subtree, and each picker preserves a
   selected item outside the first page. Updated source, tests, README, release
   gates, and this skill together.
+- Added calendar offset/load-more navigation for busy months and server-side
+  type/text focus for the relationship map, keeping graph edges limited to the
+  visible node set. Updated source, tests, README, release gates, and this skill
+  together.

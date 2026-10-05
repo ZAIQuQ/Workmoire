@@ -1,7 +1,7 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",all:"全部内容",review:"今日复盘",calendar:"计划日历",graph:"关系地图",trash:"回收站"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷",review:"✦",calendar:"▦",graph:"⌘",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],itemsCursor:null,itemsTotal:0,selected:null,savedSnapshot:null,selectedIds:new Set(),visibleItemIds:[],stats:null,reviewData:null,graphData:null,graphFilter:"",calendarDate:new Date(),logDate:"",editorTab:"write",listTag:"",listStatus:"",listDue:"",listSort:"updated",listQuery:"",listSearchTimer:null,itemsRequest:0,fileSearch:"",fileLinked:"",fileRows:[],fileTotal:0,fileBytes:0,fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null,searchQuery:"",searchOffset:0,searchItems:[],searchFiles:[],searchNextOffset:null};
+const state={page:"dashboard",items:[],itemsCursor:null,itemsTotal:0,selected:null,savedSnapshot:null,selectedIds:new Set(),visibleItemIds:[],stats:null,reviewData:null,graphData:null,graphFilter:"",graphQuery:"",graphSearchTimer:null,calendarItems:[],calendarDate:new Date(),logDate:"",editorTab:"write",listTag:"",listStatus:"",listDue:"",listSort:"updated",listQuery:"",listSearchTimer:null,itemsRequest:0,fileSearch:"",fileLinked:"",fileRows:[],fileTotal:0,fileBytes:0,fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null,searchQuery:"",searchOffset:0,searchItems:[],searchFiles:[],searchNextOffset:null};
 const captureDraftKey="workmoire:capture-draft";
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
@@ -353,25 +353,27 @@ async function openCalendarItem(event){
     state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
   }catch(error){window.alert(error.message)}
 }
-async function renderCalendar(){
+async function renderCalendar(offset=0,append=false){
   const year=state.calendarDate.getFullYear(),month=state.calendarDate.getMonth();
-  const data=await api("/api/calendar?year="+year+"&month="+(month+1));
-  const items=data.items||[],byDay={};items.forEach(item=>{(byDay[item.due_date] ||= []).push(item)});
-  const firstDay=new Date(year,month,1),offset=(firstDay.getDay()+6)%7,days=new Date(year,month+1,0).getDate(),cellCount=Math.ceil((offset+days)/7)*7;
+  const data=await api("/api/calendar?year="+year+"&month="+(month+1)+"&limit=500&offset="+offset);
+  const items=append?(state.calendarItems||[]).concat(data.items||[]):(data.items||[]);state.calendarItems=items;
+  const byDay={};items.forEach(item=>{(byDay[item.due_date] ||= []).push(item)});
+  const firstDay=new Date(year,month,1),gridOffset=(firstDay.getDay()+6)%7,days=new Date(year,month+1,0).getDate(),cellCount=Math.ceil((gridOffset+days)/7)*7;
   const today=new Date(),todayKey=calendarDateKey(today.getFullYear(),today.getMonth(),today.getDate());
   const weekdayLabels=["一","二","三","四","五","六","日"];
   let cells="";
   for(let index=0;index<cellCount;index++){
-    const day=index-offset+1,inside=day>=1&&day<=days,key=inside?calendarDateKey(year,month,day):"";
+    const day=index-gridOffset+1,inside=day>=1&&day<=days,key=inside?calendarDateKey(year,month,day):"";
     const dayItems=inside?(byDay[key]||[]):[];
     cells+='<div class="calendar-cell '+(inside?"":"is-muted")+(key===todayKey?" is-today":"")+'">'+(inside?'<div class="calendar-day-number">'+day+'</div>':'')+(dayItems.length?'<div class="calendar-items">'+dayItems.map(item=>'<button class="calendar-item '+esc(item.status||"")+'" data-id="'+item.id+'" data-kind="'+item.kind+'" title="'+esc(item.title)+'"><span class="calendar-item-mark '+esc(item.kind)+'"></span><span>'+esc(item.title||"未命名")+'</span></button>').join("")+'</div>':"")+'</div>';
   }
   const doneCount=items.filter(item=>item.status==="done").length;
-  const calendarSummary=(data.truncated?"显示 "+items.length+" / "+data.total+" 项安排":"共 "+items.length+" 项安排")+" · "+doneCount+" 项已完成";
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>计划日历</h1><p>把项目、论文和工作日志的截止日期放到同一条时间线上。</p></div><div class="page-title-actions"><button id="calendar-today" class="button button-secondary">回到今天</button></div></div><section class="surface calendar-surface"><div class="calendar-toolbar"><button id="calendar-prev" class="icon-button" aria-label="上个月">‹</button><h2>'+year+'年'+(month+1)+'月</h2><button id="calendar-next" class="icon-button" aria-label="下个月">›</button><span class="spacer"></span><span class="calendar-summary">'+calendarSummary+'</span></div><div class="calendar-weekdays">'+weekdayLabels.map(day=>'<span>'+day+'</span>').join("")+'</div><div class="calendar-grid">'+cells+'</div></section>';
+  const calendarSummary=(data.next_offset!=null?"显示 "+items.length+" / "+data.total+" 项安排":"共 "+items.length+" 项安排")+" · "+doneCount+" 项已完成";
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>计划日历</h1><p>把项目、论文和工作日志的截止日期放到同一条时间线上。</p></div><div class="page-title-actions"><button id="calendar-today" class="button button-secondary">回到今天</button></div></div><section class="surface calendar-surface"><div class="calendar-toolbar"><button id="calendar-prev" class="icon-button" aria-label="上个月">‹</button><h2>'+year+'年'+(month+1)+'月</h2><button id="calendar-next" class="icon-button" aria-label="下个月">›</button><span class="spacer"></span><span class="calendar-summary">'+calendarSummary+'</span></div><div class="calendar-weekdays">'+weekdayLabels.map(day=>'<span>'+day+'</span>').join("")+'</div><div class="calendar-grid">'+cells+'</div>'+(data.next_offset!=null?'<button id="calendar-load-more" class="calendar-load-more">加载更多安排</button>':"")+'</section>';
   $("#calendar-prev").onclick=()=>{state.calendarDate=new Date(year,month-1,1);renderCalendar()};
   $("#calendar-next").onclick=()=>{state.calendarDate=new Date(year,month+1,1);renderCalendar()};
   $("#calendar-today").onclick=()=>{state.calendarDate=new Date();renderCalendar()};
+  $("#calendar-load-more")?.addEventListener("click",()=>renderCalendar(data.next_offset,true));
   $$(".calendar-item").forEach(button=>button.onclick=openCalendarItem);
 }
 function graphTitle(value){
@@ -399,15 +401,19 @@ function drawGraph(){
   const edgeMarkup=edges.map(edge=>{const source=positions.get(String(edge.source_id)),target=positions.get(String(edge.target_id)),bend=Math.max(42,Math.abs(target.y-source.y)*.35);return '<path class="graph-edge '+esc(edge.kind||"related")+'" d="M '+(source.x+190)+' '+(source.y+30)+' C '+(source.x+190+bend)+' '+(source.y+30)+', '+(target.x-bend)+' '+(target.y+30)+', '+target.x+' '+(target.y+30)+'"></path>'}).join("");
   const nodeMarkup=nodes.map(node=>{const position=positions.get(String(node.id));return '<button class="graph-node '+esc(node.kind)+'" data-id="'+node.id+'" title="打开：'+esc(node.title||"未命名")+'"><span class="graph-node-head">'+kindMark(node.kind)+statusPill(node.status)+'</span><strong>'+esc(graphTitle(node.title))+'</strong><small>'+esc(node.summary||((node.due_date?"截止 "+formatDueDate(node.due_date):"最近更新 "+relativeDate(node.updated_at))))+'</small></button>'}).join("");
   const filterMarkup='<button class="graph-filter '+(!filter?"is-active":"")+'" data-kind="">全部</button>'+["project","paper","note","log"].map(kind=>'<button class="graph-filter '+(filter===kind?"is-active":"")+'" data-kind="'+kind+'">'+labels[kind]+'</button>').join("");
-  const note=data.truncated?' · 仅显示最近 '+nodes.length+' 条内容':"";
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>关系地图</h1><p>从上级层级和横向关联中，看见论文、项目与思路如何连成一张网。</p></div></div><section class="surface graph-surface"><div class="graph-toolbar"><div class="graph-filters">'+filterMarkup+'</div><span class="spacer"></span><span class="graph-summary">'+nodes.length+' 个节点 · '+edges.length+' 条连接'+note+'</span></div><div class="graph-legend"><span><i class="graph-legend-line hierarchy"></i>层级关系</span><span><i class="graph-legend-line related"></i>横向关联</span><span class="graph-hint">点击节点打开内容</span></div><div class="graph-viewport"><div class="graph-stage"><svg class="graph-lines" viewBox="0 0 1000 '+canvasHeight+'" aria-hidden="true">'+edgeMarkup+'</svg>'+nodeMarkup+'</div></div></section>';
+  const note=data.truncated?' · 当前结果显示 '+nodes.length+' / '+data.total+' 条内容':"";
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>关系地图</h1><p>从上级层级和横向关联中，看见论文、项目与思路如何连成一张网。</p></div></div><section class="surface graph-surface"><div class="graph-toolbar"><div class="graph-filters">'+filterMarkup+'</div><input id="graph-search" class="control-input graph-search" type="search" placeholder="按标题、摘要或标签聚焦" value="'+esc(state.graphQuery)+'" aria-label="搜索关系地图"><span class="spacer"></span><span class="graph-summary">'+nodes.length+' 个节点 · '+edges.length+' 条连接'+note+'</span></div><div class="graph-legend"><span><i class="graph-legend-line hierarchy"></i>层级关系</span><span><i class="graph-legend-line related"></i>横向关联</span><span class="graph-hint">点击节点打开内容</span></div><div class="graph-viewport"><div class="graph-stage"><svg class="graph-lines" viewBox="0 0 1000 '+canvasHeight+'" aria-hidden="true">'+edgeMarkup+'</svg>'+nodeMarkup+'</div></div></section>';
   const stage=$("#page-content .graph-stage");stage.style.width="1000px";stage.style.height=canvasHeight+"px";
   $$(".graph-node").forEach(button=>{const position=positions.get(String(button.dataset.id));if(position){button.style.left=position.x+"px";button.style.top=position.y+"px"}});
-  $$(".graph-filter").forEach(button=>button.onclick=()=>{state.graphFilter=button.dataset.kind;drawGraph()});
+  $$(".graph-filter").forEach(button=>button.onclick=()=>{state.graphFilter=button.dataset.kind;renderGraph()});
+  $("#graph-search").oninput=event=>{state.graphQuery=event.target.value;clearTimeout(state.graphSearchTimer);state.graphSearchTimer=setTimeout(renderGraph,220)};
   $$(".graph-node").forEach(button=>button.onclick=openGraphNode);
 }
 async function renderGraph(){
-  state.graphData=await api("/api/graph?limit=300");
+  const params=new URLSearchParams({limit:"300"});
+  if(state.graphFilter)params.set("kind",state.graphFilter);
+  if(state.graphQuery.trim())params.set("q",state.graphQuery.trim());
+  state.graphData=await api("/api/graph?"+params);
   drawGraph();
 }
 async function openActivity(event){

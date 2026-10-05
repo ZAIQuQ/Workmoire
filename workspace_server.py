@@ -1243,6 +1243,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             try:
                 year, month = int(raw_year), int(raw_month)
                 first_day = date(year, month, 1)
+                limit = min(max(int(params.get("limit", ["500"])[0]), 1), 500)
+                offset = max(int(params.get("offset", ["0"])[0]), 0)
             except (TypeError, ValueError):
                 self.error("日历月份无效", 400)
                 return
@@ -1251,27 +1253,42 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             total = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND due_date >= ? AND due_date < ?", (first_day.isoformat(), next_first.isoformat())).fetchone()[0]
             items = [as_item_summary(row) for row in con.execute(
                 "SELECT * FROM items WHERE deleted_at='' AND due_date >= ? AND due_date < ? "
-                "ORDER BY due_date ASC, pinned DESC, priority DESC, updated_at DESC LIMIT 500",
-                (first_day.isoformat(), next_first.isoformat()),
+                "ORDER BY due_date ASC, pinned DESC, priority DESC, updated_at DESC LIMIT ? OFFSET ?",
+                (first_day.isoformat(), next_first.isoformat(), limit, offset),
             )]
             con.close()
-            self.json_response({"year": year, "month": month, "items": items, "total": total, "truncated": total > len(items)})
+            next_offset = offset + len(items) if offset + len(items) < total else None
+            self.json_response({"year": year, "month": month, "items": items, "total": total, "offset": offset, "next_offset": next_offset, "truncated": next_offset is not None})
             return
         if path == "/api/graph":
             if not self.require_user():
                 return
             params = parse_qs(parsed.query)
+            kind = params.get("kind", [""])[0]
+            query = params.get("q", [""])[0].strip()[:120]
+            if kind and kind not in KINDS:
+                self.error("无效的关系地图类型", 400)
+                return
             try:
                 limit = min(max(int(params.get("limit", ["300"])[0]), 1), 500)
             except ValueError:
                 self.error("无效的关系地图数量限制", 400)
                 return
             con = open_db()
-            total = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' ").fetchone()[0]
+            clauses, values = ["deleted_at=''"], []
+            if kind:
+                clauses.append("kind=?")
+                values.append(kind)
+            if query:
+                clauses.append("(title LIKE ? OR summary LIKE ? OR tags LIKE ?)")
+                pattern = "%" + query + "%"
+                values.extend([pattern, pattern, pattern])
+            where = " AND ".join(clauses)
+            total = con.execute("SELECT COUNT(*) FROM items WHERE " + where, values).fetchone()[0]
             rows = con.execute(
                 "SELECT id,kind,title,summary,status,priority,due_date,entry_date,parent_id,pinned,updated_at "
-                "FROM items WHERE deleted_at='' ORDER BY pinned DESC, updated_at DESC LIMIT ?",
-                (limit,),
+                "FROM items WHERE " + where + " ORDER BY pinned DESC, updated_at DESC LIMIT ?",
+                values + [limit],
             ).fetchall()
             nodes = [dict(row) for row in rows]
             node_ids = {row["id"] for row in rows}
@@ -1290,7 +1307,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 if row["source_id"] in node_ids and row["target_id"] in node_ids:
                     edges.append({"source_id": row["source_id"], "target_id": row["target_id"], "kind": "related"})
             con.close()
-            self.json_response({"nodes": nodes, "edges": edges, "total": total, "truncated": total > len(nodes)})
+            self.json_response({"nodes": nodes, "edges": edges, "total": total, "kind": kind, "query": query, "truncated": total > len(nodes)})
             return
         if path == "/api/trash":
             if not self.require_user():
