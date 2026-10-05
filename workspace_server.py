@@ -329,17 +329,19 @@ def decode_session(token: str | None) -> str | None:
     try:
         raw = base64.urlsafe_b64decode((body + "==").encode()).decode()
         fields = raw.split("|")
-        if len(fields) not in (2, 3):
+        # Session cookies always carry the user's current session version.
+        # Older two-field cookies deliberately stop working after this
+        # boundary so a password change can revoke every existing session.
+        if len(fields) != 3:
             return None
         username, expires = fields[:2]
         if not username or int(expires) < int(time.time()):
             return None
-        if len(fields) == 3:
-            con = open_db()
-            row = con.execute("SELECT session_version FROM users WHERE username=?", (username,)).fetchone()
-            con.close()
-            if not row or int(row["session_version"]) != int(fields[2]):
-                return None
+        con = open_db()
+        row = con.execute("SELECT session_version FROM users WHERE username=?", (username,)).fetchone()
+        con.close()
+        if not row or int(row["session_version"]) != int(fields[2]):
+            return None
         return username
     except Exception:
         return None
@@ -527,23 +529,61 @@ def parse_json(handler: BaseHTTPRequestHandler) -> dict:
     return data
 
 
-def encode_item_cursor(row: sqlite3.Row) -> str:
-    payload = json.dumps([int(row["pinned"]), str(row["updated_at"]), int(row["id"])], separators=(",", ":")).encode("utf-8")
+ITEM_SORTS = {"updated", "priority", "due", "title"}
+
+
+def encode_item_cursor(row: sqlite3.Row, sort: str = "updated") -> str:
+    if sort == "priority":
+        values = [sort, int(row["pinned"]), int(row["priority"]), str(row["updated_at"]), int(row["id"])]
+    elif sort == "due":
+        values = [sort, int(row["pinned"]), 1 if not row["due_date"] else 0, str(row["due_date"]), str(row["updated_at"]), int(row["id"])]
+    elif sort == "title":
+        values = [sort, int(row["pinned"]), str(row["title"]), int(row["id"])]
+    else:
+        values = ["updated", int(row["pinned"]), str(row["updated_at"]), int(row["id"])]
+    payload = json.dumps(values, separators=(",", ":")).encode("utf-8")
     return base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
 
 
-def decode_item_cursor(value: str) -> tuple[int, str, int] | None:
+def decode_item_cursor(value: str) -> dict[str, object] | None:
     if not value:
         return None
     try:
         raw = base64.urlsafe_b64decode((value + "===").encode("ascii"))
-        pinned, updated_at, item_id = json.loads(raw.decode("utf-8"))
-        pinned, updated_at, item_id = int(pinned), str(updated_at), int(item_id)
+        values = json.loads(raw.decode("utf-8"))
     except (ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError, UnicodeError):
         raise ValueError("无效的分页游标")
-    if pinned not in (0, 1) or not updated_at or len(updated_at) > 64 or item_id < 1:
+    if not isinstance(values, list):
         raise ValueError("无效的分页游标")
-    return pinned, updated_at, item_id
+    # Accept the original cursor shape for clients that started a page before
+    # the sort-aware cursor was introduced.
+    if len(values) == 3:
+        values = ["updated", *values]
+    if not values or values[0] not in ITEM_SORTS:
+        raise ValueError("无效的分页游标")
+    sort = values[0]
+    try:
+        if sort == "updated" and len(values) == 4:
+            pinned, updated_at, item_id = int(values[1]), str(values[2]), int(values[3])
+            if pinned not in (0, 1) or not updated_at or len(updated_at) > 64 or item_id < 1:
+                raise ValueError
+        elif sort == "priority" and len(values) == 5:
+            pinned, priority, updated_at, item_id = int(values[1]), int(values[2]), str(values[3]), int(values[4])
+            if pinned not in (0, 1) or priority not in (1, 2, 3) or not updated_at or len(updated_at) > 64 or item_id < 1:
+                raise ValueError
+        elif sort == "due" and len(values) == 6:
+            pinned, empty, due_date, updated_at, item_id = int(values[1]), int(values[2]), str(values[3]), str(values[4]), int(values[5])
+            if pinned not in (0, 1) or empty not in (0, 1) or (empty == 0 and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", due_date)) or (empty == 1 and due_date) or not updated_at or len(updated_at) > 64 or item_id < 1:
+                raise ValueError
+        elif sort == "title" and len(values) == 4:
+            pinned, title, item_id = int(values[1]), str(values[2]), int(values[3])
+            if pinned not in (0, 1) or len(title) > 200 or item_id < 1:
+                raise ValueError
+        else:
+            raise ValueError
+    except (TypeError, ValueError):
+        raise ValueError("无效的分页游标")
+    return {"sort": sort, "values": values[1:]}
 
 
 class WorkspaceHandler(BaseHTTPRequestHandler):
@@ -669,13 +709,18 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         if path == "/api/stats":
             if not self.require_user():
                 return
+            params = parse_qs(parsed.query)
+            try:
+                today = optional_entry_date(params.get("today", [""])[0]) or date.today().isoformat()
+            except ValueError as exc:
+                self.error(str(exc), 400)
+                return
             con = open_db()
             counts = {row["kind"]: row["count"] for row in con.execute("SELECT kind, COUNT(*) AS count FROM items WHERE deleted_at='' GROUP BY kind")}
             status_counts = {row["status"]: row["count"] for row in con.execute("SELECT status, COUNT(*) AS count FROM items WHERE deleted_at='' GROUP BY status")}
             inbox = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND status='inbox' ORDER BY pinned DESC, updated_at DESC LIMIT 8")]
             recent = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' ORDER BY pinned DESC, updated_at DESC LIMIT 8")]
             pinned = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND pinned=1 ORDER BY updated_at DESC LIMIT 6")]
-            today = date.today().isoformat()
             overdue = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND due_date != '' AND due_date < ? AND status != 'done' ORDER BY due_date ASC, updated_at DESC LIMIT 8", (today,))]
             upcoming = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at='' AND due_date != '' AND due_date >= ? AND status != 'done' ORDER BY due_date ASC, updated_at DESC LIMIT 8", (today,))]
             activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY created_at DESC LIMIT 8")]
@@ -685,12 +730,17 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 "files": con.execute("SELECT COUNT(*) FROM files WHERE deleted_at!=''").fetchone()[0],
             }
             con.close()
-            self.json_response({"counts": counts, "status_counts": status_counts, "inbox": inbox, "recent": recent, "pinned": pinned, "overdue": overdue, "upcoming": upcoming, "activity": activity, "file_bytes": file_bytes, "trash_counts": trash_counts})
+            self.json_response({"today": today, "counts": counts, "status_counts": status_counts, "inbox": inbox, "recent": recent, "pinned": pinned, "overdue": overdue, "upcoming": upcoming, "activity": activity, "file_bytes": file_bytes, "trash_counts": trash_counts})
             return
         if path == "/api/review":
             if not self.require_user():
                 return
-            today = date.today().isoformat()
+            params = parse_qs(parsed.query)
+            try:
+                today = optional_entry_date(params.get("today", [""])[0]) or date.today().isoformat()
+            except ValueError as exc:
+                self.error(str(exc), 400)
+                return
             cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 7 * 86400))
             con = open_db()
             inbox = [as_item(row) for row in con.execute(
@@ -712,8 +762,14 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 "AND updated_at < ? ORDER BY updated_at ASC LIMIT 12",
                 (cutoff,),
             )]
+            totals = {
+                "inbox": con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND status='inbox'").fetchone()[0],
+                "overdue": con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND status!='inbox' AND status!='done' AND due_date != '' AND due_date < ?", (today,)).fetchone()[0],
+                "today": con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND status!='inbox' AND status!='done' AND due_date = ?", (today,)).fetchone()[0],
+                "stale": con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND status='active' AND due_date='' AND updated_at < ?", (cutoff,)).fetchone()[0],
+            }
             con.close()
-            self.json_response({"generated_at": utc_now(), "inbox": inbox, "overdue": overdue, "today": today_items, "stale": stale})
+            self.json_response({"generated_at": utc_now(), "today_date": today, "inbox": inbox, "overdue": overdue, "today": today_items, "stale": stale, "totals": totals})
             return
         if path == "/api/calendar":
             if not self.require_user():
@@ -729,13 +785,14 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 return
             next_first = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
             con = open_db()
+            total = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND due_date >= ? AND due_date < ?", (first_day.isoformat(), next_first.isoformat())).fetchone()[0]
             items = [as_item(row) for row in con.execute(
                 "SELECT * FROM items WHERE deleted_at='' AND due_date >= ? AND due_date < ? "
                 "ORDER BY due_date ASC, pinned DESC, priority DESC, updated_at DESC LIMIT 500",
                 (first_day.isoformat(), next_first.isoformat()),
             )]
             con.close()
-            self.json_response({"year": year, "month": month, "items": items})
+            self.json_response({"year": year, "month": month, "items": items, "total": total, "truncated": total > len(items)})
             return
         if path == "/api/graph":
             if not self.require_user():
@@ -775,11 +832,19 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         if path == "/api/trash":
             if not self.require_user():
                 return
+            params = parse_qs(parsed.query)
+            try:
+                item_offset, file_offset = max(int(params.get("item_offset", ["0"])[0]), 0), max(int(params.get("file_offset", ["0"])[0]), 0)
+            except ValueError:
+                self.error("回收站分页参数无效", 400)
+                return
             con = open_db()
-            items = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at!='' ORDER BY deleted_at DESC LIMIT 200")]
-            files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,item_id,created_at,deleted_at FROM files WHERE deleted_at!='' ORDER BY deleted_at DESC LIMIT 200")]
+            item_total = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at!=''").fetchone()[0]
+            file_total = con.execute("SELECT COUNT(*) FROM files WHERE deleted_at!=''").fetchone()[0]
+            items = [as_item(row) for row in con.execute("SELECT * FROM items WHERE deleted_at!='' ORDER BY deleted_at DESC, id DESC LIMIT 200 OFFSET ?", (item_offset,))]
+            files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,item_id,created_at,deleted_at FROM files WHERE deleted_at!='' ORDER BY deleted_at DESC, id DESC LIMIT 200 OFFSET ?", (file_offset,))]
             con.close()
-            self.json_response({"items": items, "files": files})
+            self.json_response({"items": items, "files": files, "totals": {"items": item_total, "files": file_total}, "offsets": {"items": item_offset, "files": file_offset}, "next_offsets": {"items": item_offset + len(items) if item_offset + len(items) < item_total else None, "files": file_offset + len(files) if file_offset + len(files) < file_total else None}})
             return
         if path == "/api/search":
             if not self.require_user():
@@ -870,6 +935,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             params = parse_qs(parsed.query)
             kind = params.get("kind", [""])[0]
             status = params.get("status", [""])[0]
+            tag = params.get("tag", [""])[0].strip()
+            sort = params.get("sort", ["updated"])[0]
             search = params.get("q", [""])[0].strip()
             raw_entry_date = params.get("entry_date", [""])[0].strip()
             try:
@@ -882,18 +949,36 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             except ValueError:
                 self.error("无效的数量限制", 400)
                 return
+            if kind and kind not in KINDS:
+                self.error("内容类型无效", 400)
+                return
+            if status and status not in STATUSES:
+                self.error("状态无效", 400)
+                return
+            if sort not in ITEM_SORTS:
+                self.error("排序方式无效", 400)
+                return
+            if len(tag) > 32 or "," in tag or "，" in tag:
+                self.error("标签筛选无效", 400)
+                return
             try:
                 cursor = decode_item_cursor(params.get("cursor", [""])[0].strip())
             except ValueError as exc:
                 self.error(str(exc), 400)
                 return
+            if cursor and cursor["sort"] != sort:
+                self.error("分页游标与排序方式不匹配", 400)
+                return
             clauses, values = ["deleted_at=''"], []
-            if kind in KINDS:
+            if kind:
                 clauses.append("kind=?")
                 values.append(kind)
-            if status in STATUSES:
+            if status:
                 clauses.append("status=?")
                 values.append(status)
+            if tag:
+                clauses.append("instr(',' || tags || ',', ',' || ? || ',') > 0")
+                values.append(tag)
             if entry_date:
                 clauses.append("entry_date=?")
                 values.append(entry_date)
@@ -903,16 +988,35 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 values.extend([needle] * 4)
             con = open_db()
             total = con.execute("SELECT COUNT(*) FROM items WHERE " + " AND ".join(clauses), values).fetchone()[0]
-            if cursor:
-                pinned, updated_at, item_id = cursor
+            order = "pinned DESC, updated_at DESC, id DESC"
+            if sort == "priority":
+                order = "pinned DESC, priority DESC, updated_at DESC, id DESC"
+                if cursor:
+                    pinned, priority, updated_at, item_id = cursor["values"]
+                    clauses.append("(pinned < ? OR (pinned=? AND priority < ?) OR (pinned=? AND priority=? AND updated_at < ?) OR (pinned=? AND priority=? AND updated_at=? AND id < ?))")
+                    values.extend([pinned, pinned, priority, pinned, priority, updated_at, pinned, priority, updated_at, item_id])
+            elif sort == "due":
+                order = "pinned DESC, (due_date='') ASC, due_date ASC, updated_at DESC, id DESC"
+                if cursor:
+                    pinned, empty, due_date, updated_at, item_id = cursor["values"]
+                    clauses.append("(pinned < ? OR (pinned=? AND (due_date='') > ?) OR (pinned=? AND (due_date='')=? AND due_date > ?) OR (pinned=? AND (due_date='')=? AND due_date=? AND updated_at < ?) OR (pinned=? AND (due_date='')=? AND due_date=? AND updated_at=? AND id < ?))")
+                    values.extend([pinned, pinned, empty, pinned, empty, due_date, pinned, empty, due_date, updated_at, pinned, empty, due_date, updated_at, item_id])
+            elif sort == "title":
+                order = "pinned DESC, title COLLATE NOCASE ASC, id ASC"
+                if cursor:
+                    pinned, title, item_id = cursor["values"]
+                    clauses.append("(pinned < ? OR (pinned=? AND (title COLLATE NOCASE > ? OR (title COLLATE NOCASE=? AND id > ?))))")
+                    values.extend([pinned, pinned, title, title, item_id])
+            elif cursor:
+                pinned, updated_at, item_id = cursor["values"]
                 clauses.append("(pinned < ? OR (pinned=? AND updated_at < ?) OR (pinned=? AND updated_at=? AND id < ?))")
                 values.extend([pinned, pinned, updated_at, pinned, updated_at, item_id])
             where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
-            rows = con.execute("SELECT * FROM items%s ORDER BY pinned DESC, updated_at DESC, id DESC LIMIT ?" % where, values + [limit + 1]).fetchall()
+            rows = con.execute("SELECT * FROM items%s ORDER BY %s LIMIT ?" % (where, order), values + [limit + 1]).fetchall()
             has_more = len(rows) > limit
             rows = rows[:limit]
             con.close()
-            self.json_response({"items": [as_item(row) for row in rows], "total": total, "next_cursor": encode_item_cursor(rows[-1]) if has_more and rows else None})
+            self.json_response({"items": [as_item(row) for row in rows], "total": total, "sort": sort, "next_cursor": encode_item_cursor(rows[-1], sort) if has_more and rows else None})
             return
         if path.startswith("/api/items/") and path.endswith("/links"):
             if not self.require_user():
@@ -1194,17 +1298,21 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 item_id = int(path.split("/")[3])
                 data = parse_json(self)
                 pinned = 1 if data.get("pinned") in (True, 1, "1", "true", "True") else 0
-                con = open_db()
-                row = con.execute("SELECT title FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
-                if not row:
-                    con.close()
-                    self.error("内容不存在", 404)
-                    return
-                con.execute("UPDATE items SET pinned=? WHERE id=?", (pinned, item_id))
-                log_activity(con, "pin" if pinned else "unpin", "item", item_id, row["title"])
-                con.commit()
-                updated = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
-                con.close()
+                with closing(open_db()) as con, con:
+                    # Pinning changes the item version as well as its sort
+                    # position, so an older editor cannot silently overwrite
+                    # the user's pin decision.
+                    con.execute("BEGIN IMMEDIATE")
+                    row = con.execute("SELECT * FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
+                    if not row:
+                        self.error("内容不存在", 404)
+                        return
+                    if int(row["pinned"]) != pinned:
+                        record_revision(con, row)
+                        stamp = utc_now()
+                        con.execute("UPDATE items SET pinned=?,updated_at=? WHERE id=?", (pinned, stamp, item_id))
+                        log_activity(con, "pin" if pinned else "unpin", "item", item_id, row["title"])
+                    updated = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
                 self.json_response({"item": as_item(updated)})
             except Exception as exc:
                 self.request_error(exc)
@@ -1215,18 +1323,16 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 return
             try:
                 item_id = int(path.split("/")[4])
-                con = open_db()
-                row = con.execute("SELECT * FROM items WHERE id=? AND deleted_at!=''", (item_id,)).fetchone()
-                if not row:
-                    con.close()
-                    self.error("回收站中不存在这条内容", 404)
-                    return
-                stamp = utc_now()
-                con.execute("UPDATE items SET deleted_at='', updated_at=? WHERE id=?", (stamp, item_id))
-                log_activity(con, "restore", "item", item_id, row["title"])
-                con.commit()
-                restored = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
-                con.close()
+                with closing(open_db()) as con, con:
+                    con.execute("BEGIN IMMEDIATE")
+                    row = con.execute("SELECT * FROM items WHERE id=? AND deleted_at!=''", (item_id,)).fetchone()
+                    if not row:
+                        self.error("回收站中不存在这条内容", 404)
+                        return
+                    stamp = utc_now()
+                    con.execute("UPDATE items SET deleted_at='', updated_at=? WHERE id=?", (stamp, item_id))
+                    log_activity(con, "restore", "item", item_id, row["title"])
+                    restored = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
                 self.json_response({"item": as_item(restored)})
             except Exception as exc:
                 self.request_error(exc)
@@ -1288,6 +1394,21 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                         raise ValueError("第 %d 条内容的 ID 无效或重复" % index)
                     source_ids.add(str(source_id))
                     prepared.append((source_id, self.normalized_item(raw_item)))
+                parent_by_source = {str(source_id): item["parent_id"] for source_id, item in prepared}
+                for source_id, item in prepared:
+                    parent = item["parent_id"]
+                    if parent is None or str(parent) not in source_ids:
+                        continue
+                    seen = {str(source_id)}
+                    current = str(parent)
+                    while current in parent_by_source:
+                        if current in seen:
+                            raise ValueError("导入内容的层级关系存在循环")
+                        seen.add(current)
+                        next_parent = parent_by_source[current]
+                        if next_parent is None or str(next_parent) not in source_ids:
+                            break
+                        current = str(next_parent)
                 raw_links = data.get("links", [])
                 if not isinstance(raw_links, list) or len(raw_links) > 20000:
                     raise ValueError("导出文件中的关联数量无效")
@@ -1407,17 +1528,16 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             try:
                 data = self.normalized_item(parse_json(self))
                 stamp = utc_now()
-                con = open_db()
-                self.validate_parent(con, data["parent_id"])
-                cursor = con.execute(
-                    "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["entry_date"], data["parent_id"], data["pinned"], "", stamp, stamp),
-                )
-                item_id = cursor.lastrowid
-                log_activity(con, "create", "item", item_id, data["title"])
-                con.commit()
-                row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
-                con.close()
+                with closing(open_db()) as con, con:
+                    con.execute("BEGIN IMMEDIATE")
+                    self.validate_parent(con, data["parent_id"])
+                    cursor = con.execute(
+                        "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["entry_date"], data["parent_id"], data["pinned"], "", stamp, stamp),
+                    )
+                    item_id = cursor.lastrowid
+                    log_activity(con, "create", "item", item_id, data["title"])
+                    row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
                 self.json_response({"item": as_item(row)}, 201)
             except Exception as exc:
                 self.request_error(exc)
@@ -1582,15 +1702,19 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                         return
                     if "entry_date" not in raw_data:
                         data["entry_date"] = exists["entry_date"]
-                    self.validate_parent(con, data["parent_id"], item_id)
-                    record_revision(con, exists)
-                    stamp = utc_now()
-                    con.execute(
-                        "UPDATE items SET kind=?,title=?,summary=?,content=?,tags=?,status=?,priority=?,due_date=?,entry_date=?,parent_id=?,pinned=?,updated_at=? WHERE id=?",
-                        (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["entry_date"], data["parent_id"], data["pinned"], stamp, item_id),
-                    )
-                    log_activity(con, "update", "item", item_id, data["title"])
-                    row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+                    changed = any(exists[field] != data[field] for field in REVISION_FIELDS)
+                    if changed:
+                        self.validate_parent(con, data["parent_id"], item_id)
+                        record_revision(con, exists)
+                        stamp = utc_now()
+                        con.execute(
+                            "UPDATE items SET kind=?,title=?,summary=?,content=?,tags=?,status=?,priority=?,due_date=?,entry_date=?,parent_id=?,pinned=?,updated_at=? WHERE id=?",
+                            (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["entry_date"], data["parent_id"], data["pinned"], stamp, item_id),
+                        )
+                        log_activity(con, "update", "item", item_id, data["title"])
+                        row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+                    else:
+                        row = exists
                 self.json_response({"item": as_item(row)})
             except Exception as exc:
                 self.request_error(exc)

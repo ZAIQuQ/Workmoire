@@ -12,11 +12,15 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - After restarting, allow a bounded startup interval and retry health probes before deciding that the deployment failed; never treat systemd active state alone as proof of readiness.
 - Run an HTTP smoke test for /healthz, /api/session, login/setup, content CRUD, and file upload when applicable.
 - When list APIs change, verify total/next-cursor metadata and a browser load-more path beyond the first page; selections and the active editor must remain usable after append.
+- When list filters or sorting change, verify status/tag/search filters and every supported sort across multiple cursor pages, reject a cursor reused with a different sort, and confirm the browser preserves the server order.
+- When bounded auxiliary views change, verify review and calendar totals, calendar items beyond the compact day view, trash load-more controls, and full-archive parent/tag candidates.
 - Verify first-run protection on synthetic servers: a non-loopback bind without `WORKSPACE_SETUP_TOKEN` must reject setup, a loopback bind may allow local setup, and a configured token must reject incorrect values and accept the correct one. Check the bounded server's request timeout and queue attributes.
 - When import/export changes, test a synthetic export with relationships and verify the import is transactional and excludes credentials and file binaries.
+- When hierarchy import changes, include a self-parent and a multi-item cycle fixture and verify both are rejected with no partial items.
 - When deletion behavior changes, test the full trash lifecycle: active queries hide deleted rows, restore returns them, and permanent deletion removes the row and file bytes.
 - When editor behavior changes, verify local drafts are revision-scoped, restorable or dismissible, and cleared after a successful save or deletion.
 - When work-log dates change, verify additive migration on a database copy, strict leap-date validation, title renames, exact server-side date filtering, history/export/import coverage, and browser-local date navigation.
+- When session or “today” boundaries change, test that legacy unversioned cookies are rejected after the session-version migration and that stats/review use an explicitly supplied browser civil date.
 - If `WORKSPACE_CODEX_BIN` is configured, verify the CLI version and that its help still recognizes the explicit `--ephemeral` and `--sandbox read-only` flags, then run a synthetic assistant smoke test; never use a personal document as the fixture or rely on ignored profile keys for isolation.
 - When assistant UI changes, verify that generated text is not persisted until an explicit insert and save action.
 - When assistant calls are slow or unavailable, verify the entry is disabled or visibly busy and repeated clicks do not create concurrent calls.

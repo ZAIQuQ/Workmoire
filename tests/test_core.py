@@ -1,6 +1,7 @@
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import workspace_server as app
@@ -13,8 +14,17 @@ class WorkspaceCoreTests(unittest.TestCase):
         self.assertFalse(app.password_matches("wrong password", encoded))
 
     def test_session_signature_round_trip(self):
-        token = app.encode_session("reader")
-        self.assertEqual(app.decode_session(token), "reader")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with patch.multiple(app, DATA_DIR=root, FILES_DIR=root / "files", DB_PATH=root / "workspace.db", SESSION_SECRET="synthetic-session-secret"):
+                app.init_db()
+                with app.open_db() as con:
+                    con.execute("INSERT INTO users(id,username,password_hash,session_version,created_at) VALUES(1,?,?,1,?)", ("reader", app.password_hash("synthetic-password"), app.utc_now()))
+                    con.commit()
+                token = app.encode_session("reader", 1)
+                self.assertEqual(app.decode_session(token), "reader")
+                legacy = app.encode_session("reader")
+                self.assertIsNone(app.decode_session(legacy))
         body, signature = token.split(".", 1)
         self.assertIsNone(app.decode_session(body + "." + ("0" * len(signature))))
 

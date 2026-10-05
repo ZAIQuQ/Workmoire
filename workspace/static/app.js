@@ -1,19 +1,32 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",review:"今日复盘",calendar:"计划日历",graph:"关系地图",trash:"回收站"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷",review:"✦",calendar:"▦",graph:"⌘",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],itemsCursor:null,itemsTotal:0,allItemsCursor:null,allItemsTotal:0,selected:null,savedSnapshot:null,selectedIds:new Set(),visibleItemIds:[],stats:null,reviewData:null,graphData:null,graphFilter:"",calendarDate:new Date(),logDate:"",editorTab:"write",listTag:"",listSort:"updated",listQuery:"",listSearchTimer:null,itemsRequest:0,fileSearch:"",fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null};
+const state={page:"dashboard",items:[],allItems:[],itemsCursor:null,itemsTotal:0,allItemsCursor:null,allItemsTotal:0,selected:null,savedSnapshot:null,selectedIds:new Set(),visibleItemIds:[],stats:null,reviewData:null,graphData:null,graphFilter:"",calendarDate:new Date(),logDate:"",editorTab:"write",listTag:"",listStatus:"",listSort:"updated",listQuery:"",listSearchTimer:null,itemsRequest:0,fileSearch:"",fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null};
 const captureDraftKey="workmoire:capture-draft";
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
-const draftKey=(kind,id=null)=>"workmoire:draft:"+kind+":"+(id==null?"new":id);
-function readLocalDraft(kind,id=null){
-  try{const raw=localStorage.getItem(draftKey(kind,id));return raw?JSON.parse(raw):null}catch(_){return null}
+const draftKey=(kind,id=null,entryDate="")=>"workmoire:draft:"+kind+":"+(id==null?("new"+(kind==="log"&&entryDate?":"+entryDate:"")):id);
+function readLocalDraft(kind,id=null,entryDate=""){
+  try{
+    let raw=localStorage.getItem(draftKey(kind,id,entryDate));
+    // Read one pre-date-version draft once so existing local work is not lost.
+    const legacy=!raw&&id==null&&kind==="log"&&entryDate;
+    if(legacy)raw=localStorage.getItem(draftKey(kind,id));
+    if(!raw)return null;
+    const draft=JSON.parse(raw);
+    return legacy&&draft.entry_date&&draft.entry_date!==entryDate?null:draft;
+  }catch(_){return null}
 }
-function clearLocalDraft(kind,id=null){try{localStorage.removeItem(draftKey(kind,id))}catch(_){} }
+function clearLocalDraft(kind,id=null,entryDate=""){
+  try{
+    localStorage.removeItem(draftKey(kind,id,entryDate));
+    if(id==null&&kind==="log"&&entryDate)localStorage.removeItem(draftKey(kind,id));
+  }catch(_){}
+}
 function scheduleLocalDraft(){
   if(!state.selected||!$("#edit-title"))return;
   clearTimeout(state.draftTimer);
-  state.draftTimer=setTimeout(()=>{try{localStorage.setItem(draftKey(state.page,state.selected.id||null),JSON.stringify({...collectEditor(),item_id:state.selected.id||null,base_updated_at:state.selected.updated_at||"",saved_at:new Date().toISOString()}));$("#save-indicator").textContent="已保存在本机草稿"}catch(_){}},250);
+  state.draftTimer=setTimeout(()=>{try{const draft=collectEditor(),draftDate=draft.entry_date||state.logDate||"";localStorage.setItem(draftKey(state.page,state.selected.id||null,draftDate),JSON.stringify({...draft,item_id:state.selected.id||null,base_updated_at:state.selected.updated_at||"",saved_at:new Date().toISOString()}));$("#save-indicator").textContent="已保存在本机草稿"}catch(_){}},250);
 }
 function editorSnapshot(item){
   if(!item)return null;
@@ -198,7 +211,7 @@ function editorHasChanges(){
 function confirmEditorLeave(){return !editorHasChanges()||window.confirm("当前内容尚未保存，确定离开吗？")}
 async function goPage(page){
   if(!confirmEditorLeave())return false;
-  state.page=page;state.selected=null;state.savedSnapshot=null;state.listTag="";state.listSort="updated";state.listQuery="";state.editorTab="write";state.focusMode=false;if(page!=="log")state.logDate="";document.body.classList.remove("editor-focus-mode");
+  state.page=page;state.selected=null;state.savedSnapshot=null;state.listTag="";state.listStatus="";state.listSort="updated";state.listQuery="";state.editorTab="write";state.focusMode=false;if(page!=="log")state.logDate="";document.body.classList.remove("editor-focus-mode");
   $$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===page));
   $("#page-heading").textContent=page==="dashboard"?"总览":page==="files"?"文件空间":labels[page];
   if(page==="dashboard"){await loadStats();renderDashboard()}
@@ -212,24 +225,50 @@ async function goPage(page){
   return true;
 }
 $$(".nav-item").forEach(item=>item.onclick=()=>goPage(item.dataset.page));
-async function loadStats(){state.stats=await api("/api/stats")}
+async function loadStats(){state.stats=await api("/api/stats?today="+encodeURIComponent(localDateValue()))}
 async function loadItems(query="",append=false){
   const requestId=++state.itemsRequest;
   state.listQuery=query;
+  if(!append)state.selectedIds.clear();
   const params=new URLSearchParams({kind:state.page,limit:"100"});
   if(query)params.set("q",query);
+  if(state.listStatus)params.set("status",state.listStatus);
+  if(state.listTag)params.set("tag",state.listTag);
+  if(state.listSort)params.set("sort",state.listSort);
   if(state.page==="log"&&state.logDate)params.set("entry_date",state.logDate);
   if(append&&state.itemsCursor)params.set("cursor",state.itemsCursor);
   const result=await api("/api/items?"+params.toString());
   if(requestId!==state.itemsRequest)return;
   state.items=append?state.items.concat(result.items||[]):(result.items||[]);
   state.itemsCursor=result.next_cursor||null;state.itemsTotal=Number(result.total||state.items.length);
-  if(!query&&!append){const allResult=await api("/api/items?limit=500");if(requestId!==state.itemsRequest)return;state.allItems=allResult.items||[];state.allItemsCursor=allResult.next_cursor||null;state.allItemsTotal=Number(allResult.total||state.allItems.length)}
+  if(!query&&!append){
+    let cursor="",allItems=[],allTotal=0;
+    do{
+      const allParams=new URLSearchParams({limit:"500",sort:"updated"});if(cursor)allParams.set("cursor",cursor);
+      const allResult=await api("/api/items?"+allParams.toString());
+      if(requestId!==state.itemsRequest)return;
+      allItems=allItems.concat(allResult.items||[]);allTotal=Number(allResult.total||allItems.length);cursor=allResult.next_cursor||"";
+    }while(cursor);
+    state.allItems=allItems;state.allItemsCursor=null;state.allItemsTotal=allTotal;
+  }
 }
 function scheduleListSearch(){
   clearTimeout(state.listSearchTimer);
   const query=$("#list-search")?.value.trim()||"";
   state.listSearchTimer=setTimeout(async()=>{try{await loadItems(query);drawItemList()}catch(error){window.alert(error.message)}},220);
+}
+function scheduleListFilter(){
+  clearTimeout(state.listSearchTimer);
+  state.listStatus=$("#list-status")?.value||"";
+  state.listTag=state.listTag||"";
+  const query=$("#list-search")?.value.trim()||"";
+  state.listSearchTimer=setTimeout(async()=>{try{await loadItems(query);drawItemList()}catch(error){window.alert(error.message)}},180);
+}
+function scheduleListSort(){
+  clearTimeout(state.listSearchTimer);
+  state.listSort=$("#list-sort")?.value||"updated";
+  const query=$("#list-search")?.value.trim()||"";
+  state.listSearchTimer=setTimeout(async()=>{try{await loadItems(query);drawItemList()}catch(error){window.alert(error.message)}},180);
 }
 async function loadMoreItems(){
   const button=$("#load-more-items");
@@ -252,10 +291,18 @@ function renderDashboard(){
   $("#quick-note").onclick=openCapture;$("#quick-log").onclick=openTodayLog;$("#quick-review").onclick=()=>goPage("review");
   $("#view-all").onclick=()=>goPage("note");
   $$(".quick-button").forEach(button=>button.onclick=()=>button.dataset.createKind==="note"?openCapture():button.dataset.createKind==="log"?openTodayLog():createItem(button.dataset.createKind));
-  $$(".recent-item,.due-item,.pinned-item,.inbox-item").forEach(row=>row.onclick=async()=>{if(!await goPage(row.dataset.kind))return;state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
+  $$(".recent-item,.due-item,.pinned-item,.inbox-item").forEach(row=>row.onclick=openDashboardItem);
   $$(".inbox-start").forEach(button=>button.onclick=promoteInboxItem);
   $$(".due-complete").forEach(button=>button.onclick=completeDueItem);
   $$(".activity-item.is-clickable").forEach(row=>row.onclick=openActivity);
+}
+async function openDashboardItem(event){
+  event.stopPropagation();
+  try{
+    const result=await api("/api/items/"+encodeURIComponent(event.currentTarget.dataset.id));
+    if(!await goPage(result.item.kind))return;
+    state.selected=result.item;state.savedSnapshot=editorSnapshot(result.item);renderContentPage();
+  }catch(error){window.alert(error.message)}
 }
 function reviewItemMarkup(item){
   const start=item.status==="inbox"?'<button class="review-promote" data-review-id="'+item.id+'" type="button">开始整理</button>':'';
@@ -285,10 +332,10 @@ async function updateReviewStatus(event,status){
   }catch(error){button.disabled=false;button.textContent=status==="done"?"完成":"开始整理";window.alert(error.message)}
 }
 async function renderReview(){
-  state.reviewData=await api("/api/review");
-  const data=state.reviewData,total=["inbox","overdue","today","stale"].reduce((sum,key)=>sum+(data[key]||[]).length,0);
-  const section=(key,title,hint,empty)=>'<section class="surface review-section"><div class="surface-head"><div><h2>'+title+'</h2><p class="review-hint">'+hint+'</p></div><span class="surface-count">'+(data[key]||[]).length+'</span></div><div class="review-list">'+((data[key]||[]).length?(data[key]||[]).map(reviewItemMarkup).join(""):'<div class="empty-state review-empty"><strong>'+empty+'</strong></div>')+'</div></section>';
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>今日复盘</h1><p>先处理最需要你注意的内容，再回到深度工作。</p></div><div class="page-title-actions"><button id="review-refresh" class="button button-secondary">刷新队列</button></div></div><div class="review-summary"><div><span class="review-summary-label">今天建议处理</span><strong>'+total+'</strong><span>项</span></div><p>完成或开始整理后，队列会自动更新。</p></div><div class="review-grid">'+section("overdue","已逾期","先处理已经错过日期的事项。","没有逾期内容")+section("today","今天到期","今天需要给出明确结果的内容。","今天没有到期内容")+section("inbox","待整理","把捕捉到的碎片变成下一步。","待整理箱是空的")+section("stale","很久没更新","超过 7 天没有推进、且没有截止日期的进行中内容。","没有长期停滞内容")+'</div>';
+  state.reviewData=await api("/api/review?today="+encodeURIComponent(localDateValue()));
+  const data=state.reviewData,totals=data.totals||{},total=["inbox","overdue","today","stale"].reduce((sum,key)=>sum+Number(totals[key]??(data[key]||[]).length),0);
+  const section=(key,title,hint,empty)=>{const shown=(data[key]||[]).length,available=Number(totals[key]??shown),more=available>shown?'<p class="review-more">仅显示 '+shown+' 项，还有 '+(available-shown)+' 项，请打开对应空间继续处理。</p>':"";return '<section class="surface review-section"><div class="surface-head"><div><h2>'+title+'</h2><p class="review-hint">'+hint+'</p></div><span class="surface-count">'+(shown<available?shown+" / "+available:available)+'</span></div><div class="review-list">'+(shown?(data[key]||[]).map(reviewItemMarkup).join(""):'<div class="empty-state review-empty"><strong>'+empty+'</strong></div>')+more+'</div></section>'};
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>今日复盘</h1><p>先处理最需要你注意的内容，再回到深度工作。</p></div><div class="page-title-actions"><button id="review-refresh" class="button button-secondary">刷新队列</button></div></div><div class="review-summary"><div><span class="review-summary-label">今天建议处理</span><strong>'+total+'</strong><span>项</span></div><p>每组最多展示 12 项；完成或开始整理后，队列会自动更新。</p></div><div class="review-grid">'+section("overdue","已逾期","先处理已经错过日期的事项。","没有逾期内容")+section("today","今天到期","今天需要给出明确结果的内容。","今天没有到期内容")+section("inbox","待整理","把捕捉到的碎片变成下一步。","待整理箱是空的")+section("stale","很久没更新","超过 7 天没有推进、且没有截止日期的进行中内容。","没有长期停滞内容")+'</div>';
   $("#review-refresh").onclick=renderReview;
   $$(".review-open").forEach(button=>button.onclick=openReviewItem);
   $$(".review-done").forEach(button=>button.onclick=event=>updateReviewStatus(event,"done"));
@@ -315,10 +362,11 @@ async function renderCalendar(){
   for(let index=0;index<cellCount;index++){
     const day=index-offset+1,inside=day>=1&&day<=days,key=inside?calendarDateKey(year,month,day):"";
     const dayItems=inside?(byDay[key]||[]):[];
-    cells+='<div class="calendar-cell '+(inside?"":"is-muted")+(key===todayKey?" is-today":"")+'">'+(inside?'<div class="calendar-day-number">'+day+'</div>':'')+(dayItems.length?'<div class="calendar-items">'+dayItems.slice(0,4).map(item=>'<button class="calendar-item '+esc(item.status||"")+'" data-id="'+item.id+'" data-kind="'+item.kind+'" title="'+esc(item.title)+'"><span class="calendar-item-mark '+esc(item.kind)+'"></span><span>'+esc(item.title||"未命名")+'</span></button>').join("")+(dayItems.length>4?'<span class="calendar-more">还有 '+(dayItems.length-4)+' 项</span>':"")+'</div>':"")+'</div>';
+    cells+='<div class="calendar-cell '+(inside?"":"is-muted")+(key===todayKey?" is-today":"")+'">'+(inside?'<div class="calendar-day-number">'+day+'</div>':'')+(dayItems.length?'<div class="calendar-items">'+dayItems.map(item=>'<button class="calendar-item '+esc(item.status||"")+'" data-id="'+item.id+'" data-kind="'+item.kind+'" title="'+esc(item.title)+'"><span class="calendar-item-mark '+esc(item.kind)+'"></span><span>'+esc(item.title||"未命名")+'</span></button>').join("")+'</div>':"")+'</div>';
   }
   const doneCount=items.filter(item=>item.status==="done").length;
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>计划日历</h1><p>把项目、论文和工作日志的截止日期放到同一条时间线上。</p></div><div class="page-title-actions"><button id="calendar-today" class="button button-secondary">回到今天</button></div></div><section class="surface calendar-surface"><div class="calendar-toolbar"><button id="calendar-prev" class="icon-button" aria-label="上个月">‹</button><h2>'+year+'年'+(month+1)+'月</h2><button id="calendar-next" class="icon-button" aria-label="下个月">›</button><span class="spacer"></span><span class="calendar-summary">'+items.length+' 项安排 · '+doneCount+' 项已完成</span></div><div class="calendar-weekdays">'+weekdayLabels.map(day=>'<span>'+day+'</span>').join("")+'</div><div class="calendar-grid">'+cells+'</div></section>';
+  const calendarSummary=(data.truncated?"显示 "+items.length+" / "+data.total+" 项安排":"共 "+items.length+" 项安排")+" · "+doneCount+" 项已完成";
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>计划日历</h1><p>把项目、论文和工作日志的截止日期放到同一条时间线上。</p></div><div class="page-title-actions"><button id="calendar-today" class="button button-secondary">回到今天</button></div></div><section class="surface calendar-surface"><div class="calendar-toolbar"><button id="calendar-prev" class="icon-button" aria-label="上个月">‹</button><h2>'+year+'年'+(month+1)+'月</h2><button id="calendar-next" class="icon-button" aria-label="下个月">›</button><span class="spacer"></span><span class="calendar-summary">'+calendarSummary+'</span></div><div class="calendar-weekdays">'+weekdayLabels.map(day=>'<span>'+day+'</span>').join("")+'</div><div class="calendar-grid">'+cells+'</div></section>';
   $("#calendar-prev").onclick=()=>{state.calendarDate=new Date(year,month-1,1);renderCalendar()};
   $("#calendar-next").onclick=()=>{state.calendarDate=new Date(year,month+1,1);renderCalendar()};
   $("#calendar-today").onclick=()=>{state.calendarDate=new Date();renderCalendar()};
@@ -383,7 +431,7 @@ function defaultContent(kind){
 function createItem(kind,entryDate=""){
   if(!confirmEditorLeave())return;
   if(kind==="log")state.logDate=entryDate||state.logDate||localDateValue();
-  state.page=kind;state.listTag="";state.listSort="updated";state.listQuery="";state.focusMode=false;document.body.classList.remove("editor-focus-mode");state.selected={id:null,...defaultContent(kind),...(readLocalDraft(kind)||{})};state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
+  state.page=kind;state.listTag="";state.listStatus="";state.listSort="updated";state.listQuery="";state.focusMode=false;document.body.classList.remove("editor-focus-mode");state.selected={id:null,...defaultContent(kind),...(readLocalDraft(kind,null,kind==="log"?state.logDate:"")||{})};state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";$$('.nav-item').forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
 }
 async function openTodayLog(){
   const day=localDateValue();
@@ -403,8 +451,8 @@ function renderContentPage(){
   state.selectedIds.clear();state.visibleItemIds=[];
   const journalNav=state.page==="log"?'<div class="journal-nav surface"><button id="log-date-prev" class="button button-secondary" type="button" aria-label="前一天">←</button><label class="journal-date-field"><span>查看日志日期</span><input id="log-date" type="date" value="'+esc(state.logDate)+'"></label><button id="log-date-next" class="button button-secondary" type="button" aria-label="后一天">→</button><button id="log-date-today" class="button button-secondary" type="button">今天</button><button id="log-date-all" class="button button-secondary" type="button">查看全部日志</button><span class="journal-date-hint">同一天可以保留多条日志</span></div>':'';
   $("#page-content").innerHTML='<div class="page-title-row"><div><h1>'+esc(labels[state.page])+'</h1><p>'+({note:"把碎片知识收拢起来，形成可以复用的脉络。",project:"让每一个项目都有清晰的目标和下一步。",paper:"从研究问题出发，把论文结构逐步搭起来。",log:"记录过程，让进展和思考可回看。"}[state.page])+'</p></div><div class="page-title-actions"><button class="button button-primary" id="new-content">新建'+esc(labels[state.page].replace("空间",""))+'</button></div></div>'+journalNav+
-  '<div class="content-layout"><section class="surface list-surface"><div class="list-toolbar"><div class="input-with-icon"><span>⌕</span><input id="list-search" class="control-input" placeholder="搜索当前空间"></div><select id="list-status" class="control-input"><option value="">全部状态</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select><select id="list-sort" class="control-input" aria-label="排序"><option value="updated">最近更新</option><option value="priority">优先级最高</option><option value="due">截止日期</option><option value="title">标题</option></select><div id="list-tags" class="tag-filter" aria-label="标签筛选"></div><div class="bulk-toolbar" id="bulk-toolbar" aria-live="polite"><label class="select-all-control"><input id="select-all-items" type="checkbox"><span>全选当前列表</span></label><span id="bulk-count" class="bulk-count">选择内容后可批量处理</span><div id="bulk-actions" class="bulk-actions is-hidden"><select id="bulk-status" class="control-input" aria-label="批量设置状态"><option value="">设置状态…</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select><button id="bulk-apply-status" class="button button-secondary" type="button">应用</button><button id="bulk-trash" class="button button-danger" type="button">移入回收站</button></div></div></div><div id="item-list" class="item-list"></div><div id="item-list-pagination" class="list-pagination"></div></section><section id="editor" class="surface editor-surface"></section></div>';
-  $("#new-content").onclick=()=>createItem(state.page);$("#list-search").oninput=scheduleListSearch;$("#list-status").onchange=drawItemList;$("#list-sort").onchange=drawItemList;$("#select-all-items").onchange=toggleSelectAll;$("#bulk-apply-status").onclick=()=>bulkUpdateItems("status",$("#bulk-status").value);$("#bulk-trash").onclick=()=>bulkUpdateItems("trash");
+  '<div class="content-layout"><section class="surface list-surface"><div class="list-toolbar"><div class="input-with-icon"><span>⌕</span><input id="list-search" class="control-input" placeholder="搜索当前空间"></div><select id="list-status" class="control-input"><option value="">全部状态</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select><select id="list-sort" class="control-input" aria-label="排序"><option value="updated">最近更新</option><option value="priority">优先级最高</option><option value="due">截止日期</option><option value="title">标题（字典序）</option></select><div id="list-tags" class="tag-filter" aria-label="标签筛选"></div><div class="bulk-toolbar" id="bulk-toolbar" aria-live="polite"><label class="select-all-control"><input id="select-all-items" type="checkbox"><span>全选当前列表</span></label><span id="bulk-count" class="bulk-count">选择内容后可批量处理</span><div id="bulk-actions" class="bulk-actions is-hidden"><select id="bulk-status" class="control-input" aria-label="批量设置状态"><option value="">设置状态…</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select><button id="bulk-apply-status" class="button button-secondary" type="button">应用</button><button id="bulk-trash" class="button button-danger" type="button">移入回收站</button></div></div></div><div id="item-list" class="item-list"></div><div id="item-list-pagination" class="list-pagination"></div></section><section id="editor" class="surface editor-surface"></section></div>';
+  $("#new-content").onclick=()=>createItem(state.page);$("#list-search").oninput=scheduleListSearch;$("#list-status").onchange=scheduleListFilter;$("#list-sort").onchange=scheduleListSort;$("#select-all-items").onchange=toggleSelectAll;$("#bulk-apply-status").onclick=()=>bulkUpdateItems("status",$("#bulk-status").value);$("#bulk-trash").onclick=()=>bulkUpdateItems("trash");$("#list-status").value=state.listStatus;$("#list-sort").value=state.listSort;
   if(state.page==="log"){$("#log-date").onchange=changeLogDate;$("#log-date-prev").onclick=()=>shiftLogDate(-1);$("#log-date-next").onclick=()=>shiftLogDate(1);$("#log-date-today").onclick=()=>changeLogDate({target:{value:localDateValue()}});$("#log-date-all").onclick=()=>changeLogDate({target:{value:""}})}
   drawItemList();drawEditor();
 }
@@ -417,17 +465,19 @@ async function shiftLogDate(offset){
   const next=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2])+offset);
   await changeLogDate({target:{value:localDateValue(next)}});
 }
-async function renderTrash(){
-  const data=await api("/api/trash");
-  const items=data.items||[],files=data.files||[];
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>回收站</h1><p>误删的内容会暂时保留在这里，恢复后会回到原来的工作空间。</p></div></div><div class="trash-grid"><section class="surface"><div class="surface-head"><h2>内容</h2><span class="surface-count">'+items.length+'</span></div><div id="trash-items" class="trash-list"></div></section><section class="surface"><div class="surface-head"><h2>文件</h2><span class="surface-count">'+files.length+'</span></div><div id="trash-files" class="trash-list"></div></section></div>';
+async function renderTrash(itemOffset=0,fileOffset=0){
+  const data=await api("/api/trash?item_offset="+itemOffset+"&file_offset="+fileOffset);
+  const items=data.items||[],files=data.files||[],totals=data.totals||{},itemCount=Number(totals.items??items.length),fileCount=Number(totals.files??files.length),next=data.next_offsets||{};
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>回收站</h1><p>误删的内容会暂时保留在这里，恢复后会回到原来的工作空间。</p></div></div><div class="trash-grid"><section class="surface"><div class="surface-head"><h2>内容</h2><span class="surface-count">'+(items.length<itemCount?itemOffset+items.length+" / "+itemCount:itemCount)+'</span></div><div id="trash-items" class="trash-list"></div>'+(next.items!=null?'<button id="trash-items-more" class="button button-secondary">加载更早内容</button>':"")+'</section><section class="surface"><div class="surface-head"><h2>文件</h2><span class="surface-count">'+(files.length<fileCount?fileOffset+files.length+" / "+fileCount:fileCount)+'</span></div><div id="trash-files" class="trash-list"></div>'+(next.files!=null?'<button id="trash-files-more" class="button button-secondary">加载更早文件</button>':"")+'</section></div>';
   const itemBox=$("#trash-items"),fileBox=$("#trash-files");
   itemBox.innerHTML=items.length?items.map(item=>'<div class="trash-row"><div class="trash-row-body">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · 删除于 '+formatDate(item.deleted_at,true)+'</div></div></div><div class="trash-actions"><button class="button button-secondary restore-item" data-id="'+item.id+'">恢复</button><button class="button button-danger purge-item" data-id="'+item.id+'">永久删除</button></div></div>').join(""):'<div class="empty-state"><strong>回收站是空的</strong><p>最近删除的内容会在这里暂存。</p></div>';
-  fileBox.innerHTML=files.length?files.map(file=>'<div class="trash-row"><div class="trash-row-body"><span class="file-symbol">↧</span><div class="recent-body"><div class="recent-title">'+esc(file.name)+'</div><div class="recent-meta">'+formatBytes(file.size)+' · 删除于 '+formatDate(file.deleted_at,true)+'</div></div></div><div class="trash-actions"><button class="button button-secondary restore-file" data-id="'+esc(file.id)+'">恢复</button><button class="button button-danger purge-file" data-id="'+esc(file.id)+'">永久删除</button></div></div>').join(""):'<div class="empty-state"><strong>没有已删除文件</strong><p>上传文件后，删除的附件会在这里暂存。</p></div>';
-  $$(".restore-item").forEach(button=>button.onclick=async()=>{await api("/api/trash/items/"+button.dataset.id+"/restore",{method:"POST"});await renderTrash()});
-  $$(".purge-item").forEach(button=>button.onclick=async()=>{if(window.confirm("永久删除后无法恢复，确定继续吗？")){await api("/api/trash/items/"+button.dataset.id,{method:"DELETE"});await renderTrash()}});
-  $$(".restore-file").forEach(button=>button.onclick=async()=>{await api("/api/trash/files/"+encodeURIComponent(button.dataset.id)+"/restore",{method:"POST"});await renderTrash()});
-  $$(".purge-file").forEach(button=>button.onclick=async()=>{if(window.confirm("永久删除后无法恢复，确定继续吗？")){await api("/api/trash/files/"+encodeURIComponent(button.dataset.id),{method:"DELETE"});await renderTrash()}});
+  fileBox.innerHTML=files.length?files.map(file=>'<div class="trash-row"><div class="trash-row-body"><span class="file-symbol">↧</span><div class="recent-body"><div class="recent-title">'+esc(file.name)+'</div><div class="file-size">'+formatBytes(file.size)+' · 删除于 '+formatDate(file.deleted_at,true)+'</div></div></div><div class="trash-actions"><button class="button button-secondary restore-file" data-id="'+esc(file.id)+'">恢复</button><button class="button button-danger purge-file" data-id="'+esc(file.id)+'">永久删除</button></div></div>').join(""):'<div class="empty-state"><strong>没有已删除文件</strong><p>上传文件后，删除的附件会在这里暂存。</p></div>';
+  $$(".restore-item").forEach(button=>button.onclick=async()=>{await api("/api/trash/items/"+button.dataset.id+"/restore",{method:"POST"});await renderTrash(itemOffset,fileOffset)});
+  $$(".purge-item").forEach(button=>button.onclick=async()=>{if(window.confirm("永久删除后无法恢复，确定继续吗？")){await api("/api/trash/items/"+button.dataset.id,{method:"DELETE"});await renderTrash(itemOffset,fileOffset)}});
+  $$(".restore-file").forEach(button=>button.onclick=async()=>{await api("/api/trash/files/"+encodeURIComponent(button.dataset.id)+"/restore",{method:"POST"});await renderTrash(itemOffset,fileOffset)});
+  $$(".purge-file").forEach(button=>button.onclick=async()=>{if(window.confirm("永久删除后无法恢复，确定继续吗？")){await api("/api/trash/files/"+encodeURIComponent(button.dataset.id),{method:"DELETE"});await renderTrash(itemOffset,fileOffset)}});
+  $("#trash-items-more")?.addEventListener("click",()=>renderTrash(next.items||itemOffset,fileOffset));
+  $("#trash-files-more")?.addEventListener("click",()=>renderTrash(itemOffset,next.files||fileOffset));
 }
 function drawBulkToolbar(){
   const toolbar=$("#bulk-toolbar"),selectAll=$("#select-all-items");
@@ -473,9 +523,11 @@ function drawListPagination(){
   $("#load-more-items")?.addEventListener("click",loadMoreItems);
 }
 function drawItemList(){
-  const query=$("#list-search")?.value.toLowerCase()||"",status=$("#list-status")?.value||"",sort=$("#list-sort")?.value||state.listSort;state.listSort=sort;
+  const query=$("#list-search")?.value.toLowerCase()||"",status=$("#list-status")?.value||state.listStatus||"",sort=$("#list-sort")?.value||state.listSort;state.listStatus=status;state.listSort=sort;
   drawTagFilter();
-  const items=state.items.filter(item=>(!status||item.status===status)&&(!state.listTag||item.tags_list?.includes(state.listTag)||item.tags?.split(",").includes(state.listTag))&&(!query||(item.title+" "+item.summary+" "+item.tags+" "+item.content).toLowerCase().includes(query))).sort((a,b)=>compareItems(a,b,sort));
+  // The API owns the global order so cursor pages cannot be reordered
+  // differently by the browser (especially for locale-sensitive titles).
+  const items=state.items.filter(item=>(!status||item.status===status)&&(!state.listTag||item.tags_list?.includes(state.listTag)||item.tags?.split(",").includes(state.listTag))&&(!query||(item.title+" "+item.summary+" "+item.tags+" "+item.content).toLowerCase().includes(query)));
   state.visibleItemIds=items.map(item=>item.id);
   const box=$("#item-list");
   if(!items.length){box.innerHTML='<div class="empty-state"><strong>这里还没有内容</strong><p>点击右上角，先创建第一条。</p></div>';drawBulkToolbar();drawListPagination();return}
@@ -487,18 +539,19 @@ function drawItemList(){
 }
 function compareItems(a,b,sort){
   const updated=(b.updated_at||"").localeCompare(a.updated_at||"");
-  if(sort==="priority")return Number(b.priority||0)-Number(a.priority||0)||updated;
-  if(sort==="due")return (a.due_date||"9999-12-31").localeCompare(b.due_date||"9999-12-31")||updated;
-  if(sort==="title")return String(a.title||"").localeCompare(String(b.title||""),"zh-CN")||updated;
-  return Number(b.pinned||0)-Number(a.pinned||0)||updated;
+  const pinned=Number(b.pinned||0)-Number(a.pinned||0);
+  if(sort==="priority")return pinned||Number(b.priority||0)-Number(a.priority||0)||updated;
+  if(sort==="due")return pinned||(a.due_date?0:1)-(b.due_date?0:1)||(a.due_date||"").localeCompare(b.due_date||"")||updated;
+  if(sort==="title")return pinned||String(a.title||"").localeCompare(String(b.title||""),"zh-CN")||Number(a.id)-Number(b.id);
+  return pinned||updated;
 }
 function drawTagFilter(){
   const box=$("#list-tags");
   if(!box)return;
-  const counts={};state.items.forEach(item=>(item.tags_list||String(item.tags||"").split(",").filter(Boolean)).forEach(tag=>{counts[tag]=(counts[tag]||0)+1}));
+  const counts={},tagItems=state.allItems.length?state.allItems:state.items;tagItems.forEach(item=>(item.tags_list||String(item.tags||"").split(",").filter(Boolean)).forEach(tag=>{counts[tag]=(counts[tag]||0)+1}));
   const tags=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a.localeCompare(b)).slice(0,18);
   box.innerHTML=tags.length?'<button class="tag-chip '+(!state.listTag?"is-active":"")+'" data-tag="">全部</button>'+tags.map(tag=>'<button class="tag-chip '+(state.listTag===tag?"is-active":"")+'" data-tag="'+esc(tag)+'">'+esc(tag)+' <small>'+counts[tag]+'</small></button>').join(""):'';
-  $$(".tag-chip").forEach(button=>button.onclick=()=>{state.listTag=button.dataset.tag;drawItemList()});
+  $$(".tag-chip").forEach(button=>button.onclick=()=>{state.listTag=button.dataset.tag;scheduleListFilter()});
 }
 function relatedTargetOptions(item){
   const excluded=new Set([String(item.id)]);
@@ -544,7 +597,9 @@ async function restoreRevision(event){
   try{
     const previousKind=state.page,result=await api("/api/items/"+encodeURIComponent(itemId)+"/revisions/"+encodeURIComponent(revisionId)+"/restore",{method:"POST"});
     state.selected=result.item;state.savedSnapshot=editorSnapshot(result.item);clearLocalDraft(previousKind,itemId);clearLocalDraft(result.item.kind,result.item.id);
-    if(previousKind!==result.item.kind){state.page=result.item.kind;state.listTag="";state.listSort="updated";$$('.nav-item').forEach(item=>item.classList.toggle("is-active",item.dataset.page===state.page));$("#page-heading").textContent=labels[state.page]}
+    if(previousKind!==result.item.kind){if(previousKind==="log")state.logDate="";state.page=result.item.kind;state.listTag="";state.listSort="updated";$$('.nav-item').forEach(item=>item.classList.toggle("is-active",item.dataset.page===state.page));$("#page-heading").textContent=labels[state.page]}
+    if(state.page==="log")state.logDate=result.item.entry_date||"";
+    if($("#log-date"))$("#log-date").value=state.logDate;
     await loadItems();drawItemList();drawEditor();$("#save-indicator").textContent="已恢复历史版本 · "+new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
   }catch(error){button.disabled=false;button.textContent="恢复";window.alert(error.message)}
 }
@@ -571,7 +626,7 @@ function drawEditor(){
   const editor=$("#editor");
   if(!state.selected){editor.innerHTML='<div class="editor-empty"><div><div class="empty-icon">✎</div><strong>选择一条内容开始整理</strong><p>也可以点击右上角新建一条。</p></div></div>';return}
   const item=state.selected;
-  const localDraft=item.id?readLocalDraft(state.page,item.id):null;
+  const localDraft=item.id?readLocalDraft(state.page,item.id):readLocalDraft(state.page,null,state.page==="log"?(item.entry_date||state.logDate):"");
   const draftAvailable=Boolean(localDraft&&(!item.id||String(localDraft.base_updated_at||"")===String(item.updated_at||"")));
   const staleDraftAvailable=Boolean(localDraft&&item.id&&String(localDraft.base_updated_at||"")!==String(item.updated_at||""));
   const conflictDraftAvailable=Boolean(localDraft&&localDraft.conflict&&item.id);
@@ -590,7 +645,7 @@ function drawEditor(){
   const historyMarkup=item.id?'<section class="history-panel"><div class="history-head"><div><strong>编辑历史</strong><small>每次保存前的版本最多保留 100 个</small></div></div><div id="item-history" class="history-list"><span class="history-empty">加载中…</span></div></section>':'';
   editor.innerHTML=draftNotice+'<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><div id="task-progress" class="editor-task-progress"></div><textarea id="edit-content" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>内容类型</span><select id="edit-kind">'+kindOptions+'</select></label><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label id="entry-date-field" class="form-field '+(item.kind==="log"?"":"is-hidden")+'"><span>日志日期</span><input id="edit-entry-date" type="date" value="'+esc(item.entry_date||"")+'"></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label><label class="form-field"><span>上级内容</span><select id="edit-parent"><option value="">无上级内容</option>'+parentOptions+'</select></label><label class="form-check"><input id="edit-pinned" type="checkbox" '+(item.pinned?"checked":"")+'><span>置顶内容</span></label></div></div>'+relationMarkup+attachmentMarkup+historyMarkup+'<div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span>'+'<button id="focus-mode" class="button button-secondary">'+(state.focusMode?"退出专注":"专注模式")+'</button>'+(item.id?'<button id="duplicate-content" class="button button-secondary">另存副本</button>':"")+'<button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
   $("#edit-kind").value=item.kind||state.page;$("#edit-status").value=item.status||"inbox";$("#edit-priority").value=String(item.priority||2);$("#edit-parent").value=item.parent_id==null?"":String(item.parent_id);
-  $("#edit-kind").onchange=()=>{$("#entry-date-field").classList.toggle("is-hidden",$("#edit-kind").value!=="log")};
+  $("#edit-kind").onchange=()=>{const isLog=$("#edit-kind").value==="log";$("#entry-date-field").classList.toggle("is-hidden",!isLog);if(isLog&&!$("#edit-entry-date").value)$("#edit-entry-date").value=state.selected?.entry_date||state.logDate||localDateValue()};
   $$(".editor-tab").forEach(tab=>tab.onclick=()=>{collectEditorIntoState();state.editorTab=tab.dataset.tab;drawEditor()});
   $("#edit-content").oninput=()=>{renderTaskProgress();if(state.editorTab==="preview"){$("#content-preview").innerHTML=parseMarkdown($("#edit-content").value);$$("#content-preview input[type=checkbox]").forEach(input=>input.onchange=toggleTask)}};
   $$("#content-preview input[type=checkbox]").forEach(input=>input.onchange=toggleTask);
@@ -598,15 +653,16 @@ function drawEditor(){
   $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#focus-mode").onclick=toggleFocusMode;if($("#duplicate-content"))$("#duplicate-content").onclick=duplicateItem;$("#assistant-content").onclick=openAssistant;$("#assistant-content").disabled=!state.assistant?.available;if($("#assistant-content").disabled)$("#assistant-content").title="服务器尚未配置本地 Codex";if($("#add-related"))$("#add-related").onclick=addRelatedItem;
   $$("#editor input, #editor textarea, #editor select").forEach(field=>field.addEventListener("input",scheduleLocalDraft));
   if(draftAvailable||staleDraftAvailable||conflictDraftAvailable){
-    $("#restore-draft").onclick=()=>{Object.assign(state.selected,localDraft);clearLocalDraft(state.page,state.selected.id);drawEditor();$("#save-indicator").textContent="草稿已恢复，请保存内容"};
-    $("#dismiss-draft").onclick=()=>{clearLocalDraft(state.page,state.selected.id);drawEditor()};
+    $("#restore-draft").onclick=()=>{Object.assign(state.selected,localDraft);clearLocalDraft(state.page,state.selected.id,state.selected.entry_date||state.logDate);drawEditor();$("#save-indicator").textContent="草稿已恢复，请保存内容"};
+    $("#dismiss-draft").onclick=()=>{clearLocalDraft(state.page,state.selected.id,state.selected.entry_date||state.logDate);drawEditor()};
   }
   $$(".related-link").forEach(link=>link.onclick=async()=>{try{const result=await api("/api/items/"+encodeURIComponent(link.dataset.relatedId));if(!await goPage(result.item.kind))return;state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()}catch(error){window.alert(error.message)}});
   if(item.id){renderItemFiles(item.id);renderRelatedItems(item.id);renderItemHistory(item.id)}
   $("#edit-title").focus();
 }
 function collectEditor(){
-  return {kind:$("#edit-kind").value,title:$("#edit-title").value.trim(),summary:$("#edit-summary").value.trim(),content:$("#edit-content").value,tags:$("#edit-tags").value,status:$("#edit-status").value,priority:Number($("#edit-priority").value),entry_date:$("#edit-entry-date")?.value||state.selected?.entry_date||"",due_date:$("#edit-due").value,parent_id:$("#edit-parent").value?Number($("#edit-parent").value):null,pinned:$("#edit-pinned").checked};
+  const kind=$("#edit-kind").value;
+  return {kind,title:$("#edit-title").value.trim(),summary:$("#edit-summary").value.trim(),content:$("#edit-content").value,tags:$("#edit-tags").value,status:$("#edit-status").value,priority:Number($("#edit-priority").value),entry_date:kind==="log"?($("#edit-entry-date")?.value||""):"",due_date:$("#edit-due").value,parent_id:$("#edit-parent").value?Number($("#edit-parent").value):null,pinned:$("#edit-pinned").checked};
 }
 function collectEditorIntoState(){
   if(!state.selected||!$("#edit-title"))return;
@@ -617,7 +673,7 @@ function duplicateItem(){
   collectEditorIntoState();
   const source=state.selected;
   state.selected={...source,id:null,title:(source.title||"未命名")+" · 副本",status:"inbox",due_date:"",pinned:false,created_at:"",updated_at:"",deleted_at:""};
-  state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";clearLocalDraft(state.page,null);drawItemList();drawEditor();$("#save-indicator").textContent="副本已创建，保存后写入知识库";
+  state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";clearLocalDraft(state.page,null,state.page==="log"?state.logDate:"");drawItemList();drawEditor();$("#save-indicator").textContent="副本已创建，保存后写入知识库";
 }
 function toggleFocusMode(){
   collectEditorIntoState();
@@ -661,9 +717,11 @@ async function saveItem(){
   if(!data.title){indicator.textContent="请先填写标题";return}
   const button=$("#save-content");button.disabled=true;indicator.textContent="保存中…";
   try{
-    const previousKind=state.page,payload=state.selected.id?{...data,base_updated_at:state.selected.updated_at||""}:data,result=state.selected.id?await api("/api/items/"+state.selected.id,{method:"PUT",body:JSON.stringify(payload)}):await api("/api/items",{method:"POST",body:JSON.stringify(payload)});
-    const draftId=state.selected.id||null;state.selected=result.item;state.savedSnapshot=editorSnapshot(result.item);clearLocalDraft(previousKind,draftId);clearLocalDraft(result.item.kind,result.item.id||null);
-    if(previousKind!==result.item.kind){state.page=result.item.kind;state.listTag="";state.listSort="updated";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===state.page));$("#page-heading").textContent=labels[state.page]}
+    const previousKind=state.page,draftDate=state.selected.entry_date||$("#edit-entry-date")?.value||state.logDate||"",payload=state.selected.id?{...data,base_updated_at:state.selected.updated_at||""}:data,result=state.selected.id?await api("/api/items/"+state.selected.id,{method:"PUT",body:JSON.stringify(payload)}):await api("/api/items",{method:"POST",body:JSON.stringify(payload)});
+    const draftId=state.selected.id||null;state.selected=result.item;state.savedSnapshot=editorSnapshot(result.item);clearLocalDraft(previousKind,draftId,draftDate);clearLocalDraft(result.item.kind,result.item.id||null,result.item.entry_date||"");
+    if(previousKind!==result.item.kind){if(previousKind==="log")state.logDate="";state.page=result.item.kind;state.listTag="";state.listSort="updated";$$('.nav-item').forEach(item=>item.classList.toggle("is-active",item.dataset.page===state.page));$("#page-heading").textContent=labels[state.page]}
+    if(state.page==="log")state.logDate=result.item.entry_date||"";
+    if($("#log-date"))$("#log-date").value=state.logDate;
     await loadItems();drawItemList();if(!editorHasChanges())drawEditor();$("#save-indicator").textContent="已保存 · "+new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
   }catch(error){
     if(error.status===409&&error.body?.item){
@@ -678,7 +736,7 @@ async function saveItem(){
 }
 async function deleteItem(){
   if(!state.selected.id||!window.confirm("确定把这条内容移入回收站吗？之后仍可恢复。"))return;
-  const itemId=state.selected.id;clearLocalDraft(state.page,itemId);await api("/api/items/"+itemId,{method:"DELETE"});state.selected=null;state.savedSnapshot=null;await loadItems();drawItemList();drawEditor()
+  const itemId=state.selected.id,entryDate=$("#edit-entry-date")?.value||state.selected.entry_date||state.logDate;clearLocalDraft(state.page,itemId,entryDate);await api("/api/items/"+itemId,{method:"DELETE"});state.selected=null;state.savedSnapshot=null;await loadItems();drawItemList();drawEditor()
 }
 async function renderItemFiles(itemId){
   const list=$("#item-file-list");

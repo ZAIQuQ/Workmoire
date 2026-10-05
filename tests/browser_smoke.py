@@ -97,6 +97,16 @@ def main():
                 assert page.context.request.get(
                     "http://127.0.0.1:%d/api/items?kind=log&entry_date=2026-01-02" % server.server_port
                 ).json()["total"] == 2
+                page.locator("#edit-entry-date").fill("2026-01-03")
+                page.locator("#save-content").click()
+                expect(page.locator("#save-indicator")).to_contain_text("已保存")
+                expect(page.locator("#log-date")).to_have_value("2026-01-03")
+                assert page.context.request.get(
+                    "http://127.0.0.1:%d/api/items?kind=log&entry_date=2026-01-03" % server.server_port
+                ).json()["total"] == 1
+                assert page.context.request.get(
+                    "http://127.0.0.1:%d/api/items?kind=log&entry_date=2026-01-02" % server.server_port
+                ).json()["total"] == 1
                 calendar_response = page.context.request.post(
                     "http://127.0.0.1:%d/api/items" % server.server_port,
                     data={"kind": "project", "title": "Synthetic calendar project", "due_date": date.today().isoformat(), "status": "active"},

@@ -70,6 +70,28 @@ class PaginationHttpTests(unittest.TestCase):
     def test_invalid_cursor_is_rejected(self):
         self.request("/api/items?cursor=not-a-valid-cursor", status=400)
 
+    def test_sort_aware_cursors_cover_the_full_archive(self):
+        self.request("/api/items", "POST", {"kind": "note", "title": "Zulu", "priority": 1, "due_date": "", "tags": "alpha"}, status=201)
+        self.request("/api/items", "POST", {"kind": "note", "title": "Alpha", "priority": 3, "due_date": "2026-01-03"}, status=201)
+        self.request("/api/items", "POST", {"kind": "note", "title": "Bravo", "priority": 2, "due_date": "2026-01-01"}, status=201)
+        self.request("/api/items", "POST", {"kind": "note", "title": "Charlie", "priority": 3, "due_date": "2026-01-02"}, status=201)
+        for sort in ("updated", "priority", "due", "title"):
+            first = self.request("/api/items?sort=%s&limit=2" % sort)
+            self.assertEqual(first["sort"], sort)
+            self.assertEqual(first["total"], 4)
+            second = self.request("/api/items?sort=%s&limit=2&cursor=%s" % (sort, first["next_cursor"]))
+            ids = [item["id"] for item in first["items"] + second["items"]]
+            self.assertEqual(len(ids), len(set(ids)))
+            self.assertEqual(len(ids), 4)
+            if sort == "priority":
+                self.assertEqual([item["title"] for item in first["items"]], ["Charlie", "Alpha"])
+            elif sort == "due":
+                self.assertEqual([item["title"] for item in first["items"]], ["Bravo", "Charlie"])
+            elif sort == "title":
+                self.assertEqual([item["title"] for item in first["items"]], ["Alpha", "Bravo"])
+            if sort != "updated":
+                self.request("/api/items?sort=updated&cursor=" + first["next_cursor"], status=400)
+
 
 if __name__ == "__main__":
     unittest.main()

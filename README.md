@@ -25,7 +25,10 @@ introducing a large runtime dependency stack.
 - Change an item's content type in the editor so a captured note can become a project, paper, or work log without re-entering it.
 - Markdown editing with a safe client-side preview, including headings, task lists, inline code, emphasis, and HTTPS links. Task-list checkboxes can be toggled in preview and remain an unsaved editor change until you explicitly save.
 - Task-list progress appears in content lists and the editor, so project and paper checklists remain scannable without opening each item.
-- Status, priority, due date, tags, and server-side search.
+- Status, priority, due date, tags, and server-side search. Status/tag filters
+  and all list sorts are evaluated across the full archive before cursor
+  pagination, so “highest priority”, “earliest due”, and title order do not
+  silently stop at the first page.
 - Global search covers content and uploaded files, including a file's associated content title.
 - Global search shows a matching context preview and can be narrowed by content type or status.
 - Search ranks title matches ahead of summaries, tags, and body-only matches so a precise idea is easier to recover.
@@ -34,7 +37,7 @@ introducing a large runtime dependency stack.
 - Add reversible many-to-many links between any active notes, projects, papers, and logs to connect ideas across the hierarchy.
 - Filter and sort each content space by tags, priority, deadlines, or title without leaving the current workspace.
 - Content spaces use stable cursor pagination with an explicit load-more affordance, so a growing archive remains discoverable beyond the first page.
-- Work-log spaces can filter by an exact \`YYYY-MM-DD\` date and move between days without relying on UTC timestamps.
+- Work-log spaces can filter by an exact \`YYYY-MM-DD\` date and move between days without relying on UTC timestamps. Dashboard due dates and daily review use the browser's local civil date explicitly, avoiding a server-timezone mismatch.
 - Select several items in a content space to change their status in one transaction or move them to the recoverable trash; bulk actions are authenticated and limited to 100 items.
 - Recoverable deletion with a private trash area for content and uploaded files.
 - Trashed items stay out of search, active statistics, and item exports until restored.

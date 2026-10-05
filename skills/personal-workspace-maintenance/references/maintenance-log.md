@@ -89,3 +89,14 @@ changes belong in normal commit history.
 - Made history restore check for unsaved editor changes and state its draft
   clearing effect before the explicit restore confirmation, preventing a
   reversible history action from silently discarding current edits.
+- Added version-aware list cursors for priority, due-date, title, and updated
+  sorting; status/tag filters now run on the full server archive. Pinning
+  advances the item version, legacy unversioned session cookies are rejected,
+  imports reject hierarchy cycles, and dashboard/review “today” is supplied
+  as an explicit browser civil date. Updated source, tests, README, release
+  checklist, and this skill together so these data and deployment invariants
+  remain reviewable.
+- Extended the same full-archive and bounded-response contract to hierarchy
+  candidates, tags, review queues, calendars, and trash; repeated unchanged
+  saves now keep timestamps and history stable. Added browser coverage for a
+  work-log date move so the active civil-day view follows the saved item.

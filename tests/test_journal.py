@@ -78,6 +78,24 @@ class JournalHttpTests(unittest.TestCase):
         filtered = self.request("/api/items?kind=log&entry_date=2026-02-03")
         self.assertEqual([item["id"] for item in filtered["items"]], [first["id"]])
         self.request("/api/items?entry_date=2026-2-03", status=400)
+
+    def test_status_and_tag_filters_are_validated_before_pagination(self):
+        self.request("/api/items", "POST", {"kind": "log", "title": "Tagged active", "status": "active", "tags": "研究,实验"}, 201)
+        self.request("/api/items", "POST", {"kind": "log", "title": "Other status", "status": "done", "tags": "研究"}, 201)
+        filtered = self.request("/api/items?kind=log&status=active&tag=%E7%A0%94%E7%A9%B6&limit=1")
+        self.assertEqual(filtered["total"], 1)
+        self.assertEqual(filtered["items"][0]["title"], "Tagged active")
+        self.request("/api/items?status=unknown", status=400)
+        self.request("/api/items?tag=bad%2Ctag", status=400)
+
+    def test_stats_and_review_accept_explicit_civil_today(self):
+        self.request("/api/items", "POST", {"kind": "project", "title": "Explicit due", "due_date": "2026-01-01", "status": "active"}, 201)
+        stats = self.request("/api/stats?today=2026-01-02")
+        self.assertEqual(stats["today"], "2026-01-02")
+        self.assertEqual([item["title"] for item in stats["overdue"]], ["Explicit due"])
+        review = self.request("/api/review?today=2026-01-02")
+        self.assertEqual(review["today_date"], "2026-01-02")
+        self.request("/api/review?today=2026-2-02", status=400)
         self.request(
             "/api/items",
             "POST",
@@ -141,6 +159,22 @@ class JournalHttpTests(unittest.TestCase):
         self.assertEqual(items[1], "2026-04-07")
         self.assertEqual(items[2], "")
         self.assertEqual(revision_date, "2026-04-08")
+
+    def test_import_rejects_parent_cycles_without_partial_rows(self):
+        cyclic = {
+            "format": "workmoire-export",
+            "version": 1,
+            "items": [
+                {"id": 1, "kind": "project", "title": "A", "parent_id": 2},
+                {"id": 2, "kind": "note", "title": "B", "parent_id": 1},
+            ],
+            "links": [],
+            "files": [],
+            "activity": [],
+            "revisions": [],
+        }
+        self.request("/api/import", "POST", cyclic, 400)
+        self.assertEqual(self.request("/api/items")["total"], 0)
 
 
 class JournalValidationTests(unittest.TestCase):

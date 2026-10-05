@@ -112,6 +112,26 @@ class ConflictHttpTests(unittest.TestCase):
             thread.join(timeout=5)
         self.assertEqual(sorted(outcomes), [200, 409])
 
+    def test_pin_bumps_item_version_and_blocks_stale_edit(self):
+        original = self.request("/api/items", "POST", {"kind": "note", "title": "可置顶内容"}, status=201)["item"]
+        pinned = self.request("/api/items/%d/pin" % original["id"], "POST", {"pinned": True})["item"]
+        self.assertTrue(pinned["pinned"])
+        self.assertNotEqual(original["updated_at"], pinned["updated_at"])
+        conflict = self.request(
+            "/api/items/%d" % original["id"],
+            "PUT",
+            {"kind": "note", "title": "不应覆盖置顶", "base_updated_at": original["updated_at"]},
+            status=409,
+        )
+        self.assertTrue(conflict["item"]["pinned"])
+
+    def test_repeating_the_same_save_does_not_create_a_fake_revision(self):
+        original = self.request("/api/items", "POST", {"kind": "note", "title": "不变内容"}, status=201)["item"]
+        payload = {field: original[field] for field in ("kind", "title", "summary", "content", "tags", "status", "priority", "due_date", "entry_date", "parent_id", "pinned")}
+        repeated = self.request("/api/items/%d" % original["id"], "PUT", {**payload, "base_updated_at": original["updated_at"]})["item"]
+        self.assertEqual(repeated["updated_at"], original["updated_at"])
+        self.assertEqual(self.request("/api/items/%d/revisions" % original["id"])["revisions"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
