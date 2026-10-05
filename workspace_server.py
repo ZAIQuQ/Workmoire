@@ -15,6 +15,7 @@ import ipaddress
 import json
 import mimetypes
 import os
+import re
 import secrets
 import shlex
 import shutil
@@ -188,6 +189,7 @@ def init_db() -> None:
           status TEXT NOT NULL DEFAULT 'inbox',
           priority INTEGER NOT NULL DEFAULT 2,
           due_date TEXT NOT NULL DEFAULT '',
+          entry_date TEXT NOT NULL DEFAULT '',
           parent_id INTEGER,
           pinned INTEGER NOT NULL DEFAULT 0,
           deleted_at TEXT NOT NULL DEFAULT '',
@@ -234,6 +236,7 @@ def init_db() -> None:
           status TEXT NOT NULL DEFAULT 'inbox',
           priority INTEGER NOT NULL DEFAULT 2,
           due_date TEXT NOT NULL DEFAULT '',
+          entry_date TEXT NOT NULL DEFAULT '',
           parent_id INTEGER,
           pinned INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL,
@@ -247,9 +250,11 @@ def init_db() -> None:
     if "session_version" not in user_columns:
         con.execute("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 1")
     columns = {row["name"] for row in con.execute("PRAGMA table_info(items)")}
+    added_item_entry_date = "entry_date" not in columns
     for name, definition in (
         ("priority", "INTEGER NOT NULL DEFAULT 2"),
         ("due_date", "TEXT NOT NULL DEFAULT ''"),
+        ("entry_date", "TEXT NOT NULL DEFAULT ''"),
         ("parent_id", "INTEGER"),
         ("pinned", "INTEGER NOT NULL DEFAULT 0"),
         ("deleted_at", "TEXT NOT NULL DEFAULT ''"),
@@ -261,6 +266,29 @@ def init_db() -> None:
         con.execute("ALTER TABLE files ADD COLUMN item_id INTEGER")
     if "deleted_at" not in file_columns:
         con.execute("ALTER TABLE files ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''")
+    revision_columns = {row["name"] for row in con.execute("PRAGMA table_info(item_revisions)")}
+    added_revision_entry_date = "entry_date" not in revision_columns
+    if "entry_date" not in revision_columns:
+        con.execute("ALTER TABLE item_revisions ADD COLUMN entry_date TEXT NOT NULL DEFAULT ''")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_items_log_entry_date ON items(kind, entry_date, updated_at DESC, id DESC)")
+    # Only recover dates whose legacy title used an unambiguous, exact date
+    # format.  Free-form titles and timestamps are deliberately left blank.
+    for table, should_backfill in (("items", added_item_entry_date), ("item_revisions", added_revision_entry_date)):
+        if not should_backfill:
+            continue
+        rows = con.execute("SELECT id,title FROM %s WHERE kind='log' AND entry_date=''" % table).fetchall()
+        for row in rows:
+            title = str(row["title"]).strip()
+            match = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", title)
+            if not match:
+                match = re.fullmatch(r"(\d{4})年(\d{1,2})月(\d{1,2})日", title)
+            if not match:
+                continue
+            try:
+                recovered = date(int(match.group(1)), int(match.group(2)), int(match.group(3))).isoformat()
+            except ValueError:
+                continue
+            con.execute("UPDATE %s SET entry_date=? WHERE id=?" % table, (recovered, row["id"]))
     con.commit()
     con.close()
 
@@ -324,6 +352,34 @@ def safe_tags(value: object) -> str:
         if tag and tag not in parts:
             parts.append(tag[:32])
     return ",".join(parts[:12])
+
+
+def optional_entry_date(value: object) -> str:
+    """Normalize an optional civil date without accepting partial/truncated input."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        raise ValueError("日志日期格式无效，应为 YYYY-MM-DD")
+    try:
+        date.fromisoformat(text)
+    except ValueError as exc:
+        raise ValueError("日志日期无效") from exc
+    return text
+
+
+def legacy_entry_date(title: object) -> str:
+    """Recover only exact date titles from pre-entry-date exports."""
+    text = str(title or "").strip()
+    match = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", text)
+    if not match:
+        match = re.fullmatch(r"(\d{4})年(\d{1,2})月(\d{1,2})日", text)
+    if not match:
+        return ""
+    try:
+        return date(int(match.group(1)), int(match.group(2)), int(match.group(3))).isoformat()
+    except ValueError:
+        return ""
 
 
 def codex_command() -> list[str] | None:
@@ -393,13 +449,13 @@ def as_item(row: sqlite3.Row) -> dict:
     return result
 
 
-REVISION_FIELDS = ("kind", "title", "summary", "content", "tags", "status", "priority", "due_date", "parent_id", "pinned")
+REVISION_FIELDS = ("kind", "title", "summary", "content", "tags", "status", "priority", "due_date", "entry_date", "parent_id", "pinned")
 
 
 def record_revision(con: sqlite3.Connection, row: sqlite3.Row) -> None:
     values = [row[field] for field in REVISION_FIELDS]
     con.execute(
-        "INSERT INTO item_revisions(item_id,kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO item_revisions(item_id,kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [row["id"], *values, utc_now()],
     )
     con.execute(
@@ -596,7 +652,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             files = [dict(row) for row in con.execute("SELECT id,name,size,content_type,item_id,created_at FROM files WHERE deleted_at='' ORDER BY id")]
             activity = [dict(row) for row in con.execute("SELECT * FROM activity ORDER BY id")]
             revisions = [dict(row) for row in con.execute(
-                "SELECT id,item_id,kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,created_at "
+                "SELECT id,item_id,kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,created_at "
                 "FROM item_revisions WHERE item_id IN (SELECT id FROM items WHERE deleted_at='') ORDER BY id"
             )]
             links = [dict(row) for row in con.execute(
@@ -693,7 +749,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             con = open_db()
             total = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' ").fetchone()[0]
             rows = con.execute(
-                "SELECT id,kind,title,summary,status,priority,due_date,parent_id,pinned,updated_at "
+                "SELECT id,kind,title,summary,status,priority,due_date,entry_date,parent_id,pinned,updated_at "
                 "FROM items WHERE deleted_at='' ORDER BY pinned DESC, updated_at DESC LIMIT ?",
                 (limit,),
             ).fetchall()
@@ -801,7 +857,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 self.error("内容不存在", 404)
                 return
             revisions = [dict(row) for row in con.execute(
-                "SELECT id,item_id,kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,created_at "
+                "SELECT id,item_id,kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,created_at "
                 "FROM item_revisions WHERE item_id=? ORDER BY id DESC LIMIT 100",
                 (item_id,),
             )]
@@ -815,6 +871,12 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             kind = params.get("kind", [""])[0]
             status = params.get("status", [""])[0]
             search = params.get("q", [""])[0].strip()
+            raw_entry_date = params.get("entry_date", [""])[0].strip()
+            try:
+                entry_date = optional_entry_date(raw_entry_date)
+            except ValueError as exc:
+                self.error(str(exc), 400)
+                return
             try:
                 limit = min(max(int(params.get("limit", ["200"])[0]), 1), 500)
             except ValueError:
@@ -832,6 +894,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if status in STATUSES:
                 clauses.append("status=?")
                 values.append(status)
+            if entry_date:
+                clauses.append("entry_date=?")
+                values.append(entry_date)
             if search:
                 clauses.append("(title LIKE ? OR summary LIKE ? OR content LIKE ? OR tags LIKE ?)")
                 needle = "%" + search + "%"
@@ -1080,7 +1145,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 record_revision(con, current)
                 stamp = utc_now()
                 con.execute(
-                    "UPDATE items SET kind=?,title=?,summary=?,content=?,tags=?,status=?,priority=?,due_date=?,parent_id=?,pinned=?,updated_at=? WHERE id=?",
+                    "UPDATE items SET kind=?,title=?,summary=?,content=?,tags=?,status=?,priority=?,due_date=?,entry_date=?,parent_id=?,pinned=?,updated_at=? WHERE id=?",
                     tuple(revision[field] for field in REVISION_FIELDS) + (stamp, item_id),
                 )
                 log_activity(con, "restore_revision", "item", item_id, "恢复历史版本 · " + revision["title"])
@@ -1252,8 +1317,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     id_map = {}
                     for source_id, item in prepared:
                         cursor = con.execute(
-                            "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                            (item["kind"], item["title"], item["summary"], item["content"], item["tags"], item["status"], item["priority"], item["due_date"], None, item["pinned"], "", utc_now(), utc_now()),
+                            "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                            (item["kind"], item["title"], item["summary"], item["content"], item["tags"], item["status"], item["priority"], item["due_date"], item["entry_date"], None, item["pinned"], "", utc_now(), utc_now()),
                         )
                         id_map[str(source_id)] = cursor.lastrowid
                     for source_id, item in prepared:
@@ -1271,8 +1336,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                         parent_id = revision["parent_id"]
                         mapped_parent = id_map.get(str(parent_id)) if parent_id is not None else None
                         con.execute(
-                            "INSERT INTO item_revisions(item_id,kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-                            (id_map[source_item], revision["kind"], revision["title"], revision["summary"], revision["content"], revision["tags"], revision["status"], revision["priority"], revision["due_date"], mapped_parent, revision["pinned"], created_at),
+                            "INSERT INTO item_revisions(item_id,kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                            (id_map[source_item], revision["kind"], revision["title"], revision["summary"], revision["content"], revision["tags"], revision["status"], revision["priority"], revision["due_date"], revision["entry_date"], mapped_parent, revision["pinned"], created_at),
                         )
                 self.json_response({"ok": True, "imported_items": len(prepared), "imported_revisions": len(prepared_revisions), "skipped_files": len(data.get("files", [])) if isinstance(data.get("files", []), list) else 0}, 201)
             except Exception as exc:
@@ -1345,8 +1410,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 con = open_db()
                 self.validate_parent(con, data["parent_id"])
                 cursor = con.execute(
-                    "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["parent_id"], data["pinned"], "", stamp, stamp),
+                    "INSERT INTO items(kind,title,summary,content,tags,status,priority,due_date,entry_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["entry_date"], data["parent_id"], data["pinned"], "", stamp, stamp),
                 )
                 item_id = cursor.lastrowid
                 log_activity(con, "create", "item", item_id, data["title"])
@@ -1445,8 +1510,10 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             priority = min(max(int(data.get("priority", 2)), 1), 3)
         except (TypeError, ValueError):
             priority = 2
-        due_date = str(data.get("due_date", "")).strip()[:10]
+        due_date = str(data.get("due_date", "")).strip()
         if due_date:
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", due_date):
+                raise ValueError("截止日期格式无效")
             try:
                 date.fromisoformat(due_date)
             except ValueError as exc:
@@ -1468,6 +1535,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             "status": status,
             "priority": priority,
             "due_date": due_date,
+            "entry_date": optional_entry_date(data.get("entry_date", "")) if "entry_date" in data else (legacy_entry_date(title) if kind == "log" else ""),
             "parent_id": parent_id,
             "pinned": 1 if data.get("pinned", False) in (True, 1, "1", "true", "True") else 0,
         }
@@ -1501,28 +1569,28 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 raw_data = parse_json(self)
                 data = self.normalized_item(raw_data)
                 base_updated_at = str(raw_data.get("base_updated_at", "")).strip()
-                stamp = utc_now()
-                con = open_db()
-                exists = con.execute("SELECT * FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
-                if not exists:
-                    con.close()
-                    self.error("内容不存在", 404)
-                    return
-                if base_updated_at and base_updated_at != exists["updated_at"]:
-                    current = as_item(exists)
-                    con.close()
-                    self.json_response({"error": "内容已在其他窗口更新，当前修改未保存", "item": current}, 409)
-                    return
-                self.validate_parent(con, data["parent_id"], item_id)
-                record_revision(con, exists)
-                con.execute(
-                    "UPDATE items SET kind=?,title=?,summary=?,content=?,tags=?,status=?,priority=?,due_date=?,parent_id=?,pinned=?,updated_at=? WHERE id=?",
-                    (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["parent_id"], data["pinned"], stamp, item_id),
-                )
-                log_activity(con, "update", "item", item_id, data["title"])
-                con.commit()
-                row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
-                con.close()
+                with closing(open_db()) as con, con:
+                    # Version check and write must share the same RESERVED lock;
+                    # otherwise two stale clients can both pass the check.
+                    con.execute("BEGIN IMMEDIATE")
+                    exists = con.execute("SELECT * FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
+                    if not exists:
+                        self.error("内容不存在", 404)
+                        return
+                    if base_updated_at and base_updated_at != exists["updated_at"]:
+                        self.json_response({"error": "内容已在其他窗口更新，当前修改未保存", "item": as_item(exists)}, 409)
+                        return
+                    if "entry_date" not in raw_data:
+                        data["entry_date"] = exists["entry_date"]
+                    self.validate_parent(con, data["parent_id"], item_id)
+                    record_revision(con, exists)
+                    stamp = utc_now()
+                    con.execute(
+                        "UPDATE items SET kind=?,title=?,summary=?,content=?,tags=?,status=?,priority=?,due_date=?,entry_date=?,parent_id=?,pinned=?,updated_at=? WHERE id=?",
+                        (data["kind"], data["title"], data["summary"], data["content"], data["tags"], data["status"], data["priority"], data["due_date"], data["entry_date"], data["parent_id"], data["pinned"], stamp, item_id),
+                    )
+                    log_activity(con, "update", "item", item_id, data["title"])
+                    row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
                 self.json_response({"item": as_item(row)})
             except Exception as exc:
                 self.request_error(exc)

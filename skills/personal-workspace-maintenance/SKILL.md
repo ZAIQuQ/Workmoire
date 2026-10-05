@@ -11,7 +11,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 
 - The Git repository is public-safe source. Never commit personal notes, papers, work logs, uploaded files, SQLite databases, backups, production .env files, server addresses, usernames, SSH material, access tokens, cookies, logs, or generated runtime state.
 - Runtime data stays outside the checkout in the configured WORKSPACE_DATA_DIR. Treat the database and file directory as user data and back them up before schema changes or destructive operations.
-- Unsaved editor drafts are browser-local convenience data. They may be restored only when their saved-item revision still matches. They stay local by default; only an explicit assistant action may send the current selected text to the configured local Codex, and that text must never enter repository files, server logs, or exports automatically.
+- Unsaved editor drafts are browser-local convenience data. Matching drafts may be restored directly; stale drafts remain visible with an explicit warning and require a deliberate restore action, never automatic application. They stay local by default; only an explicit assistant action may send the current selected text to the configured local Codex, and that text must never enter repository files, server logs, or exports automatically.
 - Keep normal content and file deletion reversible through the authenticated trash area. Permanent deletion must be a separate, explicit operation and must remove the corresponding file bytes.
 - Keep batch organization actions authenticated, bounded to a small explicit selection, and transactional. Batch status changes must leave item history; batch trash must remain reversible and detach affected hierarchy links without exposing partial results.
 - Keep the batch-selection affordance visible before any item is selected; reveal destructive or state-changing actions only after selection so the fast path stays discoverable without making accidental changes easy.
@@ -32,6 +32,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 - Keep search ranking deterministic and privacy-preserving: rank metadata matches ahead of body-only matches without exposing deleted content or adding an external indexing service.
 - Open search and activity results through an authenticated item lookup rather than assuming the current client list contains the result; navigation must remain correct when list views are bounded or filtered.
 - Keep growing content spaces discoverable with stable cursor pagination and an explicit load-more control; bounded list responses must report their total and never silently imply that only the first page exists.
+- Store work-log dates as validated civil \`YYYY-MM-DD\` fields independent of editable titles and UTC timestamps. Migrations may recover only exact legacy date titles, must preserve ambiguous titles as undated, and date filters must operate on the full server-side archive.
 
 ## Working workflow
 

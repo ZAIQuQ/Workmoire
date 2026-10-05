@@ -17,7 +17,7 @@ introducing a large runtime dependency stack.
 - A read-only relationship map shows hierarchy and cross-links together; nodes open the original content without exposing bodies through the graph endpoint.
 - Global quick capture via the dashboard or Ctrl/⌘ + Shift + N puts a thought directly into the inbox.
 - Unsubmitted quick captures can be restored or cleared from browser-local drafts; they are never uploaded automatically.
-- The daily log action reopens the current day's log when one already exists, avoiding duplicate daily entries.
+- Work logs keep a separate civil date from their title, so renaming a log does not lose its day; the daily action reopens the first log for that date and a day may contain multiple logs.
 - The dashboard activity timeline links back to active content and uploaded files.
 - Existing notes, project plans, papers, and logs can be saved as a new inbox copy for reuse as a template.
 - A focus mode hides navigation while writing long papers, plans, or logs.
@@ -34,6 +34,7 @@ introducing a large runtime dependency stack.
 - Add reversible many-to-many links between any active notes, projects, papers, and logs to connect ideas across the hierarchy.
 - Filter and sort each content space by tags, priority, deadlines, or title without leaving the current workspace.
 - Content spaces use stable cursor pagination with an explicit load-more affordance, so a growing archive remains discoverable beyond the first page.
+- Work-log spaces can filter by an exact \`YYYY-MM-DD\` date and move between days without relying on UTC timestamps.
 - Select several items in a content space to change their status in one transaction or move them to the recoverable trash; bulk actions are authenticated and limited to 100 items.
 - Recoverable deletion with a private trash area for content and uploaded files.
 - Trashed items stay out of search, active statistics, and item exports until restored.

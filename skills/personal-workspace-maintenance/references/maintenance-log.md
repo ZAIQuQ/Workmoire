@@ -82,3 +82,7 @@ changes belong in normal commit history.
 - Added stable cursor pagination and an explicit load-more control for content
   spaces so older material remains discoverable as the archive grows past the
   first client page.
+- Added structured civil dates for work logs, with additive migration, strict
+  validation, full-archive date filtering, date-preserving edits/history/imports,
+  and local-day navigation. Tightened stale browser-draft recovery so an older
+  draft remains discoverable but is never applied without an explicit action.

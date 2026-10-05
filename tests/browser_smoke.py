@@ -66,6 +66,7 @@ def main():
                 page.locator("#save-content").click()
                 expect(page.locator("#page-heading")).to_have_text("项目空间")
                 page.locator("#edit-kind").select_option("note")
+                expect(page.locator("#edit-kind")).to_have_value("note")
                 page.locator("#save-content").click()
                 expect(page.locator("#page-heading")).to_have_text("知识库")
                 page.locator("#assistant-content").click()
@@ -75,6 +76,27 @@ def main():
                 expect(page.locator("#edit-content")).to_have_value("A recoverable thought.\n\nSynthetic assistant output")
                 page.locator("#save-content").click()
                 expect(page.locator("#save-indicator")).to_contain_text("已保存")
+                journal_items = []
+                for title in ("Synthetic dated log", "Synthetic second log"):
+                    journal_response = page.context.request.post(
+                        "http://127.0.0.1:%d/api/items" % server.server_port,
+                        data={"kind": "log", "title": title, "entry_date": "2026-01-02", "content": "dated work"},
+                    )
+                    assert journal_response.status == 201
+                    journal_items.append(journal_response.json()["item"]["id"])
+                page.locator('[data-page="log"]').click()
+                expect(page.locator("#log-date")).to_be_visible()
+                page.locator("#log-date").fill("2026-01-02")
+                page.locator("#log-date").dispatch_event("change")
+                expect(page.locator(".content-item")).to_have_count(2)
+                page.locator(".content-item").first.click()
+                expect(page.locator("#edit-entry-date")).to_have_value("2026-01-02")
+                page.locator("#edit-title").fill("Synthetic dated log renamed")
+                page.locator("#save-content").click()
+                expect(page.locator("#save-indicator")).to_contain_text("已保存")
+                assert page.context.request.get(
+                    "http://127.0.0.1:%d/api/items?kind=log&entry_date=2026-01-02" % server.server_port
+                ).json()["total"] == 2
                 calendar_response = page.context.request.post(
                     "http://127.0.0.1:%d/api/items" % server.server_port,
                     data={"kind": "project", "title": "Synthetic calendar project", "due_date": date.today().isoformat(), "status": "active"},
@@ -108,7 +130,7 @@ def main():
                 expect(page.locator("#edit-title")).to_have_value("Synthetic browser note")
                 page.locator('[data-page="graph"]').click()
                 expect(page.locator("#page-content h1")).to_have_text("关系地图")
-                expect(page.locator(".graph-node")).to_have_count(3)
+                expect(page.locator(".graph-node")).to_have_count(5)
                 expect(page.locator(".graph-edge")).to_have_count(1)
                 page.locator('.graph-node[data-id="%d"]' % project_id).click()
                 expect(page.locator("#edit-title")).to_have_value("Synthetic linked project")

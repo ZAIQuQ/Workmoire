@@ -16,6 +16,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - When import/export changes, test a synthetic export with relationships and verify the import is transactional and excludes credentials and file binaries.
 - When deletion behavior changes, test the full trash lifecycle: active queries hide deleted rows, restore returns them, and permanent deletion removes the row and file bytes.
 - When editor behavior changes, verify local drafts are revision-scoped, restorable or dismissible, and cleared after a successful save or deletion.
+- When work-log dates change, verify additive migration on a database copy, strict leap-date validation, title renames, exact server-side date filtering, history/export/import coverage, and browser-local date navigation.
 - If `WORKSPACE_CODEX_BIN` is configured, verify the CLI version and that its help still recognizes the explicit `--ephemeral` and `--sandbox read-only` flags, then run a synthetic assistant smoke test; never use a personal document as the fixture or rely on ignored profile keys for isolation.
 - When assistant UI changes, verify that generated text is not persisted until an explicit insert and save action.
 - When assistant calls are slow or unavailable, verify the entry is disabled or visibly busy and repeated clicks do not create concurrent calls.

@@ -71,6 +71,47 @@ class ConflictHttpTests(unittest.TestCase):
         current = self.request("/api/items/%d" % original["id"])["item"]
         self.assertEqual(current["title"], "其他窗口的更新")
 
+    def test_simultaneous_same_base_updates_have_one_winner(self):
+        original = self.request("/api/items", "POST", {"kind": "note", "title": "并发原始内容"}, status=201)["item"]
+        clients = []
+        for _ in range(2):
+            client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
+            login = urllib.request.Request(
+                self.base + "/api/login",
+                method="POST",
+                data=json.dumps({"username": "conflict-tester", "password": "synthetic-password"}).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            with client.open(login, timeout=3):
+                pass
+            clients.append(client)
+        barrier = threading.Barrier(2)
+        outcomes = []
+
+        def update(client, title):
+            request = urllib.request.Request(
+                self.base + "/api/items/%d" % original["id"],
+                method="PUT",
+                data=json.dumps({"kind": "note", "title": title, "base_updated_at": original["updated_at"]}).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            barrier.wait()
+            try:
+                with client.open(request, timeout=3) as response:
+                    outcomes.append(response.status)
+            except urllib.error.HTTPError as error:
+                outcomes.append(error.code)
+
+        threads = [
+            threading.Thread(target=update, args=(clients[0], "并发窗口 A")),
+            threading.Thread(target=update, args=(clients[1], "并发窗口 B")),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=5)
+        self.assertEqual(sorted(outcomes), [200, 409])
+
 
 if __name__ == "__main__":
     unittest.main()

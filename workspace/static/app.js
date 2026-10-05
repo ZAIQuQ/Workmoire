@@ -1,7 +1,7 @@
 const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",review:"今日复盘",calendar:"计划日历",graph:"关系地图",trash:"回收站"};
 const icons={note:"▤",project:"◈",paper:"▧",log:"◷",review:"✦",calendar:"▦",graph:"⌘",trash:"♲"};
 const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],allItems:[],itemsCursor:null,itemsTotal:0,allItemsCursor:null,allItemsTotal:0,selected:null,savedSnapshot:null,selectedIds:new Set(),visibleItemIds:[],stats:null,reviewData:null,graphData:null,graphFilter:"",calendarDate:new Date(),editorTab:"write",listTag:"",listSort:"updated",fileSearch:"",fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null};
+const state={page:"dashboard",items:[],allItems:[],itemsCursor:null,itemsTotal:0,allItemsCursor:null,allItemsTotal:0,selected:null,savedSnapshot:null,selectedIds:new Set(),visibleItemIds:[],stats:null,reviewData:null,graphData:null,graphFilter:"",calendarDate:new Date(),logDate:"",editorTab:"write",listTag:"",listSort:"updated",listQuery:"",listSearchTimer:null,itemsRequest:0,fileSearch:"",fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null};
 const captureDraftKey="workmoire:capture-draft";
 const $=sel=>document.querySelector(sel);
 const $$=sel=>Array.from(document.querySelectorAll(sel));
@@ -17,7 +17,7 @@ function scheduleLocalDraft(){
 }
 function editorSnapshot(item){
   if(!item)return null;
-  return ["kind","title","summary","content","tags","status","priority","due_date","parent_id","pinned"].reduce((snapshot,key)=>{snapshot[key]=key==="pinned"?Boolean(item[key]):item[key]??"";return snapshot},{});
+  return ["kind","title","summary","content","tags","status","priority","due_date","entry_date","parent_id","pinned"].reduce((snapshot,key)=>{snapshot[key]=key==="pinned"?Boolean(item[key]):item[key]??"";return snapshot},{});
 }
 
 function esc(value){
@@ -41,6 +41,10 @@ function relativeDate(value){
 function formatDueDate(value){
   const parts=String(value||"").split("-");
   return parts.length===3?parts[0]+"年"+Number(parts[1])+"月"+Number(parts[2])+"日":value||"";
+}
+function localDateValue(value=new Date()){
+  const year=value.getFullYear(),month=String(value.getMonth()+1).padStart(2,"0"),day=String(value.getDate()).padStart(2,"0");
+  return year+"-"+month+"-"+day;
 }
 async function refreshServiceStatus(){
   const dot=$(".server-status i"),label=$("#server-status-label");
@@ -85,7 +89,7 @@ async function completeDueItem(event){
   if(!item)return;
   const button=event.currentTarget;button.disabled=true;button.textContent="更新中…";
   try{
-    await api("/api/items/"+item.id,{method:"PUT",body:JSON.stringify({kind:item.kind,title:item.title,summary:item.summary,content:item.content,tags:item.tags,status:"done",priority:item.priority,due_date:item.due_date,parent_id:item.parent_id,pinned:Boolean(item.pinned)})});
+    await api("/api/items/bulk",{method:"POST",body:JSON.stringify({ids:[Number(item.id)],action:"status",status:"done"})});
     await loadStats();renderDashboard();
   }catch(error){button.disabled=false;button.textContent="完成";window.alert(error.message)}
 }
@@ -96,7 +100,7 @@ async function promoteInboxItem(event){
   if(!item)return;
   const button=event.currentTarget;button.disabled=true;button.textContent="更新中…";
   try{
-    await api("/api/items/"+item.id,{method:"PUT",body:JSON.stringify({kind:item.kind,title:item.title,summary:item.summary,content:item.content,tags:item.tags,status:"active",priority:item.priority,due_date:item.due_date,parent_id:item.parent_id,pinned:Boolean(item.pinned)})});
+    await api("/api/items/bulk",{method:"POST",body:JSON.stringify({ids:[Number(item.id)],action:"status",status:"active"})});
     await loadStats();renderDashboard();
   }catch(error){button.disabled=false;button.textContent="开始整理";window.alert(error.message)}
 }
@@ -189,12 +193,12 @@ function editorHasChanges(){
   if(!state.selected||!$("#edit-title"))return false;
   const draft=collectEditor();
   const baseline=state.savedSnapshot||editorSnapshot(state.selected)||{};
-  return ["kind","title","summary","content","tags","status","priority","due_date","parent_id","pinned"].some(key=>String(draft[key]??"")!==String(baseline[key]??""));
+  return ["kind","title","summary","content","tags","status","priority","due_date","entry_date","parent_id","pinned"].some(key=>String(draft[key]??"")!==String(baseline[key]??""));
 }
 function confirmEditorLeave(){return !editorHasChanges()||window.confirm("当前内容尚未保存，确定离开吗？")}
 async function goPage(page){
   if(!confirmEditorLeave())return false;
-  state.page=page;state.selected=null;state.savedSnapshot=null;state.listTag="";state.listSort="updated";state.editorTab="write";state.focusMode=false;document.body.classList.remove("editor-focus-mode");
+  state.page=page;state.selected=null;state.savedSnapshot=null;state.listTag="";state.listSort="updated";state.listQuery="";state.editorTab="write";state.focusMode=false;if(page!=="log")state.logDate="";document.body.classList.remove("editor-focus-mode");
   $$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===page));
   $("#page-heading").textContent=page==="dashboard"?"总览":page==="files"?"文件空间":labels[page];
   if(page==="dashboard"){await loadStats();renderDashboard()}
@@ -210,19 +214,28 @@ async function goPage(page){
 $$(".nav-item").forEach(item=>item.onclick=()=>goPage(item.dataset.page));
 async function loadStats(){state.stats=await api("/api/stats")}
 async function loadItems(query="",append=false){
+  const requestId=++state.itemsRequest;
+  state.listQuery=query;
   const params=new URLSearchParams({kind:state.page,limit:"100"});
   if(query)params.set("q",query);
+  if(state.page==="log"&&state.logDate)params.set("entry_date",state.logDate);
   if(append&&state.itemsCursor)params.set("cursor",state.itemsCursor);
   const result=await api("/api/items?"+params.toString());
+  if(requestId!==state.itemsRequest)return;
   state.items=append?state.items.concat(result.items||[]):(result.items||[]);
   state.itemsCursor=result.next_cursor||null;state.itemsTotal=Number(result.total||state.items.length);
-  if(!query&&!append){const allResult=await api("/api/items?limit=500");state.allItems=allResult.items||[];state.allItemsCursor=allResult.next_cursor||null;state.allItemsTotal=Number(allResult.total||state.allItems.length)}
+  if(!query&&!append){const allResult=await api("/api/items?limit=500");if(requestId!==state.itemsRequest)return;state.allItems=allResult.items||[];state.allItemsCursor=allResult.next_cursor||null;state.allItemsTotal=Number(allResult.total||state.allItems.length)}
+}
+function scheduleListSearch(){
+  clearTimeout(state.listSearchTimer);
+  const query=$("#list-search")?.value.trim()||"";
+  state.listSearchTimer=setTimeout(async()=>{try{await loadItems(query);drawItemList()}catch(error){window.alert(error.message)}},220);
 }
 async function loadMoreItems(){
   const button=$("#load-more-items");
   if(!button||!state.itemsCursor)return;
   button.disabled=true;button.textContent="加载中…";
-  try{await loadItems("",true);drawItemList()}catch(error){button.disabled=false;button.textContent="加载更多";window.alert(error.message)}
+  try{await loadItems(state.listQuery,true);drawItemList()}catch(error){button.disabled=false;button.textContent="加载更多";window.alert(error.message)}
 }
 function renderDashboard(){
   const stats=state.stats||{counts:{},status_counts:{},recent:[],activity:[]};
@@ -267,7 +280,7 @@ async function updateReviewStatus(event,status){
   if(!item)return;
   button.disabled=true;button.textContent="更新中…";
   try{
-    await api("/api/items/"+item.id,{method:"PUT",body:JSON.stringify({kind:item.kind,title:item.title,summary:item.summary,content:item.content,tags:item.tags,status,priority:item.priority,due_date:item.due_date,parent_id:item.parent_id,pinned:Boolean(item.pinned)})});
+    await api("/api/items/bulk",{method:"POST",body:JSON.stringify({ids:[Number(item.id)],action:"status",status})});
     await renderReview();
   }catch(error){button.disabled=false;button.textContent=status==="done"?"完成":"开始整理";window.alert(error.message)}
 }
@@ -363,31 +376,46 @@ function defaultContent(kind){
     note:{title:"",summary:"",content:"",tags:"",status:"inbox",priority:2,due_date:"",parent_id:null,pinned:false},
     project:{title:"",summary:"目标：\n下一步：\n",content:"## 背景\n\n## 目标\n\n## 下一步\n\n## 记录\n",tags:"",status:"active",priority:2,due_date:"",parent_id:null,pinned:false},
     paper:{title:"",summary:"研究问题：",content:"# 论文大纲\n\n## 研究问题\n\n## 核心假设\n\n## 方法\n\n## 实验与验证\n\n## 预期贡献\n",tags:"",status:"inbox",priority:2,due_date:"",parent_id:null,pinned:false},
-    log:{title:formatDate(new Date().toISOString()),summary:"",content:"## 今天完成\n\n## 遇到的问题\n\n## 明天继续\n",tags:"日志",status:"active",priority:2,due_date:"",parent_id:null,pinned:false}
+    log:{title:formatDueDate(state.logDate||localDateValue()),entry_date:state.logDate||localDateValue(),summary:"",content:"## 今天完成\n\n## 遇到的问题\n\n## 明天继续\n",tags:"日志",status:"active",priority:2,due_date:"",parent_id:null,pinned:false}
   };
   return {...templates[kind],kind};
 }
-function createItem(kind){
+function createItem(kind,entryDate=""){
   if(!confirmEditorLeave())return;
-  state.page=kind;state.listTag="";state.listSort="updated";state.focusMode=false;document.body.classList.remove("editor-focus-mode");state.selected={id:null,...defaultContent(kind),...(readLocalDraft(kind)||{})};state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
+  if(kind==="log")state.logDate=entryDate||state.logDate||localDateValue();
+  state.page=kind;state.listTag="";state.listSort="updated";state.listQuery="";state.focusMode=false;document.body.classList.remove("editor-focus-mode");state.selected={id:null,...defaultContent(kind),...(readLocalDraft(kind)||{})};state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
 }
 async function openTodayLog(){
-  const title=formatDate(new Date().toISOString());
+  const day=localDateValue();
+  if(!confirmEditorLeave())return;
+  state.logDate=day;
   try{
-    const result=await api("/api/items?kind=log&limit=50");
-    const existing=(result.items||[]).find(item=>item.title===title);
-    if(!existing){createItem("log");return}
+    const result=await api("/api/items?kind=log&entry_date="+encodeURIComponent(day)+"&limit=1");
+    const existing=(result.items||[])[0];
+    if(!existing){createItem("log",day);return}
     if(!await goPage("log"))return;
-    state.selected=state.items.find(item=>String(item.id)===String(existing.id));
+    state.selected=existing;
     state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
   }catch(error){window.alert(error.message)}
 }
 function renderContentPage(){
   const item=state.selected;
   state.selectedIds.clear();state.visibleItemIds=[];
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>'+esc(labels[state.page])+'</h1><p>'+({note:"把碎片知识收拢起来，形成可以复用的脉络。",project:"让每一个项目都有清晰的目标和下一步。",paper:"从研究问题出发，把论文结构逐步搭起来。",log:"记录过程，让进展和思考可回看。"}[state.page])+'</p></div><div class="page-title-actions"><button class="button button-primary" id="new-content">新建'+esc(labels[state.page].replace("空间",""))+'</button></div></div>'+
+  const journalNav=state.page==="log"?'<div class="journal-nav surface"><button id="log-date-prev" class="button button-secondary" type="button" aria-label="前一天">←</button><label class="journal-date-field"><span>查看日志日期</span><input id="log-date" type="date" value="'+esc(state.logDate)+'"></label><button id="log-date-next" class="button button-secondary" type="button" aria-label="后一天">→</button><button id="log-date-today" class="button button-secondary" type="button">今天</button><button id="log-date-all" class="button button-secondary" type="button">查看全部日志</button><span class="journal-date-hint">同一天可以保留多条日志</span></div>':'';
+  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>'+esc(labels[state.page])+'</h1><p>'+({note:"把碎片知识收拢起来，形成可以复用的脉络。",project:"让每一个项目都有清晰的目标和下一步。",paper:"从研究问题出发，把论文结构逐步搭起来。",log:"记录过程，让进展和思考可回看。"}[state.page])+'</p></div><div class="page-title-actions"><button class="button button-primary" id="new-content">新建'+esc(labels[state.page].replace("空间",""))+'</button></div></div>'+journalNav+
   '<div class="content-layout"><section class="surface list-surface"><div class="list-toolbar"><div class="input-with-icon"><span>⌕</span><input id="list-search" class="control-input" placeholder="搜索当前空间"></div><select id="list-status" class="control-input"><option value="">全部状态</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select><select id="list-sort" class="control-input" aria-label="排序"><option value="updated">最近更新</option><option value="priority">优先级最高</option><option value="due">截止日期</option><option value="title">标题</option></select><div id="list-tags" class="tag-filter" aria-label="标签筛选"></div><div class="bulk-toolbar" id="bulk-toolbar" aria-live="polite"><label class="select-all-control"><input id="select-all-items" type="checkbox"><span>全选当前列表</span></label><span id="bulk-count" class="bulk-count">选择内容后可批量处理</span><div id="bulk-actions" class="bulk-actions is-hidden"><select id="bulk-status" class="control-input" aria-label="批量设置状态"><option value="">设置状态…</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select><button id="bulk-apply-status" class="button button-secondary" type="button">应用</button><button id="bulk-trash" class="button button-danger" type="button">移入回收站</button></div></div></div><div id="item-list" class="item-list"></div><div id="item-list-pagination" class="list-pagination"></div></section><section id="editor" class="surface editor-surface"></section></div>';
-  $("#new-content").onclick=()=>createItem(state.page);$("#list-search").oninput=drawItemList;$("#list-status").onchange=drawItemList;$("#list-sort").onchange=drawItemList;$("#select-all-items").onchange=toggleSelectAll;$("#bulk-apply-status").onclick=()=>bulkUpdateItems("status",$("#bulk-status").value);$("#bulk-trash").onclick=()=>bulkUpdateItems("trash");drawItemList();drawEditor();
+  $("#new-content").onclick=()=>createItem(state.page);$("#list-search").oninput=scheduleListSearch;$("#list-status").onchange=drawItemList;$("#list-sort").onchange=drawItemList;$("#select-all-items").onchange=toggleSelectAll;$("#bulk-apply-status").onclick=()=>bulkUpdateItems("status",$("#bulk-status").value);$("#bulk-trash").onclick=()=>bulkUpdateItems("trash");
+  if(state.page==="log"){$("#log-date").onchange=changeLogDate;$("#log-date-prev").onclick=()=>shiftLogDate(-1);$("#log-date-next").onclick=()=>shiftLogDate(1);$("#log-date-today").onclick=()=>changeLogDate({target:{value:localDateValue()}});$("#log-date-all").onclick=()=>changeLogDate({target:{value:""}})}
+  drawItemList();drawEditor();
+}
+async function changeLogDate(event){
+  if(!confirmEditorLeave())return;
+  state.logDate=event.target.value||"";state.selected=null;state.savedSnapshot=null;await loadItems();renderContentPage();
+}
+async function shiftLogDate(offset){
+  const current=state.logDate||localDateValue(),parts=current.split("-");
+  const next=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2])+offset);
+  await changeLogDate({target:{value:localDateValue(next)}});
 }
 async function renderTrash(){
   const data=await api("/api/trash");
@@ -451,7 +479,7 @@ function drawItemList(){
   state.visibleItemIds=items.map(item=>item.id);
   const box=$("#item-list");
   if(!items.length){box.innerHTML='<div class="empty-state"><strong>这里还没有内容</strong><p>点击右上角，先创建第一条。</p></div>';drawBulkToolbar();drawListPagination();return}
-  box.innerHTML=items.map(item=>'<div class="content-item '+(state.selected&&String(state.selected.id)===String(item.id)?"is-selected":"")+'" data-id="'+item.id+'"><div class="content-item-head"><label class="item-select"><input type="checkbox" data-id="'+item.id+'" '+(state.selectedIds.has(String(item.id))?"checked":"")+'><span class="sr-only">选择 '+esc(item.title||"未命名")+'</span></label><div class="content-item-title">'+esc(item.title||"未命名")+'</div><button class="pin-toggle '+(item.pinned?"is-pinned":"")+'" data-id="'+item.id+'" title="'+(item.pinned?"取消置顶":"置顶内容")+'" aria-label="'+(item.pinned?"取消置顶":"置顶内容")+'">★</button></div><div class="content-item-summary">'+esc(item.summary||"暂无摘要")+'</div><div class="content-item-meta">'+priorityMarkup(item.priority||2)+taskProgressMarkup(item.content)+'<span>'+relativeDate(item.updated_at)+'</span><span class="spacer"></span>'+statusPill(item.status)+'</div></div>').join("");
+  box.innerHTML=items.map(item=>'<div class="content-item '+(state.selected&&String(state.selected.id)===String(item.id)?"is-selected":"")+'" data-id="'+item.id+'"><div class="content-item-head"><label class="item-select"><input type="checkbox" data-id="'+item.id+'" '+(state.selectedIds.has(String(item.id))?"checked":"")+'><span class="sr-only">选择 '+esc(item.title||"未命名")+'</span></label><div class="content-item-title">'+esc(item.title||"未命名")+'</div><button class="pin-toggle '+(item.pinned?"is-pinned":"")+'" data-id="'+item.id+'" title="'+(item.pinned?"取消置顶":"置顶内容")+'" aria-label="'+(item.pinned?"取消置顶":"置顶内容")+'">★</button></div><div class="content-item-summary">'+esc(item.summary||"暂无摘要")+'</div><div class="content-item-meta">'+priorityMarkup(item.priority||2)+taskProgressMarkup(item.content)+(item.kind==="log"&&item.entry_date?'<span>'+esc(formatDueDate(item.entry_date))+'</span>':"")+'<span>'+relativeDate(item.updated_at)+'</span><span class="spacer"></span>'+statusPill(item.status)+'</div></div>').join("");
   $$(".content-item").forEach(row=>row.onclick=event=>{if(event.target.closest("button,label,input"))return;if(!confirmEditorLeave())return;state.selected=state.items.find(item=>String(item.id)===row.dataset.id);state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";drawItemList();drawEditor()});
   $$(".item-select input").forEach(input=>input.onchange=event=>{event.stopPropagation();const id=String(input.dataset.id);if(input.checked)state.selectedIds.add(id);else state.selectedIds.delete(id);drawBulkToolbar()});
   $$(".pin-toggle").forEach(button=>button.onclick=async event=>{event.stopPropagation();if(!confirmEditorLeave())return;const item=state.items.find(candidate=>String(candidate.id)===button.dataset.id);if(!item)return;try{const result=await api("/api/items/"+item.id+"/pin",{method:"POST",body:JSON.stringify({pinned:!item.pinned})});Object.assign(item,result.item);const all=state.allItems.find(candidate=>String(candidate.id)===button.dataset.id);if(all)Object.assign(all,result.item);if(state.selected&&String(state.selected.id)===button.dataset.id){Object.assign(state.selected,result.item);state.savedSnapshot=editorSnapshot(result.item);drawEditor()}drawItemList()}catch(error){window.alert(error.message)}});
@@ -527,7 +555,7 @@ async function renderItemHistory(itemId){
     const result=await api("/api/items/"+encodeURIComponent(itemId)+"/revisions");
     if(!state.selected||String(state.selected.id)!==String(itemId)||$("#item-history")!==list)return;
     const revisions=result.revisions||[];
-    list.innerHTML=revisions.length?revisions.map(revision=>'<div class="history-row"><div class="history-row-body"><strong>'+esc(revision.title||"未命名")+'</strong><span>'+esc(formatDate(revision.created_at,true))+' · '+esc(labels[revision.kind]||revision.kind)+'</span><small>'+esc((revision.content||revision.summary||"无正文").replace(/\s+/g," ").slice(0,120))+(String(revision.content||revision.summary||"").length>120?"…":"")+'</small></div><button class="button button-secondary restore-revision" data-revision-id="'+revision.id+'">恢复</button></div>').join(""):'<span class="history-empty">保存修改后，旧版本会出现在这里</span>';
+    list.innerHTML=revisions.length?revisions.map(revision=>'<div class="history-row"><div class="history-row-body"><strong>'+esc(revision.title||"未命名")+'</strong><span>'+esc(formatDate(revision.created_at,true))+' · '+esc(labels[revision.kind]||revision.kind)+(revision.kind==="log"&&revision.entry_date?" · "+esc(formatDueDate(revision.entry_date)):"")+'</span><small>'+esc((revision.content||revision.summary||"无正文").replace(/\s+/g," ").slice(0,120))+(String(revision.content||revision.summary||"").length>120?"…":"")+'</small></div><button class="button button-secondary restore-revision" data-revision-id="'+revision.id+'">恢复</button></div>').join(""):'<span class="history-empty">保存修改后，旧版本会出现在这里</span>';
     $$(".restore-revision").forEach(button=>button.onclick=restoreRevision);
   }catch(error){if($("#item-history")===list)list.innerHTML='<span class="history-empty">历史版本暂时不可用</span>'}
 }
@@ -544,36 +572,41 @@ function drawEditor(){
   if(!state.selected){editor.innerHTML='<div class="editor-empty"><div><div class="empty-icon">✎</div><strong>选择一条内容开始整理</strong><p>也可以点击右上角新建一条。</p></div></div>';return}
   const item=state.selected;
   const localDraft=item.id?readLocalDraft(state.page,item.id):null;
-  const draftAvailable=Boolean(localDraft&&String(localDraft.base_updated_at||"")===String(item.updated_at||""));
+  const draftAvailable=Boolean(localDraft&&(!item.id||String(localDraft.base_updated_at||"")===String(item.updated_at||"")));
+  const staleDraftAvailable=Boolean(localDraft&&item.id&&String(localDraft.base_updated_at||"")!==String(item.updated_at||""));
   const conflictDraftAvailable=Boolean(localDraft&&localDraft.conflict&&item.id);
-  const draftNotice=(draftAvailable||conflictDraftAvailable)?'<div class="draft-notice" id="draft-notice"><span>'+(conflictDraftAvailable?"发现服务器更新前的本机未保存草稿":"发现这条内容的本机未保存草稿")+'</span><button id="restore-draft" class="button button-secondary">恢复草稿</button><button id="dismiss-draft" class="draft-dismiss">忽略</button></div>':'';
+  const draftNotice=(draftAvailable||staleDraftAvailable||conflictDraftAvailable)?'<div class="draft-notice" id="draft-notice"><span>'+(staleDraftAvailable?"发现一份基于旧版本的本机草稿，请确认后恢复":conflictDraftAvailable?"发现服务器更新前的本机未保存草稿":"发现这条内容的本机未保存草稿")+'</span><button id="restore-draft" class="button button-secondary">恢复草稿</button><button id="dismiss-draft" class="draft-dismiss">忽略</button></div>':'';
   const kindOptions=["note","project","paper","log"].map(kind=>'<option value="'+kind+'">'+labels[kind]+'</option>').join("");
-  const parentOptions=(state.allItems.length?state.allItems:state.items).filter(candidate=>String(candidate.id)!==String(item.id)).map(candidate=>'<option value="'+candidate.id+'">'+esc((labels[candidate.kind]||"内容")+" · "+(candidate.title||"未命名"))+'</option>').join("");
-  const parentItem=item.parent_id!=null?state.allItems.find(candidate=>String(candidate.id)===String(item.parent_id)):null;
+  const parentCandidates=state.allItems.length?state.allItems:state.items;
+  const parentItem=item.parent_id!=null?parentCandidates.find(candidate=>String(candidate.id)===String(item.parent_id)):null;
+  const parentFallback=item.parent_id!=null&&!parentItem?'<option value="'+esc(item.parent_id)+'">已关联的上级内容 · #'+esc(item.parent_id)+'</option>':"";
+  const parentOptions=parentFallback+parentCandidates.filter(candidate=>String(candidate.id)!==String(item.id)).map(candidate=>'<option value="'+candidate.id+'">'+esc((labels[candidate.kind]||"内容")+" · "+(candidate.title||"未命名"))+'</option>').join("");
+  const hierarchyParent=state.allItems.find(candidate=>String(candidate.id)===String(item.parent_id))||parentItem;
   const childItems=item.id?state.allItems.filter(candidate=>String(candidate.parent_id)===String(item.id)):[];
-  const hierarchyMarkup=(parentItem||childItems.length)?'<section class="relation-panel"><div class="relation-heading">层级关系</div>'+(parentItem?'<div class="relation-group"><span class="relation-label">上级</span><button class="related-link" data-related-id="'+parentItem.id+'" data-related-kind="'+parentItem.kind+'">'+kindMark(parentItem.kind)+'<span>'+esc(parentItem.title)+'</span></button></div>':'')+(childItems.length?'<div class="relation-group"><span class="relation-label">下级</span><div class="relation-children">'+childItems.map(child=>'<button class="related-link" data-related-id="'+child.id+'" data-related-kind="'+child.kind+'">'+kindMark(child.kind)+'<span>'+esc(child.title)+'</span></button>').join('')+'</div></div>':'')+'</section>':'';
+  const hierarchyMarkup=(hierarchyParent||childItems.length)?'<section class="relation-panel"><div class="relation-heading">层级关系</div>'+(hierarchyParent?'<div class="relation-group"><span class="relation-label">上级</span><button class="related-link" data-related-id="'+hierarchyParent.id+'" data-related-kind="'+hierarchyParent.kind+'">'+kindMark(hierarchyParent.kind)+'<span>'+esc(hierarchyParent.title)+'</span></button></div>':'')+(childItems.length?'<div class="relation-group"><span class="relation-label">下级</span><div class="relation-children">'+childItems.map(child=>'<button class="related-link" data-related-id="'+child.id+'" data-related-kind="'+child.kind+'">'+kindMark(child.kind)+'<span>'+esc(child.title)+'</span></button>').join('')+'</div></div>':'')+'</section>':'';
   const relatedMarkup=item.id?'<section class="relation-panel related-content-panel"><div class="relation-heading">横向关联 · 更改即时保存</div><div id="related-list" class="related-list"><span class="related-empty">加载中…</span></div><div class="related-add"><select id="related-target" class="control-input" aria-label="要关联的内容"><option value="">选择要关联的内容…</option>'+relatedTargetOptions(item)+'</select><button id="add-related" class="button button-secondary" type="button">关联</button></div></section>':'';
   const relationMarkup=hierarchyMarkup+relatedMarkup;
   const attachmentMarkup=item.id?'<section class="attachment-panel"><div class="attachment-head"><div><strong>关联文件</strong><small>只显示属于这条内容的附件</small></div><label class="button button-secondary attachment-upload">上传文件<input id="item-file-input" class="file-input" type="file"></label></div><div id="item-file-list" class="item-file-list"></div></section>':'<section class="attachment-panel attachment-empty"><strong>关联文件</strong><span>保存内容后可以上传论文、数据或项目资料。</span></section>';
   const historyMarkup=item.id?'<section class="history-panel"><div class="history-head"><div><strong>编辑历史</strong><small>每次保存前的版本最多保留 100 个</small></div></div><div id="item-history" class="history-list"><span class="history-empty">加载中…</span></div></section>':'';
-  editor.innerHTML=draftNotice+'<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><div id="task-progress" class="editor-task-progress"></div><textarea id="edit-content" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>内容类型</span><select id="edit-kind">'+kindOptions+'</select></label><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label><label class="form-field"><span>上级内容</span><select id="edit-parent"><option value="">无上级内容</option>'+parentOptions+'</select></label><label class="form-check"><input id="edit-pinned" type="checkbox" '+(item.pinned?"checked":"")+'><span>置顶内容</span></label></div></div>'+relationMarkup+attachmentMarkup+historyMarkup+'<div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span>'+'<button id="focus-mode" class="button button-secondary">'+(state.focusMode?"退出专注":"专注模式")+'</button>'+(item.id?'<button id="duplicate-content" class="button button-secondary">另存副本</button>':"")+'<button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
+  editor.innerHTML=draftNotice+'<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><div id="task-progress" class="editor-task-progress"></div><textarea id="edit-content" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>内容类型</span><select id="edit-kind">'+kindOptions+'</select></label><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label id="entry-date-field" class="form-field '+(item.kind==="log"?"":"is-hidden")+'"><span>日志日期</span><input id="edit-entry-date" type="date" value="'+esc(item.entry_date||"")+'"></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label><label class="form-field"><span>上级内容</span><select id="edit-parent"><option value="">无上级内容</option>'+parentOptions+'</select></label><label class="form-check"><input id="edit-pinned" type="checkbox" '+(item.pinned?"checked":"")+'><span>置顶内容</span></label></div></div>'+relationMarkup+attachmentMarkup+historyMarkup+'<div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span>'+'<button id="focus-mode" class="button button-secondary">'+(state.focusMode?"退出专注":"专注模式")+'</button>'+(item.id?'<button id="duplicate-content" class="button button-secondary">另存副本</button>':"")+'<button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
   $("#edit-kind").value=item.kind||state.page;$("#edit-status").value=item.status||"inbox";$("#edit-priority").value=String(item.priority||2);$("#edit-parent").value=item.parent_id==null?"":String(item.parent_id);
+  $("#edit-kind").onchange=()=>{$("#entry-date-field").classList.toggle("is-hidden",$("#edit-kind").value!=="log")};
   $$(".editor-tab").forEach(tab=>tab.onclick=()=>{collectEditorIntoState();state.editorTab=tab.dataset.tab;drawEditor()});
   $("#edit-content").oninput=()=>{renderTaskProgress();if(state.editorTab==="preview"){$("#content-preview").innerHTML=parseMarkdown($("#edit-content").value);$$("#content-preview input[type=checkbox]").forEach(input=>input.onchange=toggleTask)}};
   $$("#content-preview input[type=checkbox]").forEach(input=>input.onchange=toggleTask);
   renderTaskProgress();
   $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#focus-mode").onclick=toggleFocusMode;if($("#duplicate-content"))$("#duplicate-content").onclick=duplicateItem;$("#assistant-content").onclick=openAssistant;$("#assistant-content").disabled=!state.assistant?.available;if($("#assistant-content").disabled)$("#assistant-content").title="服务器尚未配置本地 Codex";if($("#add-related"))$("#add-related").onclick=addRelatedItem;
   $$("#editor input, #editor textarea, #editor select").forEach(field=>field.addEventListener("input",scheduleLocalDraft));
-  if(draftAvailable||conflictDraftAvailable){
+  if(draftAvailable||staleDraftAvailable||conflictDraftAvailable){
     $("#restore-draft").onclick=()=>{Object.assign(state.selected,localDraft);clearLocalDraft(state.page,state.selected.id);drawEditor();$("#save-indicator").textContent="草稿已恢复，请保存内容"};
     $("#dismiss-draft").onclick=()=>{clearLocalDraft(state.page,state.selected.id);drawEditor()};
   }
-  $$(".related-link").forEach(link=>link.onclick=async()=>{if(!await goPage(link.dataset.relatedKind))return;state.selected=state.items.find(candidate=>String(candidate.id)===link.dataset.relatedId);state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()});
+  $$(".related-link").forEach(link=>link.onclick=async()=>{try{const result=await api("/api/items/"+encodeURIComponent(link.dataset.relatedId));if(!await goPage(result.item.kind))return;state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()}catch(error){window.alert(error.message)}});
   if(item.id){renderItemFiles(item.id);renderRelatedItems(item.id);renderItemHistory(item.id)}
   $("#edit-title").focus();
 }
 function collectEditor(){
-  return {kind:$("#edit-kind").value,title:$("#edit-title").value.trim(),summary:$("#edit-summary").value.trim(),content:$("#edit-content").value,tags:$("#edit-tags").value,status:$("#edit-status").value,priority:Number($("#edit-priority").value),due_date:$("#edit-due").value,parent_id:$("#edit-parent").value?Number($("#edit-parent").value):null,pinned:$("#edit-pinned").checked};
+  return {kind:$("#edit-kind").value,title:$("#edit-title").value.trim(),summary:$("#edit-summary").value.trim(),content:$("#edit-content").value,tags:$("#edit-tags").value,status:$("#edit-status").value,priority:Number($("#edit-priority").value),entry_date:$("#edit-entry-date")?.value||state.selected?.entry_date||"",due_date:$("#edit-due").value,parent_id:$("#edit-parent").value?Number($("#edit-parent").value):null,pinned:$("#edit-pinned").checked};
 }
 function collectEditorIntoState(){
   if(!state.selected||!$("#edit-title"))return;
@@ -631,7 +664,7 @@ async function saveItem(){
     const previousKind=state.page,payload=state.selected.id?{...data,base_updated_at:state.selected.updated_at||""}:data,result=state.selected.id?await api("/api/items/"+state.selected.id,{method:"PUT",body:JSON.stringify(payload)}):await api("/api/items",{method:"POST",body:JSON.stringify(payload)});
     const draftId=state.selected.id||null;state.selected=result.item;state.savedSnapshot=editorSnapshot(result.item);clearLocalDraft(previousKind,draftId);clearLocalDraft(result.item.kind,result.item.id||null);
     if(previousKind!==result.item.kind){state.page=result.item.kind;state.listTag="";state.listSort="updated";$$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===state.page));$("#page-heading").textContent=labels[state.page]}
-    await loadItems();drawItemList();drawEditor();$("#save-indicator").textContent="已保存 · "+new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
+    await loadItems();drawItemList();if(!editorHasChanges())drawEditor();$("#save-indicator").textContent="已保存 · "+new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
   }catch(error){
     if(error.status===409&&error.body?.item){
       try{localStorage.setItem(draftKey(state.page,state.selected.id),JSON.stringify({...data,item_id:state.selected.id,base_updated_at:state.selected.updated_at||"",conflict:true,saved_at:new Date().toISOString()}))}catch(_){ }
