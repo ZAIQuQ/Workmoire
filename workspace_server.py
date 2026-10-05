@@ -1100,6 +1100,12 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 return
             params = parse_qs(parsed.query)
             raw_item_id = params.get("item_id", [""])[0]
+            try:
+                limit = min(max(int(params.get("limit", ["200"])[0]), 1), 200)
+                offset = max(int(params.get("offset", ["0"])[0]), 0)
+            except ValueError:
+                self.error("文件分页参数无效", 400)
+                return
             clauses = ["f.deleted_at=''"]
             values = []
             query = params.get("q", [""])[0].strip()
@@ -1116,9 +1122,11 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 clauses.append("f.item_id=?")
                 values.append(item_id)
             con = open_db()
-            rows = con.execute("SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s ORDER BY f.created_at DESC" % " AND ".join(clauses), values).fetchall()
+            where = " AND ".join(clauses)
+            total = con.execute("SELECT COUNT(*) FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s" % where, values).fetchone()[0]
+            rows = con.execute("SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s ORDER BY f.created_at DESC, f.id DESC LIMIT ? OFFSET ?" % where, values + [limit, offset]).fetchall()
             con.close()
-            self.json_response({"files": [dict(row) for row in rows]})
+            self.json_response({"files": [dict(row) for row in rows], "total": total, "offset": offset, "next_offset": offset + len(rows) if offset + len(rows) < total else None})
             return
         if path.startswith("/files/"):
             if not self.require_user():

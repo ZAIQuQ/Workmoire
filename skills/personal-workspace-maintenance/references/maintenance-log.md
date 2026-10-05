@@ -106,3 +106,7 @@ changes belong in normal commit history.
   keep their metadata insert transactional and remove staged bytes after a
   failed association or database write. Updated source, tests, release gates,
   and this skill together.
+- Bounded the file-space listing with server-side search pagination, exact
+  totals, and a browser load-more control so a large attachment archive remains
+  discoverable. Updated the API client, README/release gates, tests, and skill
+  together.

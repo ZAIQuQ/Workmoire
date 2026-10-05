@@ -182,6 +182,10 @@ class TrashHttpTests(unittest.TestCase):
         )
         linked = self.upload_file(parent["id"])
         self.assertEqual(linked["item_id"], parent["id"])
+        page = self.request("/api/files?item_id=%d&limit=1&offset=0" % parent["id"])
+        self.assertEqual(page["total"], 1)
+        self.assertIsNone(page["next_offset"])
+        self.request("/api/files?limit=bad", expected=400)
         linked_files = self.request("/api/files?item_id=%d" % parent["id"])["files"]
         self.assertEqual([file["id"] for file in linked_files], [linked["id"]])
         self.assertEqual([file["id"] for file in self.request("/api/files?q=linked")["files"]], [linked["id"]])

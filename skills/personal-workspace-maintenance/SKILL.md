@@ -37,6 +37,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 - Open search and activity results through an authenticated item lookup rather than assuming the current client list contains the result; navigation must remain correct when list views are bounded or filtered.
 - Keep growing content spaces discoverable with stable cursor pagination and an explicit load-more control; bounded list responses must report their total and never silently imply that only the first page exists.
 - Apply the same visibility rule to review queues, calendars, trash, hierarchy candidates, and tag filters: expose totals or a load-more path when a response is bounded, and do not let the browser's first-page cache hide valid parents, links, or recoverable data.
+- Keep the file-space listing bounded as well: server-side search, totals, offsets, and load-more state must stay consistent when the archive grows beyond one page.
 - Treat a save with no changed revision fields as a no-op: preserve `updated_at`, activity history, and the revision list instead of creating a fake edit.
 - Store work-log dates as validated civil \`YYYY-MM-DD\` fields independent of editable titles and UTC timestamps. Migrations may recover only exact legacy date titles, must preserve ambiguous titles as undated, and date filters must operate on the full server-side archive.
 - When a browser-facing summary or review queue needs “today,” pass the browser's validated civil date explicitly to the API; do not let server timezone defaults silently disagree with local-day navigation.
