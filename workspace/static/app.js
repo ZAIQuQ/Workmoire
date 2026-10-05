@@ -621,7 +621,7 @@ async function saveItem(){
       try{localStorage.setItem(draftKey(state.page,state.selected.id),JSON.stringify({...data,item_id:state.selected.id,base_updated_at:state.selected.updated_at||"",conflict:true,saved_at:new Date().toISOString()}))}catch(_){ }
       indicator.textContent="服务器已有更新，当前修改未覆盖";
       if(window.confirm("这条内容已在其他窗口更新。加载服务器版本并保留当前修改为本机草稿吗？")){
-        state.selected=error.body.item;state.savedSnapshot=editorSnapshot(state.selected);drawEditor();indicator.textContent="已加载服务器版本；当前修改已保存在本机草稿";
+        state.selected=error.body.item;state.savedSnapshot=editorSnapshot(state.selected);drawEditor();$("#save-indicator").textContent="已加载服务器版本；当前修改已保存在本机草稿";
       }
     }else indicator.textContent=error.message
   }
