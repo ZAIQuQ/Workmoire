@@ -93,3 +93,5 @@ changes belong in normal commit history.
 - Added an exact-service-environment assistant check after finding that interactive-shell Codex configuration masked an unconfigured systemd authentication path. Custom `CODEX_HOME` must be explicit in the private service environment.
 - Terminate the assistant's whole process group on timeout; killing an npm launcher alone can leave its native child retrying. Added a synthetic launcher/child regression test.
 - Verify installed backup permissions by executing the actual systemd backup job as its configured user, rather than relying only on an active timer and earlier snapshot files.
+- Resolve arXiv abstract/PDF/HTML URLs through the official identifier API instead of depending on the availability of the public HTML page; preserve the requested version and verify the input forms with synthetic metadata.
+- Permit explicit PDF imports a bounded two-minute transfer interval and try up to three already-validated public destination addresses on connection failures; metadata retains its shorter limit and every redirect remains validated.

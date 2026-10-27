@@ -80,20 +80,36 @@ class PinnedHTTPSConnection(http.client.HTTPSConnection):
 
 def fetch_public(url: str, max_bytes: int = MAX_METADATA_BYTES) -> tuple[bytes, str, str]:
     """Validate every redirect and pin DNS, with a hard response-size bound."""
-    deadline = time.monotonic() + 45
+    deadline = time.monotonic() + (120 if max_bytes > MAX_METADATA_BYTES else 45)
     for _ in range(5):
         if time.monotonic() >= deadline:
             raise ValueError("读取论文来源超时，请稍后再试")
         url = public_url(url)
         parsed = urlsplit(url)
         addresses = public_addresses(parsed.hostname)
-        connection = PinnedHTTPSConnection(parsed.hostname, addresses[0])
         path = quote(parsed.path or "/", safe="/%:@!$&'()*+,;=-._~")
         if parsed.query:
             path += "?" + quote(parsed.query, safe="%=&?/:@!$'()*+,;~-._")
+        connection, response, last_error = None, None, None
+        # Preserve ordinary DNS address failover without resolving again at
+        # the proxy or ever falling back to an unvalidated/private address.
+        for address in addresses[:3]:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            candidate = PinnedHTTPSConnection(parsed.hostname, address)
+            candidate.timeout = min(14, remaining)
+            try:
+                candidate.request("GET", path, headers={"User-Agent": USER_AGENT, "Accept-Encoding": "identity", "Accept": "application/json,text/html,application/pdf;q=0.9,*/*;q=0.5"})
+                response = candidate.getresponse()
+                connection = candidate
+                break
+            except (OSError, http.client.HTTPException) as exc:
+                candidate.close()
+                last_error = exc
+        if connection is None:
+            raise ValueError("读取论文来源超时或连接失败，请稍后再试") from last_error
         try:
-            connection.request("GET", path, headers={"User-Agent": USER_AGENT, "Accept-Encoding": "identity", "Accept": "application/json,text/html,application/pdf;q=0.9,*/*;q=0.5"})
-            response = connection.getresponse()
             if response.status in (301, 302, 303, 307, 308):
                 location = response.getheader("Location")
                 if not location:
@@ -199,7 +215,15 @@ def lookup_papers(reference: str) -> list[dict]:
             match = re.match(r"/(?:abs|pdf|html)/([\w.\-/]+)", parsed.path)
             if match:
                 paper_id = re.sub(r"\.pdf$", "", match.group(1))
-                reference = "https://arxiv.org/abs/" + paper_id
+                if not re.fullmatch(r"(?:\d{4}\.\d{4,5}|[A-Za-z][A-Za-z.\-]*/\d{7})(?:v\d+)?", paper_id):
+                    raise ValueError("arXiv 论文编号无效，请使用标准摘要页或 PDF 链接")
+                # The metadata API remains usable when arXiv's HTML pages are
+                # slow or blocked, and preserves the requested paper version.
+                raw, _, _ = fetch_public("https://export.arxiv.org/api/query?" + urlencode({"id_list": paper_id, "max_results": 1}))
+                records = arxiv_atom_records(raw)
+                if not records:
+                    raise ValueError("没有找到这个 arXiv 编号，请核对论文链接")
+                return records
         raw, content_type, final_url = fetch_public(reference)
         if "html" not in content_type.lower():
             raise ValueError("请提供论文介绍页或 DOI；PDF 可直接在编辑器中导入")

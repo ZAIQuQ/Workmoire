@@ -150,6 +150,22 @@ class PaperNetworkTests(unittest.TestCase):
             with self.assertRaises(ValueError):paper_tools.fetch_public('https://public.example/')
             self.assertEqual(connect.call_count,1)
 
+    def test_transport_failure_tries_only_the_other_validated_addresses(self):
+        requested=[]
+        def connection(host,address):
+            requested.append(address)
+            if len(requested)==1:
+                def fail(*args,**kwargs):raise OSError('Synthetic connection failure')
+                return SimpleNamespace(request=fail,close=lambda:None)
+            body=io.BytesIO(b'public fixture')
+            headers={'Content-Length':'14','Content-Type':'text/plain','Content-Encoding':'identity'}
+            response=SimpleNamespace(status=200,getheader=lambda name,default=None:headers.get(name,default),read=body.read)
+            return SimpleNamespace(request=lambda *args,**kwargs:None,getresponse=lambda:response,close=lambda:None,sock=None)
+        with patch.object(paper_tools,'public_addresses',return_value=['93.184.216.34','1.1.1.1']),patch.object(paper_tools,'PinnedHTTPSConnection',side_effect=connection):
+            body,_,_=paper_tools.fetch_public('https://public.example/paper')
+        self.assertEqual(body,b'public fixture')
+        self.assertEqual(requested,['93.184.216.34','1.1.1.1'])
+
     def test_arxiv_atom_preserves_source_abstract_and_normalizes_https(self):
         raw=b'''<feed xmlns="http://www.w3.org/2005/Atom"><entry><id>http://arxiv.org/abs/0000.00000v1</id><title>Synthetic paper</title><published>2026-01-01</published><summary>A verifiable abstract.</summary><author><name>Example Author</name></author></entry></feed>'''
         record=paper_tools.arxiv_atom_records(raw)[0]
@@ -157,6 +173,14 @@ class PaperNetworkTests(unittest.TestCase):
         self.assertEqual(record['pdf_url'],'https://arxiv.org/pdf/0000.00000v1')
         self.assertEqual(record['abstract'],'A verifiable abstract.')
         self.assertEqual(record['authors'],['Example Author'])
+
+    def test_arxiv_abs_pdf_and_html_urls_use_the_official_id_lookup(self):
+        raw=b'''<feed xmlns="http://www.w3.org/2005/Atom"><entry><id>http://arxiv.org/abs/0000.00000v1</id><title>Synthetic paper</title><published>2026-01-01</published><summary>Verifiable abstract.</summary><author><name>Example Author</name></author></entry></feed>'''
+        for url in ['https://arxiv.org/abs/0000.00000v1','https://arxiv.org/pdf/0000.00000v1.pdf','https://arxiv.org/html/0000.00000v1']:
+            with patch.object(paper_tools,'fetch_public',return_value=(raw,'application/atom+xml','')) as fetch:
+                self.assertEqual(paper_tools.lookup_papers(url)[0]['title'],'Synthetic paper')
+                self.assertIn('https://export.arxiv.org/api/query?id_list=0000.00000v1',fetch.call_args.args[0])
+                self.assertEqual(fetch.call_count,1)
 
     def test_codex_runs_ephemerally_in_empty_directory(self):
         observed={}
