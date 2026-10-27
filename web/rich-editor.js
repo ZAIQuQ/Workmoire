@@ -62,11 +62,11 @@ function findText(doc,query){
 }
 
 export function mountRichEditor(host,options={}){
- let editor,ready=false,destroyed=false,markdownCache='',cachedDoc=null,baselineDoc=null,baselineMarkdown=options.baseline?.content??options.content??'',slashRange=null,slashIndex=0,slashItems=[],blockTarget=null,updateFrame=0;
+ let editor,ready=false,destroyed=false,markdownCache='',cachedDoc=null,baselineDoc=null,baselineMarkdown=options.baseline?.content??options.content??'',slashRange=null,slashIndex=0,slashItems=[],blockTarget=null,updateFrame=0,blurTimer=0;
  const reservations=new Set(),owned=[],cleanup=[],diagnostics={markdownSerializations:0,documentUpdates:0};
  const make=(tag,cls,parent=host)=>{const node=document.createElement(tag);node.className=cls;parent.append(node);return node;};
  const scroll=make('div','rich-editor-scroll');const contentHost=make('div','rich-editor-content',scroll);
- const bubble=make('div','rich-bubble-menu',document.body);owned.push(bubble);bubble.setAttribute('role','toolbar');bubble.setAttribute('aria-label','选中文字格式');
+ const bubble=document.createElement('div');bubble.className='rich-bubble-menu';owned.push(bubble);bubble.setAttribute('role','toolbar');bubble.setAttribute('aria-label','选中文字格式');
  for(const item of [['bold','加粗','bold'],['italic','斜体','italic'],['underline','下划线','underline'],['strike','删除线','strike'],['highlight','高亮','highlight'],['link','链接','link'],['inline-math','行内公式','variable']])bubble.append(button(...item));
  bubble.addEventListener('mousedown',event=>event.preventDefault());bubble.addEventListener('click',event=>{const target=event.target.closest('[data-rich-command]');if(target)run(target.dataset.richCommand);});
  const slash=make('div','rich-slash-menu',document.body);owned.push(slash);slash.hidden=true;slash.setAttribute('role','listbox');slash.setAttribute('aria-label','插入内容块');
@@ -164,7 +164,7 @@ export function mountRichEditor(host,options={}){
   onTransaction({transaction}){for(const reservation of reservations)reservation.mark=reservation.mark.map(transaction.mapping);},
   onUpdate({transaction}){if(ready&&transaction.docChanged){diagnostics.documentUpdates++;options.onChange?.();scheduleControls();}},
   onSelectionUpdate(){if(ready)scheduleControls();},
-  onBlur(){setTimeout(()=>{if(!slash.contains(document.activeElement))hideSlash();},120);},
+  onBlur(){clearTimeout(blurTimer);blurTimer=setTimeout(()=>{if(destroyed)return;if(!slash.contains(document.activeElement))hideSlash();if(!bubble.contains(document.activeElement))editor.view.dispatch(editor.state.tr.setMeta('bubbleMenu','hide'));},120);},
  });
  function completeDocument(doc){return doc.lastChild?.type.name==='paragraph'?doc:doc.copy(doc.content.append(Fragment.from(editor.schema.nodes.paragraph.create())));}
  function parseDocument(markdown){return completeDocument(editor.schema.nodeFromJSON(editor.markdown.parse(markdown||'')));}
@@ -277,7 +277,7 @@ export function mountRichEditor(host,options={}){
   insertReference(item){editor.chain().focus().insertContent({type:'documentLink',attrs:{id:Number(item.id),title:item.title}}).run();},
   insertAttachment(file,reservation){insertAtReservation({type:'paragraph',content:[{type:'text',text:file.name,marks:[{type:'link',attrs:{href:'/files/'+file.id,target:'_blank',rel:'noopener noreferrer nofollow'}}]}]},reservation);},
   replacePDFSource(original,file){let tr=editor.state.tr;editor.state.doc.descendants((node,pos)=>{if(node.type.name==='pdf'&&new URL(node.attrs.src,location.origin).href===new URL(original,location.origin).href)tr=tr.setNodeMarkup(pos,undefined,{...node.attrs,src:'/files/'+file.id+'?inline=1',title:file.name||node.attrs.title});});if(tr.docChanged)editor.view.dispatch(tr);},
-  setEditable(value){editor.setEditable(value,false);host.dataset.editable=String(value);bubble.style.visibility=value?'':'hidden';hideSlash();blockMenu.hidden=true;for(const select of host.querySelectorAll('.native-code-head select'))select.disabled=!value;for(const checkbox of host.querySelectorAll('li[data-type="taskItem"] input'))checkbox.disabled=!value;},
+  setEditable(value){editor.setEditable(value,false);host.dataset.editable=String(value);if(!value)editor.view.dispatch(editor.state.tr.setMeta('bubbleMenu','hide'));hideSlash();blockMenu.hidden=true;for(const select of host.querySelectorAll('.native-code-head select'))select.disabled=!value;for(const checkbox of host.querySelectorAll('li[data-type="taskItem"] input'))checkbox.disabled=!value;},
   outline(){const headings=[];editor.state.doc.descendants((node,pos)=>{if(node.type.name==='heading')headings.push({level:node.attrs.level,title:node.textContent,pos});});return headings;},
   jump(pos){const node=editor.view.nodeDOM(pos);if(node instanceof HTMLElement)node.scrollIntoView({behavior:'smooth',block:'start'});if(editor.isEditable)editor.chain().focus().setTextSelection(Math.min(pos+1,editor.state.doc.content.size)).run();},
   active:isActive,command:run,
@@ -286,7 +286,7 @@ export function mountRichEditor(host,options={}){
   setColor:color=>color?editor.chain().focus().setColor(color).run():editor.chain().focus().unsetColor().run(),
   focus:()=>editor.commands.focus(),undo:()=>editor.commands.undo(),redo:()=>editor.commands.redo(),
   showFind,measure:()=>{},
-  destroy(){destroyed=true;cancelAnimationFrame(updateFrame);cleanup.forEach(fn=>fn());reservations.clear();editor.destroy();owned.slice().forEach(el=>{if(el instanceof HTMLDialogElement&&el.open)el.close();el.remove();});host.replaceChildren();},
+  destroy(){destroyed=true;cancelAnimationFrame(updateFrame);clearTimeout(blurTimer);cleanup.forEach(fn=>fn());reservations.clear();editor.destroy();owned.slice().forEach(el=>{if(el instanceof HTMLDialogElement&&el.open)el.close();el.remove();});host.replaceChildren();},
  };
  host.dataset.editable=String(editor.isEditable);scheduleControls();return adapter;
 }

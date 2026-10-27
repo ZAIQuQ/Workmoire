@@ -11,7 +11,7 @@ async function reopen(page,id){await page.reload();await page.locator('[data-ope
 
 test('legacy documents open as native editable blocks and retain math, code, tables and tasks',async({page})=>{
  const errors=[];page.on('pageerror',error=>errors.push(error.message));await login(page);await expect(page.locator('.main-nav .nav-item')).toHaveCount(3);
- await page.locator('[data-open="1"]').click();await expect(page.locator('.rich-document')).toHaveAttribute('contenteditable','true');await expect(page.locator('#save-state')).toHaveText('已保存');
+ await page.locator('[data-open="1"]').click();await expect(page.locator('.rich-document')).toHaveAttribute('contenteditable','true');await expect(page.locator('#save-state')).toHaveText('已保存');await expect(page.locator('.rich-bubble-menu')).toBeHidden();expect(await page.evaluate(()=>document.documentElement.scrollHeight)).toBeLessThanOrEqual(1000);
  await expect(page.locator('.rich-document .katex')).toHaveCount(2);await expect(page.locator('.rich-document table')).toHaveCount(1);await expect(page.locator('.native-code-block .hljs-keyword').first()).toBeVisible();await expect(page.locator('.cm-content')).toHaveCount(0);
  await page.locator('.rich-document li[data-type="taskItem"] input').first().check();await expect.poll(()=>content(page)).toContain('- [x] 比较局部窗口');await save(page);
  const id=await page.evaluate(()=>state.current.id);await reopen(page,id);await expect(page.locator('.rich-document li[data-type="taskItem"] input').first()).toBeChecked();await expect(page.locator('.rich-document .katex')).toHaveCount(2);
@@ -19,7 +19,7 @@ test('legacy documents open as native editable blocks and retain math, code, tab
 });
 
 test('native bold, underline, color and alignment survive drafts, save and reload',async({page})=>{
- await login(page);await blank(page,'浏览器测试：富文本格式与草稿');await page.locator('.rich-document').click();await page.keyboard.insertText('中文与 English');await page.keyboard.press('Control+a');
+ await login(page);await blank(page,'浏览器测试：富文本格式与草稿');await page.locator('.rich-document').click();await page.keyboard.insertText('中文与 English');await page.keyboard.press('Control+a');await expect(page.locator('.rich-bubble-menu')).toBeVisible();
  await page.locator('.editor-toolbar > [data-command="bold"]').click();await page.locator('.editor-toolbar > [data-command="underline"]').click();await expect(page.locator('.rich-document strong')).toContainText('中文');await expect(page.locator('.rich-document u')).toContainText('English');
  await page.locator('.format-menu > summary').click();await page.locator('#text-color').fill('#2458c5');await page.locator('.format-menu [data-command="align-center"]').click();await expect(page.locator('.rich-document > p').first()).toHaveCSS('text-align','center');
  await save(page);const id=await page.evaluate(()=>state.current.id);const before=await native(page);await reopen(page,id);expect((await native(page)).document).toEqual(before.document);

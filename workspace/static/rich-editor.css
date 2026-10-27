@@ -70,7 +70,7 @@
 .rich-block-handle button:hover { color: var(--body); background: var(--hover); }
 .rich-block-handle [data-drag-handle] { cursor: grab; }
 .rich-block-handle .icon { width: 16px; height: 16px; }
-.rich-bubble-menu { display: flex; align-items: center; gap: 2px; padding: 4px; background: var(--paper); border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow); z-index: 80; }
+.rich-bubble-menu { position: fixed; visibility: hidden; width: max-content; display: flex; align-items: center; gap: 2px; padding: 4px; background: var(--paper); border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow); z-index: 80; }
 .rich-bubble-menu button { display: grid; place-items: center; width: 30px; height: 30px; padding: 5px; border-radius: 4px; color: var(--body); }
 .rich-bubble-menu .icon { width: 17px; height: 17px; }
 .rich-bubble-menu button:hover, .rich-bubble-menu button.is-active { background: var(--accent-soft); color: var(--accent); }
