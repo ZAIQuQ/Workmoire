@@ -1,6 +1,6 @@
 .PHONY: compile test build browser skill-sync
 compile:
-	python3 -m py_compile workspace_server.py paper_tools.py tests/*.py scripts/sync_skill.py
+	python3 -m py_compile workspace_server.py paper_tools.py tests/*.py scripts/sync_skill.py scripts/check_assistant.py
 	bash -n backup.sh
 	node --check workspace/static/app.js
 	node --check tests/browser.spec.cjs

@@ -87,3 +87,9 @@ changes belong in normal commit history.
 - Added public-only pinned-DNS metadata/PDF retrieval with validated redirects and an optional trusted proxy. Paper drafts are source-grounded, explicit, and unsaved until insertion and normal save.
 - Moved Codex work to disposable empty directories and read only its final-message file; kept explicit ephemeral/read-only CLI flags and synthetic invocation verification.
 - Added HTTP/security checks and an isolated browser suite for rich editing, drafts/conflicts, media, paper drafting, relationships, trash, and mobile layout. The development checkout and test data remain separate from production runtime data.
+
+### Runtime acceptance follow-up
+
+- Added an exact-service-environment assistant check after finding that interactive-shell Codex configuration masked an unconfigured systemd authentication path. Custom `CODEX_HOME` must be explicit in the private service environment.
+- Terminate the assistant's whole process group on timeout; killing an npm launcher alone can leave its native child retrying. Added a synthetic launcher/child regression test.
+- Verify installed backup permissions by executing the actual systemd backup job as its configured user, rather than relying only on an active timer and earlier snapshot files.

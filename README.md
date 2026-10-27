@@ -54,6 +54,10 @@ Copy `.env.example` to a private `.env` and configure:
 - `WORKSPACE_SETUP_TOKEN`: a private random token required for first-run creation on a public listener.
 - `WORKSPACE_COOKIE_SECURE`: enable when serving through HTTPS.
 - `WORKSPACE_CODEX_BIN`: an optional installed Codex executable; leave empty to disable generation.
+- `CODEX_HOME`: set this explicitly in the private service environment when Codex uses
+  a custom configuration directory; the service does not inherit your interactive shell.
+- `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`: configure these in the same private
+  service environment when the selected model provider requires an egress proxy.
 - `WORKSPACE_CODEX_MODEL` / `WORKSPACE_CODEX_REASONING_EFFORT`: optional CLI overrides.
 - `WORKSPACE_PAPER_PROXY`: optional trusted HTTP CONNECT proxy for paper retrieval.
   The paper fetcher also recognizes `HTTPS_PROXY`; target DNS is validated and the
@@ -90,6 +94,11 @@ under ignored `artifacts/`.
 
 Rebuild `workspace/static/vendor/` after changing `web/editor-vendor.js` or library
 versions. Keep `package-lock.json` and the bundled third-party notices together.
+
+When generation is enabled, check the actual running service configuration with
+`python3 scripts/check_assistant.py --service personal-workspace.service`. This
+uses synthetic input and does not print credentials or process personal documents.
+Timed-out assistant calls terminate the launcher and its child processes together.
 
 `skills/personal-workspace-maintenance/SKILL.md` is the canonical maintenance
 workflow. Run `make skill-sync` after changing it.

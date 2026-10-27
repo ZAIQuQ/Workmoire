@@ -17,6 +17,7 @@ import mimetypes
 import os
 import re
 import secrets
+import signal
 import shlex
 import shutil
 import sqlite3
@@ -484,16 +485,32 @@ def invoke_codex(prompt: str, timeout: int | None = None) -> str:
         # Use an empty disposable directory, never the production data directory.
         with tempfile.TemporaryDirectory(prefix="workmoire-assistant-") as scratch:
             output = Path(scratch) / "result.md"
-            result = subprocess.run(
+            with subprocess.Popen(
                 command + ["exec", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only",
                            "--color", "never", "--output-last-message", str(output)]
                 + (["--model", CODEX_MODEL] if CODEX_MODEL else [])
                 + ["-c", "model_reasoning_effort=" + CODEX_REASONING_EFFORT, "-"],
-                cwd=scratch, input=prompt, text=True, capture_output=True,
-                timeout=timeout or ASSISTANT_TIMEOUT, check=False, env={**os.environ, "NO_COLOR": "1"},
-            )
+                cwd=scratch, text=True, stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                start_new_session=(os.name == "posix"), env={**os.environ, "NO_COLOR": "1"},
+            ) as process:
+                try:
+                    process.communicate(prompt, timeout=timeout or ASSISTANT_TIMEOUT)
+                except subprocess.TimeoutExpired:
+                    # The npm launcher starts a native child; killing only the
+                    # launcher leaves that child retrying after a web timeout.
+                    if os.name == "posix":
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    else:
+                        process.kill()
+                    process.communicate()
+                    raise
+                returncode = process.returncode
             text = output.read_text(encoding="utf-8").strip() if output.is_file() else ""
-            if result.returncode != 0 or not text:
+            if returncode != 0 or not text:
                 raise RuntimeError("Codex 暂时无法完成整理，请稍后再试")
             return text[:24000]
     except subprocess.TimeoutExpired as exc:

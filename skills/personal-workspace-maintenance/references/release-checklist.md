@@ -16,6 +16,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - When deletion behavior changes, test the full trash lifecycle: active queries hide deleted rows, restore returns them, and permanent deletion removes the row and file bytes.
 - When editor behavior changes, verify local drafts are revision-scoped, restorable or dismissible, and cleared after a successful save or deletion.
 - If `WORKSPACE_CODEX_BIN` is configured, verify the CLI version and that its help still recognizes the explicit `--ephemeral` and `--sandbox read-only` flags, then run a synthetic assistant smoke test; never use a personal document as the fixture or rely on ignored profile keys for isolation.
+- Run `python3 scripts/check_assistant.py --service personal-workspace.service` after deployment so the exact service configuration, not the interactive shell, proves the assistant works. Verify timeout cleanup includes the npm launcher's native child.
 - When assistant UI changes, verify that generated text is not persisted until an explicit insert and save action.
 - When assistant calls are slow or unavailable, verify the entry is disabled or visibly busy and repeated clicks do not create concurrent calls.
 - Update the README when the user-visible behavior or deployment contract changes.
@@ -36,6 +37,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - Run systemctl is-active personal-workspace.service.
 - Check /healthz, /api/session, ss -lntp, and recent journalctl output.
 - Probe `HEAD /healthz` and `HEAD /static/app.js` when the service is behind a monitor or reverse proxy.
+- Verify the installed backup script is executable by the service user, run the backup systemd job, and inspect its exit status and snapshot artifacts.
 - If a backup timer is enabled, check `systemctl list-timers`, the latest successful run, and the backup directory's free space.
 - Record the deployed commit and any cloud security-group or HTTPS requirement.
 

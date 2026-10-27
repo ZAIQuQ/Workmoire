@@ -1,6 +1,9 @@
 """Media previews and explicit, source-grounded paper drafting boundaries."""
 import io
 import json
+import os
+import signal
+import sys
 import sqlite3
 import tempfile
 import threading
@@ -157,16 +160,52 @@ class PaperNetworkTests(unittest.TestCase):
 
     def test_codex_runs_ephemerally_in_empty_directory(self):
         observed={}
-        def run(args,**kwargs):
+        class Process:
+            returncode=0
+            def __enter__(process):return process
+            def __exit__(process,*args):pass
+            def communicate(process,prompt,timeout):
+                self.assertEqual(prompt,'Synthetic text')
+                Path(observed['args'][observed['args'].index('--output-last-message')+1]).write_text('Synthetic suggestion')
+                return '', ''
+        def launch(args,**kwargs):
             observed.update(args=args,cwd=kwargs['cwd'])
             self.assertEqual(list(Path(kwargs['cwd']).iterdir()),[])
-            Path(args[args.index('--output-last-message')+1]).write_text('Synthetic suggestion')
-            return SimpleNamespace(returncode=0)
-        with patch.object(app,'codex_command',return_value=['synthetic-codex']),patch.object(app.subprocess,'run',side_effect=run):
+            self.assertEqual(kwargs['start_new_session'],os.name=='posix')
+            return Process()
+        with patch.object(app,'codex_command',return_value=['synthetic-codex']),patch.object(app.subprocess,'Popen',side_effect=launch):
             self.assertEqual(app.invoke_codex('Synthetic text'),'Synthetic suggestion')
         self.assertIn('--ephemeral',observed['args'])
         self.assertEqual(observed['args'][observed['args'].index('--sandbox')+1],'read-only')
         self.assertFalse(Path(observed['cwd']).exists())
+
+
+    @unittest.skipUnless(os.name=='posix','Process-group cleanup is a POSIX boundary')
+    def test_codex_timeout_stops_launcher_and_child_and_releases_slot(self):
+        with tempfile.TemporaryDirectory(prefix='workmoire-process-test-') as temporary:
+            root=Path(temporary);pids=root/'pids.json';launcher=root/'launcher.py'
+            launcher.write_text(
+                "import json,os,subprocess,sys,time\n"
+                "from pathlib import Path\n"
+                "child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'])\n"
+                + "Path("+repr(str(pids))+").write_text(json.dumps([os.getpid(),child.pid]))\n"
+                + "time.sleep(60)\n"
+            )
+            try:
+                with patch.object(app,'codex_command',return_value=[sys.executable,str(launcher)]):
+                    with self.assertRaisesRegex(RuntimeError,'整理超时'):
+                        app.invoke_codex('Synthetic timeout fixture',timeout=2)
+                self.assertTrue(pids.exists())
+                for pid in json.loads(pids.read_text()):
+                    status=Path('/proc')/str(pid)/'stat'
+                    self.assertTrue(not status.exists() or status.read_text().split()[2]=='Z','Timed-out assistant process remains running')
+                self.assertTrue(app.ASSISTANT_SLOT.acquire(blocking=False))
+                app.ASSISTANT_SLOT.release()
+            finally:
+                if pids.exists():
+                    for pid in json.loads(pids.read_text()):
+                        try:os.kill(pid,signal.SIGKILL)
+                        except ProcessLookupError:pass
 
 
 if __name__=='__main__':unittest.main()
