@@ -1,0 +1,10 @@
+data/
+backups/
+.env
+*.db
+*.db-*
+__pycache__/
+*.pyc
+node_modules/
+artifacts/
+.test-*

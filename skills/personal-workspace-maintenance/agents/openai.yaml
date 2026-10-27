@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workmoire Maintenance"
+  short_description: "Maintain a safe public workflow for this workspace"
+  default_prompt: "Use $personal-workspace-maintenance to modify, test, deploy, or publish Workmoire."
