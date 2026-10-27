@@ -56,3 +56,12 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - Verify generated paper text preserves the source and uncertainty notice, and creates no records before explicit insertion/save.
 - Verify concurrent saves keep current typing, stale local drafts require manual merging, and mobile editing has no horizontal page overflow.
 - If source retrieval requires an egress proxy, configure it only in the private environment file and test a public source through pinned DNS before deploying.
+
+## Native editor and deeper paper generation
+
+- Verify additive native-document columns on a private copy before production migration; compare existing content and account state without printing either.
+- Exercise native marks, list/task nesting, tables and image widths through save/reload, history, conflicts, local drafts and JSON/ZIP import. Check stale mirror hashes and remapped document/file references.
+- Verify real keyboard input, Chinese composition, rich HTML paste, slash menus, block drag/undo and long documents. Confirm typing does not serialize all Markdown or recreate PDF frames.
+- Verify draft quota failures stay visible and do not silently discard edits.
+- Verify gzip GET/HEAD negotiation, disabled gzip and stale-copy fallback. Retain notices for the bundled runtime dependency graph.
+- Run the exact-service assistant check with `--paper` as well as the general mode. Use a public-paper or synthetic evidence fixture, confirm the reasoning budget and truthful source scope, and do not persist acceptance content into personal documents.

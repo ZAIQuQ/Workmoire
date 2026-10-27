@@ -27,7 +27,7 @@ def main():
         app.init_db()
         fixture_paper={'title':'Synthetic paper for browser verification','authors':['Example Researcher'],'year':'2026','venue':'Example Journal','doi':'10.0000/synthetic','url':'https://example.org/paper','pdf_url':'','abstract':'A synthetic study of how to connect academic notes.','reference':'doi:10.0000/synthetic','provider':'Synthetic metadata'}
         app.lookup_papers=lambda reference:[fixture_paper]
-        app.invoke_codex=lambda prompt,timeout=None:'## 研究问题\n\n如何把阅读与独立思考联系起来？\n\n## 方法与贡献\n\n待全文核实。\n\n## 下一步\n\n- [ ] 阅读原文并核对实验。'
+        app.invoke_codex=lambda prompt,timeout=None,**options:'## 研究问题\n\n如何把阅读与独立思考联系起来？\n\n## 方法与贡献\n\n待全文核实。\n\n## 下一步\n\n- [ ] 阅读原文并核对实验。'
         content='''## 一个问题
 
 注意力机制一定需要关注所有 token 吗？试着把**研究问题**收窄到长文本场景，先理清代价与信息损失。

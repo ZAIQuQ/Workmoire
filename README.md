@@ -7,19 +7,30 @@ checklists are document templates rather than separate applications.
 
 ## Writing
 
-- CodeMirror Markdown editor with undo/redo, search, indentation, keyboard shortcuts,
-  a compact formatting toolbar, document outline, focus mode, and writing/split/reading views.
-- LaTeX inline and display formulas, highlighted code blocks, tables, quotations,
-  clickable task lists, symbols, images, and an embedded PDF.js reader with
-  selectable text, search, page navigation, and zoom. The reader keeps its place
-  while you type beside it.
-- Paste or drop images, upload attachments, or explicitly import a public HTTPS PDF.
-  Uploads remain authenticated; only byte-verified PDFs and raster images can render
-  inline. HTML and SVG remain downloads. PDF byte ranges support browser reading.
-- Add document references through the picker and see their relationships in a
-  simple neighborhood view. Tags and full-text search help retrieve older work.
-- Local drafts, optimistic conflict detection, saved version history, recoverable
-  trash, JSON import/export, and a complete archive including attachments.
+- Tiptap/ProseMirror block editor with direct rich-text input, a selection toolbar,
+  slash insertion menu, draggable blocks, and separate undo steps for block actions.
+  Bold, italic, underline, strike, color, highlight, alignment, nested lists and
+  checklists use native editor transactions.
+- Editable tables with row/column operations and resizable columns; inline/display
+  LaTeX formulas with live editing; syntax-highlighted code blocks with a language
+  picker; resizable images; and a persistent embedded PDF.js reader.
+- Paste formatted HTML or Markdown, paste/drop images, search across styled text,
+  navigate the outline, and switch between editing, reading and focus modes.
+  The editor updates changed blocks only. Markdown serialization is deferred to
+  saves, idle drafts, explicit assistant requests and export.
+- Uploads remain authenticated; only byte-verified PDFs and raster images render
+  inline. HTML and SVG uploads remain downloads. Public PDF imports require an
+  explicit action. PDF text selection, search, pages and zoom remain available
+  while writing around the same reader node.
+- Native documents are stored as versioned JSON alongside a Markdown mirror.
+  Existing Markdown documents open without rewriting stored content. Native
+  formatting, table widths and media attributes survive drafts, saved history,
+  JSON/ZIP export and import. A checksum prevents an older server's Markdown edit
+  from accidentally resurfacing stale native content.
+- Local drafts, conflict detection, recoverable trash and explicit saves remain
+  part of the workflow. A failed local draft write is reported and prevents
+  navigation until the document is saved. Imports remap both document references
+  and attachment references when allocating new IDs.
 
 The interface uses white and gray surfaces, dark text, one blue interaction
 accent, and a consistent Lucide icon set. Inter is bundled locally; Chinese text
@@ -33,9 +44,18 @@ are documented in
 
 Enter a title, DOI, arXiv link, or a publisher abstract-page link. Title lookup
 combines arXiv and Crossref results. Confirm the paper before generating a dossier.
-The service retrieves only public metadata and abstracts, then invokes the explicitly
-configured Codex CLI. It preserves the source URL and labels the missing full-text
-verification. It does not claim to have read a PDF from metadata alone.
+For arXiv references, the service attempts to retrieve the public HTML article
+through the same bounded, public-IP-validated transport as metadata. At most
+60,000 characters of article text are supplied to Codex. Each dossier labels
+whether it used HTML text, a truncated excerpt, an abstract, or metadata only;
+it does not claim to have read missing sections, PDF figures or a full paper
+from an abstract.
+
+Paper dossiers default to `high` reasoning with a 240-second model timeout.
+General document tasks default to `medium` with a 90-second timeout. Optional
+private settings can override the paper model and budget independently. The
+prompt requests mechanisms, evidence, limitations and concrete experiments,
+while keeping speculative research directions separate from supported facts.
 
 Generated dossiers and assistant suggestions are previews. Inserting them into the
 editor does not save them; use the normal save action to persist a document. Paper
@@ -46,7 +66,7 @@ use its DOI/title or upload a locally obtained PDF in those cases.
 
 Codex runs in an empty temporary directory with explicit `--ephemeral` and
 `--sandbox read-only` flags. Only the selected document or chosen public paper
-metadata is supplied. The CLI may contact its configured model provider. Prompts,
+material is supplied. The CLI may contact its configured model provider. Prompts,
 responses, credentials, and personal documents are not written into source or logs.
 
 ## Run
@@ -66,7 +86,9 @@ Copy `.env.example` to a private `.env` and configure:
   a custom configuration directory; the service does not inherit your interactive shell.
 - `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`: configure these in the same private
   service environment when the selected model provider requires an egress proxy.
-- `WORKSPACE_CODEX_MODEL` / `WORKSPACE_CODEX_REASONING_EFFORT`: optional CLI overrides.
+- `WORKSPACE_CODEX_MODEL` / `WORKSPACE_CODEX_REASONING_EFFORT`: optional general CLI overrides.
+- `WORKSPACE_PAPER_CODEX_MODEL` / `WORKSPACE_PAPER_REASONING_EFFORT`: independent paper overrides, defaulting to the configured CLI model and `high`.
+- `WORKSPACE_PAPER_ASSISTANT_TIMEOUT`: paper model timeout in seconds (default 240; bounded to 60–600).
 - `WORKSPACE_PAPER_PROXY`: optional trusted HTTP CONNECT proxy for paper retrieval.
   The paper fetcher also recognizes `HTTPS_PROXY`; target DNS is validated and the
   tunnel uses a pinned public destination IP. Credentials in proxy URLs are unsupported.
@@ -97,14 +119,19 @@ npm run test:browser
 Browser tests start their own loopback server with disposable synthetic data.
 They cover login, editor tools, math/code/tables, draft recovery and conflicts,
 image/PDF attachment handling, paper drafting without automatic persistence,
-relationships, reversible deletion, local visual assets, image proportions, and
-responsive editing/PDF layout. Screenshots are written under ignored `artifacts/`.
+native formatting and migration, table editing/resizing, block movement, Chinese
+composition, draft/storage failures, concurrent saves, media proportions, and
+responsive editing/PDF layout. A synthetic document with over 900 blocks checks
+that typing avoids full-document Markdown serialization and retains PDF nodes. Screenshots are written under ignored `artifacts/`.
 
 Rebuild `workspace/static/vendor/` after changing `web/` or library versions.
-Keep `package-lock.json` and the bundled third-party notices together.
+Keep `package-lock.json` and the bundled runtime dependency notices together.
+The build also emits gzip copies of public text assets. The server negotiates
+compression for GET/HEAD and falls back to the original if a compressed copy is stale.
 
 When generation is enabled, check the actual running service configuration with
-`python3 scripts/check_assistant.py --service personal-workspace.service`. This
+`python3 scripts/check_assistant.py --service personal-workspace.service` and
+repeat with `--paper` to verify the deeper paper settings. This
 uses synthetic input and does not print credentials or process personal documents.
 Timed-out assistant calls terminate the launcher and its child processes together.
 

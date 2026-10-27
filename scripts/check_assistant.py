@@ -7,7 +7,8 @@ from pathlib import Path
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--service',default='personal-workspace.service')
-parser.add_argument('--timeout',type=int,default=45)
+parser.add_argument('--timeout',type=int,default=90)
+parser.add_argument('--paper',action='store_true',help='Use the dedicated paper reasoning/model settings')
 args=parser.parse_args()
 try:
     pid=subprocess.check_output(['systemctl','show',args.service,'--property=MainPID','--value'],text=True).strip()
@@ -19,9 +20,9 @@ try:
     os.environ.clear();os.environ.update(runtime)
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
     import workspace_server as app
-    result=app.invoke_codex('Reply with only WORKMOIRE_ASSISTANT_OK. This is synthetic input; do not use tools or read files.',timeout=args.timeout)
+    result=app.invoke_codex('Reply with only WORKMOIRE_ASSISTANT_OK. This is synthetic input; do not use tools or read files.',timeout=args.timeout,reasoning_effort=app.PAPER_REASONING_EFFORT if args.paper else app.CODEX_REASONING_EFFORT,model=app.PAPER_CODEX_MODEL if args.paper else app.CODEX_MODEL)
     if 'WORKMOIRE_ASSISTANT_OK' not in result:raise RuntimeError('The synthetic assistant reply was unexpected')
-    print('Assistant check passed with the running service environment; no personal data used')
+    print(('Paper assistant' if args.paper else 'Assistant')+' check passed with the running service environment; reasoning='+str(app.PAPER_REASONING_EFFORT if args.paper else app.CODEX_REASONING_EFFORT)+'; no personal data used')
 except Exception as error:
     print('Assistant check failed:',str(error),file=sys.stderr)
     raise SystemExit(1)

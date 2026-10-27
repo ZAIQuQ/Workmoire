@@ -103,3 +103,10 @@ changes belong in normal commit history.
 - Keep interface copy limited to actions, input formats, feature descriptions, and state. Removed motivational/background text and duplicate English headings from login, empty states, templates, search, and relationship views; retain operational instructions and save boundaries.
 
 - Replaced the rejected green/cream theme, Geist-first typography, and decorative illustration panels with neutral surfaces, Inter/native Chinese type, line-separated document rows, and a single interaction accent. Unified the editor, syntax colors, dialogs, and PDF reader; removed unused illustration assets and stale font subsets from the build.
+
+### Native document editing and paper reasoning
+
+- Replaced the source/preview editor with Tiptap/ProseMirror native editing, lazy Markdown mirrors, stable PDF node views, and meaningful interaction/long-document checks.
+- Added versioned native JSON to documents and revisions with additive migration, validation, mirror hashes, conflict/draft preservation, and reference remapping in JSON/ZIP restores.
+- Increased paper reasoning separately from general document tasks and added bounded public arXiv HTML extraction with explicit evidence scope; checked the actual CLI service environment and a public-paper generation.
+- Added complete runtime license notices and build-time gzip assets with matching GET/HEAD negotiation and stale-copy handling.

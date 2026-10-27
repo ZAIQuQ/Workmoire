@@ -288,7 +288,7 @@ def markdown_text(value: object) -> str:
     return re.sub(r"([\\`*_[\]<>])", r"\\\1", clean_text(value))
 
 
-def dossier_header(paper: dict) -> str:
+def dossier_header(paper: dict, material: dict | None = None) -> str:
     lines = ["## 论文信息", "", "- **标题**：" + markdown_text(paper["title"])]
     if paper.get("authors"):
         lines.append("- **作者**：" + markdown_text("; ".join(paper["authors"])))
@@ -296,9 +296,93 @@ def dossier_header(paper: dict) -> str:
         lines.append("- **年份**：" + markdown_text(paper["year"]))
     if paper.get("venue"):
         lines.append("- **期刊 / 会议**：" + markdown_text(paper["venue"]))
-    lines += ["- **来源**：[原文页面](" + paper["url"] + ")", "", "> 根据公开元数据" + ("和摘要" if paper.get("abstract") else "") + "整理；尚未阅读全文，具体结论与实验需对照原文核实。", ""]
+    lines += ["- **来源**：[原文页面](" + paper["url"] + ")", ""]
+    if material and material.get("scope") in {"full_text", "partial_text"}:
+        scope = "已读取公开 HTML 正文" if material["scope"] == "full_text" else "已读取部分公开 HTML 正文，超出长度的内容未提供给模型"
+        lines += ["> " + scope + "：[阅读来源](" + material["url"] + ")。公式和图表仍需对照原文核实。", ""]
+    else:
+        lines += ["> 根据公开元数据" + ("和摘要" if paper.get("abstract") else "") + "整理；尚未阅读全文，具体结论与实验需对照原文核实。", ""]
     if paper.get("abstract"):
         lines += ["## 原文摘要", "", markdown_text(paper["abstract"]), ""]
     if paper.get("pdf_url"):
         lines += ["## 原文 PDF", "", "@[pdf](" + paper["pdf_url"] + ")", ""]
     return "\n".join(lines)
+
+
+class ArticleText(HTMLParser):
+    """Read arXiv's article body only, retaining textual math and section breaks."""
+    VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'}
+    BREAKS = {'p', 'section', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'li', 'figcaption', 'tr'}
+
+    def __init__(self, limit=60000):
+        super().__init__(convert_charrefs=True)
+        self.limit = limit
+        self.stack = []
+        self.active = False
+        self.found = False
+        self.parts = []
+        self.length = 0
+        self.truncated = False
+
+    def add(self, text):
+        if self.length >= self.limit:
+            self.truncated = True
+            return
+        remaining = self.limit - self.length
+        self.parts.append(text[:remaining])
+        self.length += len(text[:remaining])
+        if len(text) > remaining:
+            self.truncated = True
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if tag == 'article' and 'ltx_document' in values.get('class', '').split():
+            self.active = True
+            self.found = True
+        if self.active and tag in self.BREAKS:
+            self.add('\n')
+        if self.active and tag == 'math' and values.get('alttext'):
+            self.add(' $' + values['alttext'] + '$ ')
+        if tag not in self.VOID:
+            self.stack.append(tag)
+        if self.active and tag == 'br':
+            self.add('\n')
+
+    def handle_endtag(self, tag):
+        if self.active and tag in self.BREAKS:
+            self.add('\n')
+        if tag in self.stack:
+            self.stack = self.stack[:len(self.stack) - 1 - self.stack[::-1].index(tag)]
+        if tag == 'article':
+            self.active = False
+
+    def handle_data(self, text):
+        if self.active and not any(tag in {'script', 'style', 'nav', 'math'} for tag in self.stack):
+            self.add(text)
+
+    def text(self):
+        return '\n'.join(line for line in (re.sub(r'\s+', ' ', part).strip() for part in ''.join(self.parts).splitlines()) if line)
+
+
+def reading_material(paper: dict) -> dict:
+    """Attempt public HTML full text without downloading or persisting a PDF."""
+    result = {'scope': 'abstract' if paper.get('abstract') else 'metadata', 'url': paper['url'], 'text': '', 'truncated': False}
+    parsed = urlsplit(paper.get('url', ''))
+    if parsed.hostname not in {'arxiv.org', 'www.arxiv.org', 'export.arxiv.org'}:
+        return result
+    match = re.fullmatch(r'/(?:abs|html|pdf)/(\d{4}\.\d{4,5}(?:v\d+)?)(?:\.pdf)?', parsed.path)
+    if not match:
+        return result
+    try:
+        raw, content_type, final_url = fetch_public('https://arxiv.org/html/' + match[1])
+        if 'html' not in content_type:
+            return result
+        reader = ArticleText()
+        reader.feed(raw.decode('utf-8', errors='replace'))
+        text = reader.text()
+        if reader.found and len(text) >= 1500:
+            result.update(scope='partial_text' if reader.truncated else 'full_text', url=final_url, text=text, truncated=reader.truncated)
+    except (ValueError, OSError, http.client.HTTPException):
+        # The dossier must state the narrower evidence scope if HTML is absent.
+        pass
+    return result

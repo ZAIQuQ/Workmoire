@@ -229,18 +229,6 @@ kbd { font-family: var(--ui-font); font-weight: 400; }
 .insert-options button > span { color: var(--body); }
 .insert-options button:hover { background: var(--hover); }
 .insert-options .icon { width: 16px; height: 16px; }
-.editor-panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); flex: 1; min-height: 0; }
-.source-pane { min-width: 0; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--line) transparent; border-color: var(--line); }
-.preview-pane { min-width: 0; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
-.source-pane { border-right: 1px solid var(--line); overflow: hidden; border-color: var(--line); }
-.code-editor, .code-editor .cm-editor { height: 100%; min-height: 0; }
-.code-editor .cm-scroller { height: 100%; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
-.source-pane > textarea { display: block; width: 100%; height: 100%; border: 0; resize: none; box-shadow: none; outline: none; padding: 25px 28px; background: transparent; font: 15px/1.9 var(--mono-font); }
-.preview-pane { padding: 25px 30px 90px; overflow: auto; }
-.editor-panes[data-mode="write"], .editor-panes[data-mode="read"] { grid-template-columns: minmax(0, 1fr); }
-.editor-panes[data-mode="write"] > .preview-pane, .editor-panes[data-mode="read"] > .source-pane { display: none; }
-.editor-panes[data-mode="write"] > .source-pane { border: 0; max-width: 920px; width: 100%; margin: 0 auto; }
-.editor-panes[data-mode="read"] > .preview-pane { padding: 28px 40px 100px; max-width: 830px; width: 100%; margin: 0 auto; font-size: 16px; }
 .editor-footer { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding: 10px 26px; min-height: 41px; flex: none; border-color: var(--line); }
 .editor-footer .quiet-button { margin-left: auto; font-size: 11px; color: var(--muted); padding: 0; }
 .editor-footer .quiet-button .icon { width: 14px; height: 14px; }
@@ -471,7 +459,6 @@ kbd { font-family: var(--ui-font); font-weight: 400; }
 .document-workspace { grid-template-columns: 318px minmax(0, 1fr); }
 .document-title-block { padding-left: 42px; padding-right: 42px; }
 .document-topline, .editor-toolbar { padding-left: 32px; padding-right: 32px; }
-.preview-pane { padding-left: 38px; padding-right: 38px; }
 }
 @media (max-width: 1280px) {
   :root { --sidebar-width: 202px; }
@@ -494,10 +481,6 @@ kbd { font-family: var(--ui-font); font-weight: 400; }
 .map-node { padding: 16px 12px; }
 }
 @media (max-width: 1180px) {
-.editor-panes[data-mode="split"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
-.editor-panes[data-mode="split"] > .preview-pane { border-top: 1px solid var(--line); }
-.editor-panes[data-mode="split"] > .source-pane { border-right: 0; }
-.preview-pane { padding: 23px 28px 70px; }
 .editor-welcome h2 { font-size: 22px; }
 
 .relation-workspace { grid-template-columns: 195px minmax(0, 1fr); }
@@ -581,8 +564,6 @@ kbd { font-family: var(--ui-font); font-weight: 400; }
 .insert-menu summary { font-size: 11px; gap: 4px; padding: 7px 6px; }
 .insert-options { left: auto; right: 0; }
 .editor-toolbar > button[data-command="undo"], .editor-toolbar > button[data-command="redo"] { display: none; }
-.editor-panes[data-mode="read"] > .preview-pane { padding: 24px 24px 75px; font-size: 15px; }
-.preview-pane { padding: 22px 24px 60px; }
 .prose { font-size: 15px; }
 .prose .pdf-embed iframe { height: clamp(400px, 62vh, 600px); }
 .doc-inspector { top: 53px; width: min(300px, calc(100vw - 32px)); padding: 23px; }

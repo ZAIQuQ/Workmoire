@@ -1,5 +1,7 @@
 import {
   createElement, FileText, BookOpen, Network, Search, Keyboard, Menu, Upload,
+  Underline, Strikethrough, Highlighter, ListOrdered, AlignLeft, AlignCenter, AlignRight,
+  GripVertical, ArrowUp, ArrowDown, Copy, IndentIncrease, IndentDecrease, Subscript, Superscript, Eraser,
   ArrowUpRight, ArrowLeft, Link, Image, Trash2, Clock3, PanelRight,
   Maximize2, Check, Plus, X, Bold, Italic, Code, ListTodo, List, Quote, Sigma,
   Variable, Table2, Omega, Minus, Undo2, Redo2, Pin, ChevronDown, ChevronLeft,
@@ -9,6 +11,10 @@ import {
 
 // Named imports keep this bundle limited to the icons actually used by the notebook.
 const icons = {
+  underline:Underline, strike:Strikethrough, highlight:Highlighter, ordered:ListOrdered,
+  "align-left":AlignLeft, "align-center":AlignCenter, "align-right":AlignRight,
+  grip:GripVertical, up:ArrowUp, down:ArrowDown, copy:Copy, indent:IndentIncrease, outdent:IndentDecrease,
+  subscript:Subscript, superscript:Superscript, clear:Eraser,
   document:FileText, book:BookOpen, relations:Network, search:Search,
   keyboard:Keyboard, menu:Menu, upload:Upload, arrow:ArrowUpRight,
   back:ArrowLeft, link:Link, image:Image, trash:Trash2, clock:Clock3,
