@@ -21,6 +21,13 @@ checklists are document templates rather than separate applications.
 - Local drafts, optimistic conflict detection, saved version history, recoverable
   trash, JSON import/export, and a complete archive including attachments.
 
+The warm paper layout uses one consistent Lucide icon set, locally hosted Geist
+and Noto Sans SC variable fonts, and two reading illustrations adapted from Open
+Doodles. Text hierarchy, independent scrolling panes, a dismissible mobile drawer,
+and intrinsic image sizing keep both writing and PDF reading comfortable. Resource
+provenance and license details are in
+[`workspace/static/THIRD_PARTY_ASSETS.md`](workspace/static/THIRD_PARTY_ASSETS.md).
+
 ## Papers and Codex
 
 Enter a title, DOI, arXiv link, or a publisher abstract-page link. Title lookup
@@ -89,11 +96,11 @@ npm run test:browser
 Browser tests start their own loopback server with disposable synthetic data.
 They cover login, editor tools, math/code/tables, draft recovery and conflicts,
 image/PDF attachment handling, paper drafting without automatic persistence,
-relationships, reversible deletion, and mobile layout. Screenshots are written
-under ignored `artifacts/`.
+relationships, reversible deletion, local visual assets, image proportions, and
+responsive editing/PDF layout. Screenshots are written under ignored `artifacts/`.
 
-Rebuild `workspace/static/vendor/` after changing `web/editor-vendor.js` or library
-versions. Keep `package-lock.json` and the bundled third-party notices together.
+Rebuild `workspace/static/vendor/` after changing `web/` or library versions.
+Keep `package-lock.json` and the bundled third-party notices together.
 
 When generation is enabled, check the actual running service configuration with
 `python3 scripts/check_assistant.py --service personal-workspace.service`. This
@@ -114,5 +121,6 @@ account credentials.
 
 ## License
 
-MIT. Bundled editor/rendering libraries retain their respective notices in
-`workspace/static/vendor/THIRD_PARTY_LICENSES.txt`.
+MIT. Bundled editor/rendering libraries, icons, and fonts retain their respective
+notices in `workspace/static/vendor/THIRD_PARTY_LICENSES.txt`. Illustration notices
+and pinned upstream sources live in `workspace/static/illustrations/`.

@@ -95,3 +95,7 @@ changes belong in normal commit history.
 - Verify installed backup permissions by executing the actual systemd backup job as its configured user, rather than relying only on an active timer and earlier snapshot files.
 - Resolve arXiv abstract/PDF/HTML URLs through the official identifier API instead of depending on the availability of the public HTML page; preserve the requested version and verify the input forms with synthetic metadata.
 - Permit explicit PDF imports a bounded two-minute transfer interval and try up to three already-validated public destination addresses on connection failures; metadata retains its shorter limit and every redirect remains validated.
+
+### Visual resource maintenance
+
+- Reuse pinned, licensed GitHub illustration components and named Lucide icons with locally served Fontsource variable fonts. Record provenance and palette-only adaptations, preserve image proportions, and exercise responsive editor/PDF controls with synthetic browser fixtures. Added the resource inventory, build/font bundling, and browser checks for these boundaries.

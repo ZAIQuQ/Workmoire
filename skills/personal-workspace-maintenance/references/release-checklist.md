@@ -50,7 +50,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 
 ## Rich documents and papers
 
-- Rebuild and ship locally vendored editor/math assets and fonts together; retain license notices and the dependency lockfile.
+- Rebuild and ship locally vendored editor/math assets, icons, and fonts together; retain license notices and the dependency lockfile. For reused artwork, record the upstream commit and adaptations, verify local asset loading, and check intrinsic proportions and usable controls at phone, tablet, laptop, and desktop widths.
 - Verify inline media magic bytes, authentication, same-origin frame policy, and PDF byte ranges; HTML/SVG must remain downloads.
 - Verify title, DOI, and arXiv lookup using public metadata, and test private/redirect destinations using synthetic fixtures.
 - Verify generated paper text preserves the source and uncertainty notice, and creates no records before explicit insertion/save.

@@ -1,1 +1,41 @@
-:root{color-scheme:light;--toolbar-height:38px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans CJK SC",sans-serif}*{box-sizing:border-box}body{margin:0;background:#e8ecdf;color:#61764f;font-size:10px}button,input,select,a{font:inherit;color:inherit}button,a{cursor:pointer}button{border:0;background:none;padding:4px 7px;border-radius:4px;font-size:18px;line-height:1}button:hover,a:hover{background:#e5edd9}a{text-decoration:none;padding:5px;font-size:13px}input,select{border:1px solid #dce5d0;background:#f9fcf3;border-radius:4px;padding:4px}input:focus,select:focus{outline:1px solid #a9c18d}.pdf-toolbar{position:absolute;inset:0 0 auto;height:38px;display:flex;align-items:center;gap:5px;padding:0 7px;background:#f4f8eb;border-bottom:1px solid #dce5d0;z-index:10;white-space:nowrap}.pdf-toolbar>span{color:#94a880;font-size:10px}.pdf-toolbar input{width:35px;text-align:center;font-size:10px;appearance:textfield;-moz-appearance:textfield}.pdf-toolbar input::-webkit-inner-spin-button{display:none}.pdf-toolbar select{margin-left:auto;font-size:9px;padding:4px 3px;max-width:100px}.pdf-toolbar>a:last-child{font-size:12px}.pdf-search{position:absolute;z-index:12;top:38px;left:0;right:0;padding:7px;background:#f2f7e9;border-bottom:1px solid #dce5d0}.pdf-search input{width:100%;font-size:11px}.pdf-search:not([hidden])~#pdf-container{top:80px}#pdf-container{position:absolute;top:38px;bottom:0;left:0;right:0;overflow:auto;scrollbar-width:thin;--scale-factor:1;--user-unit:1}.pdfViewer{padding:10px 0 20px}.pdfViewer .page{margin:0 auto 12px;border:0;box-shadow:0 2px 8px #3b4e2620}.pdfViewer .page .canvasWrapper{overflow:hidden}.pdfViewer .page canvas{display:block}#pdf-status{position:absolute;top:48%;left:15px;right:15px;text-align:center;font-size:11px;line-height:1.8;color:#93a97d}#pdf-status[hidden]{display:none}@media(max-width:360px){.pdf-toolbar{gap:2px;padding:0 5px}.pdf-toolbar select{max-width:85px}.pdf-toolbar button{padding:4px 5px}}
+:root {
+  color-scheme: light;
+  --toolbar-height: 44px;
+  font-family: "Geist Variable", "Noto Sans SC Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #e9ece2; color: #5d6a51; font-size: 12px; }
+button, input, select, a { font: inherit; color: inherit; }
+button, a { cursor: pointer; }
+button, a { display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; padding: 6px; border-radius: 5px; height: 29px; width: 28px; flex: none; text-decoration: none; }
+button:hover, a:hover { background: #e4eadb; color: #365648; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #6d8f59; outline-offset: 1px; }
+.icon { width: 16px; height: 16px; vertical-align: middle; }
+input, select { border: 1px solid #d9e1ce; background: #fffefa; border-radius: 5px; padding: 5px; }
+.pdf-toolbar { position: absolute; inset: 0 0 auto; height: var(--toolbar-height); display: flex; align-items: center; gap: 5px; padding: 0 8px; background: #f6f9ef; border-bottom: 1px solid #dce5d1; z-index: 10; white-space: nowrap; }
+.pdf-toolbar > span { color: #8c9d7a; font-size: 11px; }
+.pdf-toolbar input { width: 37px; text-align: center; font-size: 11px; appearance: textfield; -moz-appearance: textfield; }
+.pdf-toolbar input::-webkit-inner-spin-button { display: none; }
+.pdf-toolbar select { margin-left: auto; font-size: 11px; padding: 5px 4px; max-width: 110px; }
+.pdf-search { position: absolute; z-index: 12; top: var(--toolbar-height); left: 0; right: 0; padding: 8px; background: #f4f8ec; border-bottom: 1px solid #dce5d1; }
+.pdf-search input { width: 100%; font-size: 12px; }
+.pdf-search:not([hidden]) ~ #pdf-container { top: 91px; }
+#pdf-container { position: absolute; top: var(--toolbar-height); bottom: 0; left: 0; right: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: #c5d1b6 transparent; --scale-factor: 1; --user-unit: 1; }
+.pdfViewer { padding: 14px 0 24px; }
+.pdfViewer .page { margin: 0 auto 14px; border: 0; box-shadow: 0 2px 9px #3143221f; }
+.pdfViewer .page .canvasWrapper { overflow: hidden; }
+.pdfViewer .page canvas { display: block; }
+#pdf-status { position: absolute; top: 48%; left: 15px; right: 15px; text-align: center; font-size: 12px; line-height: 1.9; color: #849c6c; }
+#pdf-status[hidden] { display: none; }
+@media (max-width: 360px) {
+  .pdf-toolbar { gap: 2px; padding: 0 5px; }
+  .pdf-toolbar select { max-width: 89px; font-size: 10px; }
+  .pdf-toolbar button, .pdf-toolbar a { width: 25px; padding: 5px; }
+}
+
+@media (max-width: 330px) {
+  /* The enclosing PDF caption also provides the full-window action. */
+  #pdf-open { display: none; }
+  .pdf-toolbar input { width: 34px; }
+  .pdf-toolbar select { max-width: 85px; }
+}
