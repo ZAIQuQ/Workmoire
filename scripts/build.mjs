@@ -1,5 +1,5 @@
 import {build} from "esbuild";
-import {cp,mkdir,readFile,writeFile} from "node:fs/promises";
+import {cp,mkdir,readFile,writeFile,rm} from "node:fs/promises";
 await mkdir("workspace/static/vendor",{recursive:true});
 await build({entryPoints:["web/interface-assets.js"],bundle:true,minify:true,target:["es2022"],outfile:"workspace/static/vendor/interface.js",legalComments:"eof"});
 await build({entryPoints:["web/editor-vendor.js"],bundle:true,minify:true,target:["es2022"],outfile:"workspace/static/vendor/editor.js",legalComments:"eof"});
@@ -9,8 +9,9 @@ await cp("node_modules/katex/dist/katex.min.css","workspace/static/vendor/katex.
 await cp("node_modules/katex/dist/fonts","workspace/static/vendor/fonts",{recursive:true});
 // Fontsource's Unicode ranges load only the character subsets needed on a page.
 let typeCSS="";
+await rm("workspace/static/vendor/type",{recursive:true,force:true});
 await mkdir("workspace/static/vendor/type",{recursive:true});
-for(const family of ["geist","noto-sans-sc"]){
+for(const family of ["inter","noto-sans-sc"]){
   const root="node_modules/@fontsource-variable/"+family;
   const css=await readFile(root+"/index.css","utf8");
   const files=[...css.matchAll(/url\(\.\/files\/([^)]*)\)/g)].map(match=>match[1]);

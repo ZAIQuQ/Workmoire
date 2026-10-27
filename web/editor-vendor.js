@@ -91,7 +91,7 @@ md.renderer.rules.pdf_embed=(tokens,index)=>{
   const url=safeMedia(tokens[index].content);
   if(!url)return '<p class="media-error">PDF 链接无效，请使用上传的附件或 HTTPS 链接。</p>';
   if(new URL(url).origin!==location.origin)return '<figure class="pdf-embed external-pdf"><figcaption><span>PDF · 原文资料</span><a href="'+escape(url)+'" target="_blank" rel="noopener noreferrer">打开原文 '+uiIcon("arrow")+'</a></figcaption><div class="external-pdf-body"><span>将原文导入附件，就能在文档内阅读。</span><button type="button" class="button secondary small import-pdf" data-pdf-url="'+escape(url)+'">导入并内嵌</button></div></figure>';
-  return '<figure class="pdf-embed"><figcaption><span>PDF · 原文阅读</span><a href="'+escape(url)+'" target="_blank" rel="noopener noreferrer">新窗口打开 '+uiIcon("arrow")+'</a></figcaption><iframe src="/static/pdf-viewer.html?v=20261027-design&amp;file='+encodeURIComponent(url)+'" title="内嵌 PDF 阅读器" loading="lazy" referrerpolicy="no-referrer"></iframe><div class="pdf-fallback">无法显示？可以在新窗口打开阅读。</div></figure>';
+  return '<figure class="pdf-embed"><figcaption><span>PDF · 原文阅读</span><a href="'+escape(url)+'" target="_blank" rel="noopener noreferrer">新窗口打开 '+uiIcon("arrow")+'</a></figcaption><iframe src="/static/pdf-viewer.html?v=20261027-neutral&amp;file='+encodeURIComponent(url)+'" title="内嵌 PDF 阅读器" loading="lazy" referrerpolicy="no-referrer"></iframe><div class="pdf-fallback">无法显示？可以在新窗口打开阅读。</div></figure>';
 };
 md.inline.ruler.before("link","document_reference",(state,silent)=>{
   const match=/^\[\[(\d+)\|([^\]\n]+)\]\]/.exec(state.src.slice(state.pos));
@@ -125,31 +125,31 @@ md.renderer.rules.image=(tokens,index,options,env,self)=>{
 };
 md.renderer.rules.heading_open=(tokens,index)=>'<'+tokens[index].tag+' id="document-heading-'+(tokens.slice(0,index).filter(t=>t.type==="heading_open").length)+'">';
 const editorTheme=EditorView.theme({
-  "&":{fontSize:"15px",color:"#344139",backgroundColor:"transparent"},
-  ".cm-content":{fontFamily:'var(--mono-font)',lineHeight:"1.95",padding:"24px 0 90px",caretColor:"#365648"},
+  "&":{fontSize:"14px",color:"#30363d",backgroundColor:"transparent"},
+  ".cm-content":{fontFamily:'var(--mono-font)',lineHeight:"1.9",padding:"24px 0 90px",caretColor:"#2458c5"},
   ".cm-line":{padding:"0 26px"},
-  ".cm-gutters":{backgroundColor:"transparent",color:"#adb5a4",border:"none",fontSize:"11px"},
-  ".cm-activeLine,.cm-activeLineGutter":{backgroundColor:"#eef2e85c"},
-  ".cm-selectionBackground":{backgroundColor:"#dde8d7 !important"},
+  ".cm-gutters":{backgroundColor:"transparent",color:"#8c959f",border:"none",fontSize:"11px"},
+  ".cm-activeLine,.cm-activeLineGutter":{backgroundColor:"#f6f8fa"},
+  ".cm-selectionBackground":{backgroundColor:"#dbe7ff !important"},
   "&.cm-focused":{outline:"none"},
   ".cm-scroller":{overflow:"auto"},
-  ".cm-cursor":{borderLeftColor:"#365648"},
-  ".cm-panels":{backgroundColor:"#f4f6ed",color:"#59674e"},
-  ".cm-search input":{font:"12px var(--ui-font)",padding:"6px",border:"1px solid #dce2d2",borderRadius:"4px"},
-  ".cm-tooltip":{border:"1px solid #dce4d1",backgroundColor:"#fffefa",borderRadius:"7px"},
+  ".cm-cursor":{borderLeftColor:"#2458c5"},
+  ".cm-panels":{backgroundColor:"#f6f8fa",color:"#3f4752"},
+  ".cm-search input":{font:"12px var(--ui-font)",padding:"6px",border:"1px solid #d0d7de",borderRadius:"4px"},
+  ".cm-tooltip":{border:"1px solid #d0d7de",backgroundColor:"#ffffff",borderRadius:"7px"},
   "@media (max-width: 760px)":{ ".cm-line":{padding:"0 20px"} }
 });
 const notebookHighlight=HighlightStyle.define([
-  {tag:tags.heading,color:"#365044",fontWeight:"600"},
-  {tag:tags.strong,color:"#344139",fontWeight:"650"},
+  {tag:tags.heading,color:"#1f2328",fontWeight:"600"},
+  {tag:tags.strong,color:"#1f2328",fontWeight:"600"},
   {tag:tags.emphasis,fontStyle:"italic"},
-  {tag:[tags.link,tags.url],color:"#54784a",textDecoration:"underline"},
-  {tag:[tags.processingInstruction,tags.meta,tags.comment],color:"#6e7e61"},
-  {tag:[tags.keyword,tags.modifier],color:"#8b5570"},
-  {tag:[tags.string,tags.attributeValue],color:"#527b4c"},
-  {tag:[tags.number,tags.bool],color:"#997343"},
-  {tag:tags.function(tags.variableName),color:"#4d7684"},
-  {tag:tags.quote,color:"#697f56"}
+  {tag:[tags.link,tags.url],color:"#2458c5",textDecoration:"underline"},
+  {tag:[tags.processingInstruction,tags.meta,tags.comment],color:"#6e7781"},
+  {tag:[tags.keyword,tags.modifier],color:"#cf222e"},
+  {tag:[tags.string,tags.attributeValue],color:"#0a3069"},
+  {tag:[tags.number,tags.bool],color:"#0550ae"},
+  {tag:tags.function(tags.variableName),color:"#8250df"},
+  {tag:tags.quote,color:"#656d76"}
 ]);
 window.WorkmoireEditor={
   updatePreview(container,html){

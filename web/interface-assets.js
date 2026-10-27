@@ -1,6 +1,6 @@
 import {
   createElement, FileText, BookOpen, Network, Search, Keyboard, Menu, Upload,
-  ArrowUpRight, ArrowLeft, Link, Image, Trash2, Clock3, Sparkles, PanelRight,
+  ArrowUpRight, ArrowLeft, Link, Image, Trash2, Clock3, PanelRight,
   Maximize2, Check, Plus, X, Bold, Italic, Code, ListTodo, List, Quote, Sigma,
   Variable, Table2, Omega, Minus, Undo2, Redo2, Pin, ChevronDown, ChevronLeft,
   ChevronRight, Ellipsis, FilePenLine, Lightbulb, Route, ClipboardCheck,
@@ -12,7 +12,7 @@ const icons = {
   document:FileText, book:BookOpen, relations:Network, search:Search,
   keyboard:Keyboard, menu:Menu, upload:Upload, arrow:ArrowUpRight,
   back:ArrowLeft, link:Link, image:Image, trash:Trash2, clock:Clock3,
-  spark:Sparkles, panel:PanelRight, expand:Maximize2, check:Check,
+  spark:NotebookPen, panel:PanelRight, expand:Maximize2, check:Check,
   plus:Plus, close:X, bold:Bold, italic:Italic, code:Code, task:ListTodo,
   list:List, quote:Quote, formula:Sigma, variable:Variable, table:Table2,
   symbols:Omega, minus:Minus, undo:Undo2, redo:Redo2, pin:Pin,

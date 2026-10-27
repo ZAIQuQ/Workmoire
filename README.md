@@ -21,11 +21,12 @@ checklists are document templates rather than separate applications.
 - Local drafts, optimistic conflict detection, saved version history, recoverable
   trash, JSON import/export, and a complete archive including attachments.
 
-The warm paper layout uses one consistent Lucide icon set, locally hosted Geist
-and Noto Sans SC variable fonts, and two reading illustrations adapted from Open
-Doodles. Text hierarchy, independent scrolling panes, a dismissible mobile drawer,
-and intrinsic image sizing keep both writing and PDF reading comfortable. Resource
-provenance and license details are in
+The interface uses white and gray surfaces, dark text, one blue interaction
+accent, and a consistent Lucide icon set. Inter is bundled locally; Chinese text
+prefers native platform fonts, with a locally bundled Noto Sans SC fallback.
+Independent scrolling panes, a dismissible mobile drawer, and intrinsic image
+sizing support both writing and PDF reading. Resource provenance and licenses
+are documented in
 [`workspace/static/THIRD_PARTY_ASSETS.md`](workspace/static/THIRD_PARTY_ASSETS.md).
 
 ## Papers and Codex
@@ -122,5 +123,5 @@ account credentials.
 ## License
 
 MIT. Bundled editor/rendering libraries, icons, and fonts retain their respective
-notices in `workspace/static/vendor/THIRD_PARTY_LICENSES.txt`. Illustration notices
-and pinned upstream sources live in `workspace/static/illustrations/`.
+notices in `workspace/static/vendor/THIRD_PARTY_LICENSES.txt`. Pinned resource
+sources are listed in `workspace/static/THIRD_PARTY_ASSETS.md`.
