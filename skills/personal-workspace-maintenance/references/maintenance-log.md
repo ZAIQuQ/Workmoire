@@ -99,3 +99,5 @@ changes belong in normal commit history.
 ### Visual resource maintenance
 
 - Reuse pinned, licensed GitHub illustration components and named Lucide icons with locally served Fontsource variable fonts. Record provenance and palette-only adaptations, preserve image proportions, and exercise responsive editor/PDF controls with synthetic browser fixtures. Added the resource inventory, build/font bundling, and browser checks for these boundaries.
+
+- Keep interface copy limited to actions, input formats, feature descriptions, and state. Removed motivational/background text and duplicate English headings from login, empty states, templates, search, and relationship views; retain operational instructions and save boundaries.

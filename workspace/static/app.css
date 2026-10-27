@@ -18,7 +18,6 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 8px 0; }
 .is-hidden, [hidden] { display: none !important; }
 .icon { width: 18px; height: 18px; flex: none; vertical-align: middle; }
 .quiet { color: var(--muted); font-size: 12px; line-height: 1.8; }
-.eyebrow { font-size: 10px; font-weight: 600; letter-spacing: 1.6px; color: var(--muted); line-height: 1.6; }
 kbd { font-family: var(--ui-font); font-weight: 400; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 9px 16px; border: 1px solid transparent; border-radius: 8px; font-size: 13px; font-weight: 550; transition: background .15s, border-color .15s, box-shadow .15s; white-space: nowrap; }
 .button.primary { background: var(--accent); color: #fff; box-shadow: 0 1px 2px #192f2314, inset 0 1px #ffffff12; }
@@ -52,21 +51,13 @@ kbd { font-family: var(--ui-font); font-weight: 400; }
 .auth-card { width: 360px; max-width: calc(100vw - 48px); align-self: center; justify-self: center; padding: 56px 0; }
 .auth-brand { margin-bottom: 72px; font-size: 26px; }
 .auth-brand .brand-mark { width: 39px; height: 43px; }
-.auth-intro .eyebrow { font-size: 10px; }
 .auth-intro h1 { font-size: 32px; font-weight: 550; letter-spacing: -.8px; margin: 14px 0 14px; }
 .auth-intro p { font-size: 14px; color: var(--muted); line-height: 1.9; margin-bottom: 32px; }
 .auth-card .field { margin: 22px 0; }
 .auth-card .field input { min-height: 48px; background: #fbfbf7; }
 .auth-card .button { min-height: 48px; margin-top: 10px; }
-.auth-foot { display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 12px; color: var(--muted); text-align: center; margin: 24px 0 0; }
-.auth-foot .icon { width: 13px; height: 13px; }
 .auth-art { background: #eaece2; overflow: hidden; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 70px 48px; }
-.auth-art-label { position: absolute; top: 48px; left: 48px; font-size: 11px; letter-spacing: 2px; color: #65745e; }
-.auth-illustration { display: block; width: min(100%, 530px); height: auto; aspect-ratio: 4 / 3; object-fit: contain; margin: 0 auto 18px; }
-.auth-art h2 { font-size: clamp(28px, 2.6vw, 40px); font-weight: 450; letter-spacing: 1px; line-height: 1.6; margin: 0 0 17px; color: #303d31; text-align: center; }
-.auth-art p { text-align: center; color: #697562; font-size: 14px; line-height: 1.9; max-width: 370px; margin: 0; }
-.auth-art-footer { position: absolute; bottom: 40px; left: 48px; right: 48px; border-top: 1px solid #ced3c4; padding-top: 18px; display: flex; align-items: center; justify-content: space-between; color: #6c7965; font-size: 11px; letter-spacing: 1px; }
-.auth-art-footer span:first-child { letter-spacing: .5px; }
+.auth-illustration { display: block; width: min(100%, 530px); height: auto; aspect-ratio: 4 / 3; object-fit: contain; margin: 0 auto; }
 /* A fixed application frame lets the list, source and paper scroll independently. */
 .app-shell { height: 100dvh; display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); overflow: hidden; }
 .sidebar { background: var(--sidebar); border-right: 1px solid #dfe1d7; padding: 28px 16px 18px; display: flex; flex-direction: column; position: fixed; inset: 0 auto 0 0; width: var(--sidebar-width); z-index: 20; overflow-y: auto; }
@@ -115,7 +106,6 @@ kbd { font-family: var(--ui-font); font-weight: 400; }
 .list-heading h1 { font-size: 24px; font-weight: 600; letter-spacing: -.7px; margin: 7px 0 0; }
 .list-heading .icon-button { background: #eeefe7; border: 1px solid #e2e6d7; color: #6e825e; width: 31px; height: 31px; }
 .list-heading .icon-button:hover { border-color: #b8c4a5; color: var(--accent); }
-.list-heading .eyebrow { font-size: 10px; color: #849176; }
 .list-search { display: flex; align-items: center; gap: 8px; background: #eeefe7; border: 1px solid #e5e7dc; border-radius: 7px; padding: 9px 10px; }
 .list-search:focus-within { border-color: #a8ba96; background: var(--paper); }
 .list-search .icon { width: 15px; height: 15px; color: #8a9a79; }
@@ -165,7 +155,6 @@ kbd { font-family: var(--ui-font); font-weight: 400; }
 .editor-surface { background: var(--paper); min-width: 0; min-height: 0; position: relative; overflow: hidden; }
 .editor-welcome { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 32px 65px; text-align: center; position: relative; overflow: auto; }
 .welcome-illustration { display: block; width: 248px; max-width: 65%; height: auto; object-fit: contain; margin-bottom: 24px; }
-.editor-welcome > .eyebrow { font-size: 10px; color: #8b9c78; }
 .editor-welcome h2 { letter-spacing: -.6px; font-size: 30px; font-weight: 500; line-height: 1.6; margin: 12px 0 14px; }
 .editor-welcome > p { color: var(--muted); font-size: 13px; line-height: 2; max-width: 355px; margin-bottom: 27px; }
 .editor-welcome > .button { padding: 11px 19px; }
@@ -174,7 +163,6 @@ kbd { font-family: var(--ui-font); font-weight: 400; }
 .welcome-templates button { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--accent); padding: 5px 0; }
 .welcome-templates .icon { width: 13px; height: 13px; }
 .welcome-templates button:hover { color: var(--accent); }
-.welcome-footer { position: absolute; bottom: 24px; font-size: 11px; letter-spacing: .6px; color: var(--muted); }
 .document-editor { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .document-topline { height: 56px; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 26px; border-bottom: 1px solid var(--line); background: var(--paper); }
 .document-location { display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--muted); min-width: 0; white-space: nowrap; }
@@ -628,7 +616,6 @@ kbd { font-family: var(--ui-font); font-weight: 400; }
   .welcome-illustration { width: 190px; margin-bottom: 15px; }
   .editor-welcome h2 { font-size: 27px; margin-top: 8px; }
   .welcome-rule { margin: 22px 0 12px; }
-  .welcome-footer { bottom: 16px; }
   .auth-art { padding-top: 70px; padding-bottom: 80px; }
   .auth-illustration { width: min(100%, 430px); margin-bottom: 5px; }
 }
