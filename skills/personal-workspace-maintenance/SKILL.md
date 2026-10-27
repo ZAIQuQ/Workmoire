@@ -32,12 +32,23 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 - Keep search ranking deterministic and privacy-preserving: rank metadata matches ahead of body-only matches without exposing deleted content or adding an external indexing service.
 - Open search and activity results through an authenticated item lookup rather than assuming the current client list contains the result; navigation must remain correct when list views are bounded or filtered.
 
+## Document and paper workflow
+
+- Keep the main interface centered on documents, papers, and a simple relationship view. Use templates for plans, ideas, todos, and self-review rather than adding parallel dashboards.
+- Bundle editor, Markdown, math, syntax-highlighting assets, fonts, and license notices locally with locked dependencies. Disable raw Markdown HTML and trusted LaTeX commands.
+- Keep media authenticated. Inline viewing requires byte-verified PDF or safe raster-image signatures, never the upload's MIME claim. Keep HTML/SVG as downloads, preserve the default anti-framing policy, and permit same-origin framing only for verified inline media and the fixed trusted PDF viewer page. Test PDF range responses and selectable-text rendering without relying on native PDF plugins.
+- Paper lookup may send only the explicitly submitted title/link to public metadata sources. Validate public destination IPs before requests and every redirect; pin the validated IP, including through an explicitly configured egress proxy. Bound response sizes and deadlines; reject credential-bearing URLs and private network destinations.
+- Draft papers from verified public metadata/abstracts, keep source links, and label all missing full-text evidence. Do not claim that metadata-only generation read a full paper. Download PDFs only through an explicit user import action.
+- Paper lookup/draft endpoints must not create documents, files, or revisions. Explicit insertion creates unsaved editor text; normal save is the persistence boundary. Keep local Codex invocations in disposable empty directories and read their final-message file before cleanup.
+- Preserve edits made during in-flight saves. Keep drafts revision-scoped; stale drafts may be copied for manual merging, never silently restored over a newer revision.
+- Exercise the actual browser on synthetic data after editor/navigation changes: formulas, code/tables, task clicks, paste/drop, PDF viewing, paper generation/insertion/save boundaries, conflict/draft handling, relationship navigation, and narrow screens.
+
 ## Working workflow
 
 1. Read the repository instructions and inspect the current branch, service unit, data path, port, and resource headroom before editing.
 2. Work in the Git checkout. Keep production data in a separate ignored directory. Make schema changes backward-compatible and test them against a copy of the database before touching production. Verify that deleted content is hidden from active queries and can be restored.
 3. Treat the repository skill at skills/personal-workspace-maintenance/SKILL.md as the source of truth for this workflow. If a workflow invariant or repeatable operational lesson changes, update this skill and its relevant reference in the same change.
-4. Run the project's checks before deployment: make compile (including `bash -n backup.sh`), make test, node --check workspace/static/app.js, and an HTTP smoke test covering health, first-run session state, authentication, content CRUD, file upload, and assistant-disabled behavior when those paths changed.
+4. Run the project's checks before deployment: make compile (including `bash -n backup.sh`), make test, node --check workspace/static/app.js, the isolated browser suite, and an HTTP smoke test covering health, first-run session state, authentication, content CRUD, file upload, and assistant-disabled behavior when those paths changed.
 5. Run a public-repository scan before staging and again before pushing. Check for IP addresses, personal email addresses, private paths, credentials, private keys, tokens, cookies, database files, uploads, logs, and non-placeholder production settings. Review the staged file list manually.
 6. Deploy only source files and static assets to the configured application directory. Do not copy .env, data/, backups, or a whole working directory. Restart the systemd service only after the new files are in place, then verify systemctl is-active, /healthz, /api/session, the listening port, and recent journal output. If backups are enabled, verify the timer, one completed snapshot, SQLite integrity, archive readability, and retention behavior without exposing backup contents.
 7. Commit with a focused message that describes the user-facing behavior. Push only to the intended GitHub repository and branch. If the remote is absent or the authenticated account is unclear, stop before creating a new remote or publishing.

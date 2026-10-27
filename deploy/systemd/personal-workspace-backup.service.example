@@ -1,0 +1,9 @@
+[Unit]
+Description=Workmoire data backup
+
+[Service]
+Type=oneshot
+User=workspace-user
+EnvironmentFile=/etc/workmoire.env
+ExecStart=/opt/workmoire/backup.sh /var/backups/workmoire
+UMask=0077

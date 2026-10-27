@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Workmoire data backup
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

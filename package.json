@@ -1,0 +1,36 @@
+{
+  "name": "workmoire",
+  "version": "1.0.0",
+  "description": "A quiet academic notebook with paper dossiers and connected documents",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test:browser": "playwright test",
+    "check": "node --check workspace/static/app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/lang-cpp": "6.0.3",
+    "@codemirror/lang-javascript": "6.2.5",
+    "@codemirror/lang-json": "6.0.2",
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/lang-python": "6.2.1",
+    "@codemirror/lang-sql": "6.10.0",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "codemirror": "6.0.2",
+    "highlight.js": "11.12.0",
+    "katex": "0.19.1",
+    "markdown-it": "15.0.3",
+    "morphdom": "2.7.8",
+    "pdfjs-dist": "6.4.299"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "esbuild": "0.28.2"
+  },
+  "private": true
+}

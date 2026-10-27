@@ -37,6 +37,8 @@ class ConflictHttpTests(unittest.TestCase):
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=3)
+        self.config.stop()
+        self.temp.cleanup()
 
     def request(self, path, method="GET", data=None, status=200):
         request = urllib.request.Request(

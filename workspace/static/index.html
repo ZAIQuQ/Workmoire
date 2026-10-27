@@ -3,71 +3,77 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0d1726">
+  <meta name="theme-color" content="#f5f5f0">
   <title>Workmoire · 拾序</title>
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="icon" href="/static/favicon.svg?v=2" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/vendor/katex.min.css?v=20261027">
+  <link rel="stylesheet" href="/static/app.css?v=20261027-docs">
+  <script defer src="/static/vendor/editor.js?v=20261027-docs"></script>
+  <script defer src="/static/app.js?v=20261027-docs"></script>
 </head>
 <body>
   <section id="auth-view" class="auth-view is-hidden">
-    <div class="auth-orbit orbit-a"></div><div class="auth-orbit orbit-b"></div>
     <div class="auth-card">
-      <div class="mark mark-large">W</div>
-      <div class="eyebrow">PRIVATE WORKSPACE</div>
-      <h1 id="auth-title">欢迎回来</h1>
-      <p id="auth-subtitle">把论文、项目和日常思路放在同一个安静的空间里。</p>
-      <form id="auth-form" autocomplete="on">
-        <label class="form-field"><span>账号</span><input id="auth-username" autocomplete="username" required></label>
-        <label class="form-field"><span>密码</span><input id="auth-password" type="password" autocomplete="current-password" required></label>
-        <label id="auth-confirm-row" class="form-field is-hidden"><span>确认密码</span><input id="auth-confirm" type="password" autocomplete="new-password"></label>
-        <label id="auth-setup-token-row" class="form-field is-hidden"><span>初始化令牌</span><input id="auth-setup-token" type="password" autocomplete="one-time-code"></label>
-        <button id="auth-submit" class="button button-primary button-block" type="submit">登录</button>
-        <p id="auth-error" class="form-error" role="alert"></p>
+      <div class="brand auth-brand"><span class="brand-mark">w.</span><span>workmoire</span></div>
+      <div class="auth-intro"><span class="eyebrow">A LITTLE SPACE FOR BIG IDEAS</span><h1 id="auth-title">欢迎回来。</h1><p id="auth-subtitle">把想法留下来，慢慢连成自己的脉络。</p></div>
+      <form id="auth-form">
+        <label class="field"><span>账号</span><input id="auth-username" autocomplete="username" minlength="2" maxlength="64" required></label>
+        <label class="field"><span>密码</span><input id="auth-password" type="password" autocomplete="current-password" required></label>
+        <label id="auth-confirm-row" class="field is-hidden"><span>确认密码</span><input id="auth-confirm" type="password" autocomplete="new-password"></label>
+        <label id="auth-setup-token-row" class="field is-hidden"><span>初始化令牌</span><input id="auth-setup-token" type="password" autocomplete="one-time-code"></label>
+        <p id="auth-error" class="error" role="alert"></p>
+        <button id="auth-submit" class="button primary full" type="submit">登录</button>
       </form>
-      <p class="auth-foot">仅允许一个账号访问 · 数据保存在当前服务器</p>
+      <p class="auth-foot">属于你一个人的学术笔记。</p>
     </div>
+    <div class="auth-art" aria-hidden="true"><div class="paper-sheet"><span>THE THINKING ROOM</span><h2>给思考<br>一点留白。</h2><div class="art-lines"><i></i><i></i><i></i></div><p>Read. Write. Connect.</p></div></div>
   </section>
 
   <div id="app-view" class="app-shell is-hidden">
     <aside class="sidebar">
-      <div class="brand"><div class="mark">W</div><div><strong>Workmoire</strong><span>论文 · 项目 · 思路</span></div></div>
-      <nav class="main-nav" aria-label="主导航">
-        <button class="nav-item is-active" data-page="dashboard"><span class="nav-icon">⌂</span>总览</button>
-        <button class="nav-item" data-page="review"><span class="nav-icon">✦</span>今日复盘</button>
-        <button class="nav-item" data-page="calendar"><span class="nav-icon">▦</span>计划日历</button>
-        <button class="nav-item" data-page="graph"><span class="nav-icon">⌘</span>关系地图</button>
-        <div class="nav-label">整理空间</div>
-        <button class="nav-item" data-page="note"><span class="nav-icon">▤</span>知识库</button>
-        <button class="nav-item" data-page="project"><span class="nav-icon">◈</span>项目空间</button>
-        <button class="nav-item" data-page="paper"><span class="nav-icon">▧</span>论文大纲</button>
-        <button class="nav-item" data-page="log"><span class="nav-icon">◷</span>工作日志</button>
-        <div class="nav-label">资源</div>
-        <button class="nav-item" data-page="files"><span class="nav-icon">⌁</span>文件空间</button>
-        <button class="nav-item" data-page="trash"><span class="nav-icon">♲</span>回收站</button>
+      <a class="brand" href="#" id="brand-home"><span class="brand-mark">w.</span><span>workmoire<small>拾序 · 学术笔记</small></span></a>
+      <button id="new-document" class="button primary new-document"><span>＋ 写文档</span><kbd>⌘ N</kbd></button>
+      <nav class="main-nav" aria-label="工作空间">
+        <button class="nav-item is-active" data-page="documents"><span data-icon="document"></span><span>全部文档</span><small id="document-count"></small></button>
+        <button class="nav-item" data-page="papers"><span data-icon="book"></span><span>论文资料</span><small id="paper-count"></small></button>
+        <button class="nav-item" data-page="relations"><span data-icon="relations"></span><span>文档关系</span></button>
       </nav>
+      <div class="sidebar-section"><span class="sidebar-label">标签</span><div id="sidebar-tags" class="sidebar-tags"><span class="quiet sidebar-empty">给文档加上标签，就能在这里快速找到。</span></div></div>
       <div class="sidebar-bottom">
-        <button id="settings-button" class="account-button"><span class="avatar">U</span><span id="account-name">个人账号</span><span class="dots">···</span></button>
-        <div id="settings-menu" class="settings-menu is-hidden"><button id="export-data">导出知识库 JSON</button><button id="export-archive">下载完整归档</button><button id="import-data">导入知识库 JSON</button><button id="import-archive">导入完整归档</button><button id="change-password">修改密码</button><button id="logout">退出登录</button></div>
-        <div class="server-status"><i></i><span id="server-status-label">本地服务在线</span></div>
+        <button id="shortcuts-button" class="quiet-button"><span data-icon="keyboard"></span>编辑快捷键</button>
+        <button id="settings-button" class="account-button" aria-expanded="false"><span id="account-avatar" class="avatar">U</span><span id="account-name">我的空间</span><span class="account-dots">···</span></button>
+        <div id="settings-menu" class="settings-menu is-hidden">
+          <button data-settings-page="files">附件管理</button><button data-settings-page="trash">回收站</button><hr>
+          <button id="export-data">导出 Markdown 数据（JSON）</button><button id="export-archive">下载完整归档</button><button id="import-data">导入 JSON</button><button id="import-archive">导入完整归档</button><hr>
+          <button id="change-password">修改密码</button><button id="logout">退出登录</button>
+        </div>
       </div>
     </aside>
-
     <main class="main-content">
-      <header class="topbar">
-        <div class="mobile-brand"><div class="mark">W</div><strong>Workmoire</strong></div>
-        <div class="breadcrumbs"><span>拾序工作空间</span><b>/</b><strong id="page-heading">总览</strong></div>
-        <div class="top-actions"><button id="global-search-trigger" class="search-trigger"><span>⌕</span><span>搜索内容</span><kbd>Ctrl K</kbd></button><button id="mobile-menu" class="icon-button" aria-label="打开菜单">☰</button></div>
-      </header>
+      <header class="topbar"><button id="mobile-menu" class="icon-button mobile-only" aria-label="打开导航"><span data-icon="menu"></span></button><div class="breadcrumbs"><span class="quiet">我的空间</span><span>/</span><strong id="page-heading">全部文档</strong></div><button id="global-search-trigger" class="search-trigger"><span data-icon="search"></span><span>搜索文档与附件</span><kbd>⌘ K</kbd></button><span class="service-dot" id="service-status" title="服务在线"></span></header>
       <div id="page-content" class="page-content"></div>
     </main>
   </div>
 
-  <dialog id="password-dialog" class="dialog"><form method="dialog" id="password-form" class="dialog-card"><div class="dialog-head"><h2>修改密码</h2><button class="icon-button" value="cancel" aria-label="关闭">×</button></div><label class="form-field"><span>当前密码</span><input id="old-password" type="password" required></label><label class="form-field"><span>新密码</span><input id="new-password" type="password" minlength="10" required></label><p id="password-message" class="form-error"></p><div class="dialog-actions"><button class="button button-secondary" value="cancel">取消</button><button id="password-submit" class="button button-primary" value="default">更新密码</button></div></form></dialog>
-  <dialog id="capture-dialog" class="dialog"><form method="dialog" id="capture-form" class="dialog-card capture-dialog-card"><div class="dialog-head"><div><h2>快速捕捉</h2><p class="dialog-subtitle">先放进待整理箱，之后再慢慢组织。</p></div><button class="icon-button" value="cancel" aria-label="关闭">×</button></div><div id="capture-draft-notice" class="capture-draft-notice is-hidden">发现本机未提交的捕捉：<button id="restore-capture-draft" type="button">恢复</button><button id="discard-capture-draft" type="button">清除</button></div><label class="form-field"><span>标题</span><input id="capture-title" maxlength="200" placeholder="刚刚想到什么？" required></label><label class="form-field"><span>内容（可选）</span><textarea id="capture-content" maxlength="1048576" rows="7" placeholder="先写下关键词、问题或下一步……"></textarea></label><p id="capture-error" class="form-error" role="alert"></p><div class="dialog-actions"><span class="capture-shortcut">Ctrl/⌘ + Shift + N</span><button class="button button-secondary" value="cancel">取消</button><button id="capture-submit" class="button button-primary" value="default">放入待整理箱</button></div></form></dialog>
-  <dialog id="search-dialog" class="dialog"><div class="dialog-card search-dialog-card"><div class="search-box"><span>⌕</span><input id="global-search" placeholder="搜索标题、摘要、标签和正文…" autocomplete="off"><kbd>ESC</kbd></div><div class="search-filters"><select id="global-search-kind" class="control-input" aria-label="按内容类型筛选"><option value="">全部内容</option><option value="note">知识库</option><option value="project">项目空间</option><option value="paper">论文大纲</option><option value="log">工作日志</option></select><select id="global-search-status" class="control-input" aria-label="按内容状态筛选"><option value="">全部状态</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></div><div id="search-results" class="search-results"><div class="search-empty">输入关键词开始搜索</div></div></div></dialog>
-  <dialog id="assistant-dialog" class="dialog"><div class="dialog-card assistant-dialog-card"><div class="dialog-head"><h2>本地整理助手</h2><button id="assistant-close" class="icon-button" aria-label="关闭">×</button></div><p class="assistant-note">内容只会发送给服务器上显式配置的本地 Codex，不会写入数据库。生成结果不会自动修改内容。</p><label class="form-field"><span>整理方式</span><select id="assistant-task"><option value="summarize">提炼摘要</option><option value="outline">整理大纲</option><option value="next_steps">生成下一步</option><option value="review">检查结构</option></select></label><pre id="assistant-result" class="assistant-result">选择任务后开始整理。</pre><div class="dialog-actions assistant-apply-actions"><button id="assistant-apply-summary" class="button button-secondary is-hidden">填入摘要</button><button id="assistant-apply-content" class="button button-secondary is-hidden">追加到正文</button><span class="spacer"></span><button id="assistant-run" class="button button-primary">开始整理</button></div></div></dialog>
-  <input id="import-input" class="file-input" type="file" accept="application/json,.json">
-  <input id="import-archive-input" class="file-input" type="file" accept="application/zip,.zip">
-  <script src="/static/app.js"></script>
+  <dialog id="template-dialog" class="dialog"><div class="dialog-card template-dialog-card"><div class="dialog-head"><div><span class="eyebrow">START WITH A THOUGHT</span><h2>新建一份文档</h2></div><button class="icon-button" data-close="template-dialog" aria-label="关闭">×</button></div><p class="dialog-note">从空白开始，或选一个刚刚好的结构。</p><div id="template-grid" class="template-grid"></div></div></dialog>
+
+  <dialog id="paper-dialog" class="dialog"><div class="dialog-card paper-dialog-card"><div class="dialog-head"><div><span class="eyebrow">PAPER TO NOTES</span><h2>整理一篇论文</h2></div><button class="icon-button" data-close="paper-dialog" aria-label="关闭">×</button></div><p class="dialog-note">输入标题、DOI 或论文链接，先确认来源，再生成可编辑的阅读档案。</p><form id="paper-form" class="paper-source-form"><input id="paper-reference" class="control-input" placeholder="论文标题 / arXiv、DOI、期刊链接" maxlength="3000" required aria-label="论文标题或链接"><button id="paper-lookup" class="button primary" type="submit">查找论文</button></form><p id="paper-error" class="error" role="alert"></p><div id="paper-candidates" class="paper-candidates"></div><div id="paper-result" class="paper-result is-hidden"><div class="result-heading"><strong>论文档案草稿</strong><span>核对后放入编辑器，保存前可以继续修改。</span></div><div id="paper-preview" class="prose"></div><div class="dialog-actions"><button id="paper-use" class="button primary">放入编辑器</button></div></div></div></dialog>
+
+  <dialog id="search-dialog" class="dialog"><div class="dialog-card search-dialog-card"><div class="search-box"><span data-icon="search"></span><input id="global-search" type="search" placeholder="搜索标题、正文、标签或附件…" autocomplete="off" aria-label="全局搜索"><button class="keycap" data-close="search-dialog">ESC</button></div><div id="search-results" class="search-results"><p class="empty-hint">输入关键词，找回一条思路。</p></div></div></dialog>
+
+  <dialog id="link-dialog" class="dialog"><div class="dialog-card"><div class="dialog-head"><h2>链接一份文档</h2><button class="icon-button" data-close="link-dialog" aria-label="关闭">×</button></div><p class="dialog-note">在正文中引用，也让它们出现在文档关系中。</p><input id="link-search" class="control-input full" type="search" placeholder="搜索文档标题…" aria-label="搜索要关联的文档"><div id="link-results" class="picker-results"></div></div></dialog>
+
+  <dialog id="media-dialog" class="dialog"><div class="dialog-card"><div class="dialog-head"><h2 id="media-title">插入 PDF</h2><button class="icon-button" data-close="media-dialog" aria-label="关闭">×</button></div><p id="media-note" class="dialog-note"></p><button id="media-upload" class="button secondary full upload-choice"><span data-icon="upload"></span>从电脑上传</button><div class="divider"><span>或使用链接</span></div><form id="media-form"><label class="field"><span id="media-label">PDF 的 HTTPS 链接</span><input id="media-url" type="url" placeholder="https://…" required></label><label id="pdf-local-row" class="checkbox-line"><input id="pdf-local" type="checkbox" checked>将 PDF 保存为当前文档的附件</label><p id="media-error" class="error" role="alert"></p><div class="dialog-actions"><button id="media-submit" class="button primary" type="submit">插入文档</button></div></form></div></dialog>
+
+  <dialog id="symbol-dialog" class="dialog"><div class="dialog-card"><div class="dialog-head"><h2>常用符号</h2><button class="icon-button" data-close="symbol-dialog" aria-label="关闭">×</button></div><p class="dialog-note">点击插入。公式可使用 LaTeX，如 $\\alpha$、$\\sum$。</p><div id="symbol-grid" class="symbol-grid"></div></div></dialog>
+
+  <dialog id="assistant-dialog" class="dialog"><div class="dialog-card assistant-dialog-card"><div class="dialog-head"><h2>整理这份文档</h2><button class="icon-button" data-close="assistant-dialog" aria-label="关闭">×</button></div><p class="dialog-note">把当前文档交给 Codex 提炼思路，结果由你决定是否采用。</p><div class="assistant-controls"><select id="assistant-task" class="control-input"><option value="summarize">提炼摘要</option><option value="outline">整理大纲</option><option value="next_steps">提出下一步</option><option value="review">自查与检视</option></select><button id="assistant-run" class="button primary">开始整理</button></div><p id="assistant-error" class="error" role="alert"></p><div id="assistant-result" class="prose assistant-result"><p class="quiet">选择整理方式后开始。</p></div><div id="assistant-actions" class="dialog-actions is-hidden"><button id="assistant-summary" class="button secondary">用作摘要</button><button id="assistant-append" class="button primary">追加到正文</button></div></div></dialog>
+
+  <dialog id="password-dialog" class="dialog"><form id="password-form" class="dialog-card"><div class="dialog-head"><h2>修改密码</h2><button type="button" class="icon-button" data-close="password-dialog" aria-label="关闭">×</button></div><label class="field"><span>当前密码</span><input id="old-password" type="password" autocomplete="current-password" required></label><label class="field"><span>新密码（至少 10 个字符）</span><input id="new-password" type="password" autocomplete="new-password" minlength="10" required></label><p id="password-error" class="error" role="alert"></p><div class="dialog-actions"><button class="button primary" type="submit">更新密码</button></div></form></dialog>
+
+  <dialog id="shortcuts-dialog" class="dialog"><div class="dialog-card"><div class="dialog-head"><h2>让编辑更顺手</h2><button class="icon-button" data-close="shortcuts-dialog" aria-label="关闭">×</button></div><div class="shortcut-list"><span>保存文档</span><kbd>Ctrl / ⌘ S</kbd><span>搜索所有文档</span><kbd>Ctrl / ⌘ K</kbd><span>新建文档</span><kbd>Ctrl / ⌘ Shift N</kbd><span>加粗 / 斜体</span><kbd>Ctrl / ⌘ B / I</kbd><span>待办清单</span><kbd>Ctrl / ⌘ Shift X</kbd><span>查找当前文档</span><kbd>Ctrl / ⌘ F</kbd><span>撤销 / 重做</span><kbd>Ctrl / ⌘ Z / Shift Z</kbd><span>图片</span><span>直接粘贴或拖入编辑器</span></div><p class="dialog-note">支持 Markdown、LaTeX 公式、代码块、表格，以及可点击的待办清单。</p></div></div></dialog>
+
+  <input id="asset-input" type="file" hidden><input id="import-input" type="file" accept="application/json,.json" hidden><input id="import-archive-input" type="file" accept="application/zip,.zip" hidden>
+  <div id="toast" class="toast is-hidden" role="status" aria-live="polite"></div>
 </body>
 </html>

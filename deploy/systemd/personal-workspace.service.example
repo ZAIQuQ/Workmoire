@@ -1,0 +1,17 @@
+[Unit]
+Description=Workmoire academic notes
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=workspace-user
+WorkingDirectory=/opt/workmoire
+EnvironmentFile=/etc/workmoire.env
+ExecStart=/usr/bin/python3 /opt/workmoire/workspace_server.py
+Restart=on-failure
+RestartSec=3
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -1,906 +1,213 @@
-const labels={note:"知识库",project:"项目空间",paper:"论文大纲",log:"工作日志",all:"全部内容",review:"今日复盘",calendar:"计划日历",graph:"关系地图",trash:"回收站"};
-const icons={note:"▤",project:"◈",paper:"▧",log:"◷",review:"✦",calendar:"▦",graph:"⌘",trash:"♲"};
-const statusLabels={inbox:"待整理",active:"进行中",done:"已完成",paused:"已暂停"};
-const state={page:"dashboard",items:[],itemsCursor:null,itemsTotal:0,selected:null,savedSnapshot:null,selectedIds:new Set(),visibleItemIds:[],stats:null,reviewData:null,graphData:null,graphFilter:"",graphQuery:"",graphSearchTimer:null,calendarItems:[],calendarDate:new Date(),logDate:"",editorTab:"write",listTag:"",listStatus:"",listDue:"",listSort:"updated",listQuery:"",listSearchTimer:null,itemsRequest:0,fileSearch:"",fileLinked:"",fileRows:[],fileTotal:0,fileBytes:0,fileSearchTimer:null,fileSearchController:null,focusMode:false,setup:false,authenticated:false,assistant:null,assistantResult:"",draftTimer:null,captureDraftTimer:null,searchController:null,searchQuery:"",searchOffset:0,searchItems:[],searchFiles:[],searchNextOffset:null};
-const captureDraftKey="workmoire:capture-draft";
-const $=sel=>document.querySelector(sel);
-const $$=sel=>Array.from(document.querySelectorAll(sel));
-const draftKey=(kind,id=null,entryDate="")=>"workmoire:draft:"+kind+":"+(id==null?("new"+(kind==="log"&&entryDate?":"+entryDate:"")):id);
-function readLocalDraft(kind,id=null,entryDate=""){
-  try{
-    let raw=localStorage.getItem(draftKey(kind,id,entryDate));
-    // Read one pre-date-version draft once so existing local work is not lost.
-    const legacy=!raw&&id==null&&kind==="log"&&entryDate;
-    if(legacy)raw=localStorage.getItem(draftKey(kind,id));
-    if(!raw)return null;
-    const draft=JSON.parse(raw);
-    return legacy&&draft.entry_date&&draft.entry_date!==entryDate?null:draft;
-  }catch(_){return null}
-}
-function clearLocalDraft(kind,id=null,entryDate=""){
-  try{
-    localStorage.removeItem(draftKey(kind,id,entryDate));
-    if(id==null&&kind==="log"&&entryDate)localStorage.removeItem(draftKey(kind,id));
-  }catch(_){}
-}
-function scheduleLocalDraft(){
-  if(!state.selected||!$("#edit-title"))return;
-  clearTimeout(state.draftTimer);
-  state.draftTimer=setTimeout(()=>{try{const draft=collectEditor(),draftDate=draft.entry_date||state.logDate||"";localStorage.setItem(draftKey(state.page,state.selected.id||null,draftDate),JSON.stringify({...draft,item_id:state.selected.id||null,base_updated_at:state.selected.updated_at||"",saved_at:new Date().toISOString()}));$("#save-indicator").textContent="已保存在本机草稿"}catch(_){}},250);
-}
-function editorSnapshot(item){
-  if(!item)return null;
-  return ["kind","title","summary","content","tags","status","priority","due_date","entry_date","parent_id","pinned"].reduce((snapshot,key)=>{snapshot[key]=key==="pinned"?Boolean(item[key]):item[key]??"";return snapshot},{});
-}
-
-function esc(value){
-  return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
-}
-function formatDate(value,withTime=false){
-  if(!value)return "";
-  const d=new Date(value);
-  if(Number.isNaN(d.getTime()))return value;
-  return d.toLocaleDateString("zh-CN",{year:"numeric",month:"short",day:"numeric"})+(withTime?" "+d.toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"}):"");
-}
-function relativeDate(value){
-  if(!value)return "";
-  const then=new Date(value).getTime(),delta=Date.now()-then;
-  if(delta<60000)return "刚刚";
-  if(delta<3600000)return Math.floor(delta/60000)+" 分钟前";
-  if(delta<86400000)return Math.floor(delta/3600000)+" 小时前";
-  if(delta<604800000)return Math.floor(delta/86400000)+" 天前";
-  return formatDate(value);
-}
-function formatDueDate(value){
-  const parts=String(value||"").split("-");
-  return parts.length===3?parts[0]+"年"+Number(parts[1])+"月"+Number(parts[2])+"日":value||"";
-}
-function localDateValue(value=new Date()){
-  const year=value.getFullYear(),month=String(value.getMonth()+1).padStart(2,"0"),day=String(value.getDate()).padStart(2,"0");
-  return year+"-"+month+"-"+day;
-}
-async function refreshServiceStatus(){
-  const dot=$(".server-status i"),label=$("#server-status-label");
-  if(!dot||!label)return;
-  try{
-    const response=await fetch("/healthz",{credentials:"same-origin",cache:"no-store"});
-    if(!response.ok)throw new Error("health check failed");
-    dot.classList.remove("is-offline");label.textContent="本地服务在线";
-  }catch(_){
-    dot.classList.add("is-offline");label.textContent="服务连接异常";
-  }
-}
+"use strict";
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pageNames={documents:"全部文档",papers:"论文资料",relations:"文档关系",trash:"回收站",files:"附件管理"};
+const kindNames={note:"备忘文档",project:"规划文档",paper:"论文档案",log:"随记"};
+const statusNames={inbox:"待整理",active:"进行中",done:"已完成",paused:"暂放"};
+const iconPaths={document:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',book:'<path d="M4 3h12a3 3 0 0 1 3 3v15H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3ZM3 17h16M7 7h7M7 11h5"/>',relations:'<rect x="8" y="2" width="8" height="5" rx="1"/><rect x="2" y="17" width="7" height="5" rx="1"/><rect x="15" y="17" width="7" height="5" rx="1"/><path d="M12 7v5M5 17v-5h14v5"/>',search:'<circle cx="10.8" cy="10.8" r="7.2"/><path d="m16 16 5 5"/>',keyboard:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M10 13h.01M14 13h.01M18 13h.01M8 16h8"/>',menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',upload:'<path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/>',arrow:'<path d="M7 17 17 7M7 7h10v10"/>',link:'<path d="m10 13 4-4M8 16l-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0M16 8l2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0" transform="translate(1 0) scale(.9)"/>',image:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m21 15-6-6L3 21"/>',trash:'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',spark:'<path d="m12 3 2.8 6.2L21 12l-6.2 2.8L12 21l-2.8-6.2L3 12l6.2-2.8Z"/>',panel:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/>',expand:'<path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/>',check:'<path d="m5 12 4 4L19 6"/>'};
+const icon=(name,cls="")=>'<svg class="icon '+cls+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(iconPaths[name]||iconPaths.document)+'</svg>';
+function hydrateIcons(root=document){root.querySelectorAll("[data-icon]").forEach(node=>{node.innerHTML=icon(node.dataset.icon);});}
+const state={authenticated:false,setup:false,page:"documents",current:null,baseline:null,editor:null,mode:localStorage.getItem("workmoire:editor-mode")||"split",inspector:false,focus:false,items:[],total:0,cursor:null,query:"",tag:"",status:"",sort:"updated",listVersion:0,selectedIds:new Set(),assistant:null,assistantResult:"",saving:false,changes:0,draftTimer:null,previewTimer:null,pendingFiles:[],pendingLinks:[],paperDraft:null,paperBusy:false,mediaType:"pdf",relationData:null,relationFocus:null,searchController:null};
+const fields=["kind","title","summary","content","tags","status","priority","due_date","entry_date","parent_id","pinned"];
+const templates=[
+  {key:"blank",name:"空白文档",caption:"先写下来，再慢慢整理",kind:"note",symbol:"Aa",title:"",tags:"",content:""},
+  {key:"plan",name:"规划",caption:"目标、里程碑与下一步",kind:"project",symbol:"↗",title:"",tags:"规划",content:"## 想完成什么\n\n\n## 为什么做\n\n\n## 里程碑\n\n- [ ] \n\n## 下一步\n\n- [ ] \n\n## 进展记录\n\n"},
+  {key:"idea",name:"论文 Idea",caption:"从问题开始构建论证",kind:"note",symbol:"✳",title:"",tags:"idea",content:"## 一个问题\n\n\n## 我的假设\n\n\n## 已有工作与差距\n\n\n## 如何验证\n\n- [ ] \n\n## 还没想清楚\n\n"},
+  {key:"todo",name:"待办清单",caption:"把事情拆成能做的一步",kind:"note",symbol:"☑",title:"",tags:"todo",content:"## 今天最重要的事\n\n- [ ] \n\n## 接下来\n\n- [ ] \n- [ ] \n\n## 备忘\n\n"},
+  {key:"review",name:"自查清单",caption:"论证、实验和写作的检查",kind:"note",symbol:"✓",title:"",tags:"自检",content:"## 研究问题\n\n- [ ] 问题是否清楚、具体、可验证？\n- [ ] 与已有工作的区别是否明确？\n\n## 方法与实验\n\n- [ ] 对照与消融是否充分？\n- [ ] 结果能否复现？\n- [ ] 是否讨论局限与反例？\n\n## 写作\n\n- [ ] 每个结论是否有证据？\n- [ ] 引用、图表和公式是否一致？\n\n## 待修改\n\n- [ ] \n"},
+  {key:"paper",name:"论文档案",caption:"来源、阅读笔记和思考",kind:"paper",symbol:"¶",title:"",tags:"论文",content:"## 论文信息\n\n- 作者：\n- 年份：\n- 来源：\n\n## 研究问题\n\n\n## 方法与贡献\n\n\n## 我的理解\n\n\n## 局限与待核实\n\n\n## 下一步\n\n- [ ] 阅读原文\n- [ ] 记录与自己研究的联系\n"}
+];
+function toast(message,error=false){const el=$("#toast");el.textContent=message;el.classList.toggle("is-error",error);el.classList.remove("is-hidden");clearTimeout(el.timer);el.timer=setTimeout(()=>el.classList.add("is-hidden"),error?6500:3200);}
 async function api(path,options={}){
-  const headers=options.body instanceof FormData?{}:{"Content-Type":"application/json"};
-  const response=await fetch(path,{credentials:"same-origin",...options,headers:{...headers,...(options.headers||{})}});
-  let body={};
-  try{body=await response.json()}catch(_){}
-  if(response.status===401&&state.authenticated){
-    state.authenticated=false;showApp(false);setAuthMode(false);$("#auth-error").textContent="登录已失效，请重新登录";
-  }
-  if(!response.ok){const error=new Error(body.error||"请求失败");error.status=response.status;error.body=body;throw error}
+  const response=await fetch(path,{credentials:"same-origin",...options,headers:{...(options.body instanceof FormData?{}:{"Content-Type":"application/json"}),...options.headers}});
+  const body=await response.json().catch(()=>({}));
+  if(response.status===401&&state.authenticated){writeDraft();state.authenticated=false;$$('dialog[open]').forEach(d=>d.close());showAuthenticated(false);toast("登录已失效，请重新登录",true);}
+  if(!response.ok){const error=new Error(body.error||"请求暂时失败，请重试");error.status=response.status;error.body=body;throw error;}
   return body;
 }
-function setVisible(id,visible){$(id).classList.toggle("is-hidden",!visible)}
-function showApp(visible){setVisible("#auth-view",!visible);setVisible("#app-view",visible)}
-function statusPill(status){return '<span class="status-pill '+esc(status)+'">'+esc(statusLabels[status]||status)+'</span>'}
-function kindMark(kind){return '<span class="kind-mark '+esc(kind)+'">'+esc(icons[kind]||"·")+"</span>"}
-function priorityMarkup(priority){return '<span class="priority" title="优先级 '+priority+'">'+[1,2,3].map(n=>'<i class="'+(n<=priority?"on":"")+'"></i>').join("")+"</span>"}
-function taskStats(source){
-  const matches=String(source||"").match(/^\- \[([ xX])\] .+$/gm)||[];
-  return {total:matches.length,done:matches.filter(line=>line.slice(3,4).toLowerCase()==="x").length};
-}
-function taskProgressMarkup(source){
-  const stats=source&&typeof source==="object"&&Number.isFinite(Number(source.task_total))?{total:Number(source.task_total),done:Number(source.task_done||0)}:taskStats(source);
-  return stats.total?'<span class="task-progress" title="任务完成进度">✓ '+stats.done+'/'+stats.total+'</span>':"";
-}
-function dueItemMarkup(item){const overdue=Boolean(item.overdue);return '<div class="due-item '+(overdue?"is-overdue":"")+'" data-id="'+item.id+'" data-kind="'+item.kind+'"><div class="due-date">'+(overdue?"已逾期 · ":"")+esc(formatDueDate(item.due_date))+'</div><div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+'</div></div>'+statusPill(item.status)+'<button class="due-complete" data-id="'+item.id+'" type="button">完成</button></div>'}
-async function completeDueItem(event){
-  event.stopPropagation();
-  const itemId=event.currentTarget.dataset.id;
-  const item=[...(state.stats?.overdue||[]),...(state.stats?.upcoming||[])].find(candidate=>String(candidate.id)===itemId);
-  if(!item)return;
-  const button=event.currentTarget;button.disabled=true;button.textContent="更新中…";
-  try{
-    await api("/api/items/bulk",{method:"POST",body:JSON.stringify({ids:[Number(item.id)],action:"status",status:"done"})});
-    await loadStats();renderDashboard();
-  }catch(error){button.disabled=false;button.textContent="完成";window.alert(error.message)}
-}
-function inboxItemMarkup(item){return '<div class="inbox-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title||"未命名")+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+esc(item.summary||"等待整理")+'</div></div>'+priorityMarkup(item.priority||2)+'<button class="inbox-start" data-id="'+item.id+'" type="button">开始整理</button></div>'}
-async function promoteInboxItem(event){
-  event.stopPropagation();
-  const itemId=event.currentTarget.dataset.id,item=(state.stats?.inbox||[]).find(candidate=>String(candidate.id)===itemId);
-  if(!item)return;
-  const button=event.currentTarget;button.disabled=true;button.textContent="更新中…";
-  try{
-    await api("/api/items/bulk",{method:"POST",body:JSON.stringify({ids:[Number(item.id)],action:"status",status:"active"})});
-    await loadStats();renderDashboard();
-  }catch(error){button.disabled=false;button.textContent="开始整理";window.alert(error.message)}
-}
-function parseMarkdown(source){
-  let safe=esc(source||"");
-  safe=safe.replace(/^### (.+)$/gm,"<h3>$1</h3>").replace(/^## (.+)$/gm,"<h2>$1</h2>").replace(/^# (.+)$/gm,"<h1>$1</h1>");
-  let taskIndex=0;
-  safe=safe.replace(/^\- \[([ xX])\] (.+)$/gm,(_,mark,text)=>'<li class="task-item"><input type="checkbox" data-task-index="'+taskIndex+++'" aria-label="切换任务：'+text+'" '+(mark.toLowerCase()==="x"?"checked":"")+'><span>'+text+'</span></li>');
-  safe=safe.replace(/^\- (.+)$/gm,"<li>$1</li>").replace(/((?:<li(?: [^>]*)?>.*<\/li>\n?)+)/g,m=>"<ul>"+m+"</ul>");
-  safe=safe.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\`(.+?)\`/g,"<code>$1</code>");
-  safe=safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-  return safe.split(/\n{2,}/).map(block=>/^<(h|ul)/.test(block.trim())?block:"<p>"+block.replace(/\n/g,"<br>")+"</p>").join("");
-}
-function toggleTask(event){
-  event.stopPropagation();
-  const checkbox=event.currentTarget,index=Number(checkbox.dataset.taskIndex),source=$("#edit-content")?.value||"";
-  if(!Number.isInteger(index)||index<0)return;
-  let seen=-1;
-  const next=source.replace(/^\- \[([ xX])\] (.*)$/gm,(line,mark,text)=>{
-    seen+=1;
-    return seen===index?"- ["+(checkbox.checked?"x":" ")+"] "+text:line;
-  });
-  if(next===source)return;
-  $("#edit-content").value=next;
-  state.selected.content=next;
-  $("#content-preview").innerHTML=parseMarkdown(next);
-  $$("#content-preview input[type=checkbox]").forEach(input=>input.onchange=toggleTask);
-  renderTaskProgress();
-  scheduleLocalDraft();
-  $("#save-indicator").textContent="任务已更新，请保存";
-}
-function setAuthMode(setup,tokenRequired=false){
-  state.setup=setup;
-  $("#auth-title").textContent=setup?"创建你的工作空间":"欢迎回来";
-  $("#auth-subtitle").textContent=setup?"设置唯一账号和密码，之后只有这个账号可以访问。":"把论文、项目和日常思路放在同一个安静的空间里。";
-  $("#auth-submit").textContent=setup?"创建空间":"登录";
-  $("#auth-confirm-row").classList.toggle("is-hidden",!setup);
-  $("#auth-setup-token-row").classList.toggle("is-hidden",!setup||!tokenRequired);
-  $("#auth-setup-token").required=setup&&tokenRequired;
-  $("#auth-password").autocomplete=setup?"new-password":"current-password";
-}
-function openCapture(){
-  if(!state.authenticated)return;
-  $("#capture-title").value="";$("#capture-content").value="";$("#capture-error").textContent="";$("#capture-submit").disabled=false;$("#capture-submit").textContent="放入待整理箱";
-  let draft=null;try{draft=JSON.parse(localStorage.getItem(captureDraftKey)||"null")}catch(_){draft=null}
-  $("#capture-draft-notice").classList.toggle("is-hidden",!draft||(!draft.title&&!draft.content));
-  $("#capture-dialog").showModal();$("#capture-title").focus();
-}
-function scheduleCaptureDraft(){
-  clearTimeout(state.captureDraftTimer);
-  state.captureDraftTimer=setTimeout(()=>{const title=$("#capture-title").value,content=$("#capture-content").value;try{if(!title&&!content){localStorage.removeItem(captureDraftKey);return}localStorage.setItem(captureDraftKey,JSON.stringify({title,content,saved_at:new Date().toISOString()}))}catch(_){}} ,250);
-}
-function restoreCaptureDraft(){
-  try{const draft=JSON.parse(localStorage.getItem(captureDraftKey)||"null");if(!draft)return;$("#capture-title").value=draft.title||"";$("#capture-content").value=draft.content||"";$("#capture-draft-notice").classList.add("is-hidden");$("#capture-title").focus()}catch(_){}
-}
-function discardCaptureDraft(){try{localStorage.removeItem(captureDraftKey)}catch(_){}$("#capture-draft-notice").classList.add("is-hidden")}
-async function saveCapture(event){
-  if(event.submitter?.value==="cancel")return;
-  event.preventDefault();
-  const title=$("#capture-title").value.trim(),content=$("#capture-content").value;
-  if(!title){$("#capture-error").textContent="请先写一个标题";return}
-  const button=$("#capture-submit");button.disabled=true;button.textContent="保存中…";$("#capture-error").textContent="";
-  try{
-    await api("/api/items",{method:"POST",body:JSON.stringify({kind:"note",title,summary:"",content,tags:"",status:"inbox",priority:2,due_date:"",parent_id:null,pinned:false})});
-    try{localStorage.removeItem(captureDraftKey)}catch(_){}
-    $("#capture-dialog").close();
-    if(state.page==="dashboard"){await loadStats();renderDashboard()}
-  }catch(error){button.disabled=false;button.textContent="放入待整理箱";$("#capture-error").textContent=error.message}
-}
-async function loadAssistantStatus(){try{state.assistant=await api("/api/assistant/status")}catch(_){state.assistant=null}}
-async function boot(){
-  try{
-    const session=await api("/api/session");
-    if(session.setup){showApp(false);setAuthMode(true,session.setup_token_required)}
-    else if(session.authenticated){state.authenticated=true;$("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await loadAssistantStatus();await goPage("dashboard")}
-    else{showApp(false);setAuthMode(false)}
-  }catch(error){showApp(false);setAuthMode(false);$("#auth-error").textContent=error.message}
-}
-$("#auth-form").addEventListener("submit",async event=>{
-  event.preventDefault();$("#auth-error").textContent="";
-  const username=$("#auth-username").value.trim(),password=$("#auth-password").value;
-  if(state.setup&&password!==$("#auth-confirm").value){$("#auth-error").textContent="两次密码不一致";return}
-  try{
-    const payload={username,password};if(state.setup&&!$("#auth-setup-token-row").classList.contains("is-hidden"))payload.setup_token=$("#auth-setup-token").value;
-    const session=await api(state.setup?"/api/setup":"/api/login",{method:"POST",body:JSON.stringify(payload)});
-    state.authenticated=true;$("#account-name").textContent=session.username;$(".avatar").textContent=session.username.slice(0,1).toUpperCase();showApp(true);await loadAssistantStatus();await goPage("dashboard");
-  }catch(error){$("#auth-error").textContent=error.message}
-});
-function editorHasChanges(){
-  if(!state.selected||!$("#edit-title"))return false;
-  const draft=collectEditor();
-  const baseline=state.savedSnapshot||editorSnapshot(state.selected)||{};
-  return ["kind","title","summary","content","tags","status","priority","due_date","entry_date","parent_id","pinned"].some(key=>String(draft[key]??"")!==String(baseline[key]??""));
-}
-function confirmEditorLeave(){return !editorHasChanges()||window.confirm("当前内容尚未保存，确定离开吗？")}
-async function goPage(page){
-  if(!confirmEditorLeave())return false;
-  state.page=page;state.selected=null;state.savedSnapshot=null;state.listTag="";state.listStatus="";state.listDue="";state.listSort="updated";state.listQuery="";state.editorTab="write";state.focusMode=false;if(page!=="log")state.logDate="";document.body.classList.remove("editor-focus-mode");
-  $$(".nav-item").forEach(item=>item.classList.toggle("is-active",item.dataset.page===page));
-  $("#page-heading").textContent=page==="dashboard"?"总览":page==="files"?"文件空间":labels[page];
-  if(page==="dashboard"){await loadStats();renderDashboard()}
-  else if(page==="review"){await renderReview()}
-  else if(page==="calendar"){await renderCalendar()}
-  else if(page==="graph"){await renderGraph()}
-  else if(page==="files"){await renderFiles()}
-  else if(page==="trash"){await renderTrash()}
-  else{await loadItems();renderContentPage()}
-  $(".sidebar").classList.remove("is-open");
+const post=(path,payload)=>api(path,{method:"POST",body:JSON.stringify(payload)});
+function showAuthenticated(value){$("#auth-view").classList.toggle("is-hidden",value);$("#app-view").classList.toggle("is-hidden",!value);}
+function authMode(setup,token=false){state.setup=setup;$("#auth-title").textContent=setup?"给思考安个家。":"欢迎回来。";$("#auth-subtitle").textContent=setup?"设置唯一账号，开始你的个人学术笔记。":"把想法留下来，慢慢连成自己的脉络。";$("#auth-submit").textContent=setup?"创建空间":"登录";$("#auth-confirm-row").classList.toggle("is-hidden",!setup);$("#auth-setup-token-row").classList.toggle("is-hidden",!setup||!token);$("#auth-confirm").required=setup;$("#auth-setup-token").required=setup&&token;$("#auth-password").autocomplete=setup?"new-password":"current-password";}
+async function signedIn(username){state.authenticated=true;$("#account-name").textContent=username;$("#account-avatar").textContent=username.slice(0,1).toUpperCase();showAuthenticated(true);try{state.assistant=await api("/api/assistant/status");}catch{state.assistant=null;}await goPage("documents",true);refreshSidebar();}
+async function boot(){try{const s=await api("/api/session");if(s.authenticated)await signedIn(s.username);else{showAuthenticated(false);authMode(s.setup,s.setup_token_required);}}catch(error){showAuthenticated(false);$("#auth-error").textContent=error.message;}}
+$("#auth-form").onsubmit=async event=>{event.preventDefault();const button=$("#auth-submit");$("#auth-error").textContent="";const password=$("#auth-password").value;if(state.setup&&password!==$("#auth-confirm").value){$("#auth-error").textContent="两次密码不一致";return;}button.disabled=true;try{const payload={username:$("#auth-username").value.trim(),password};if(state.setup)payload.setup_token=$("#auth-setup-token").value;const session=await post(state.setup?"/api/setup":"/api/login",payload);$("#auth-password").value="";$("#auth-confirm").value="";$("#auth-setup-token").value="";await signedIn(session.username);}catch(error){$("#auth-error").textContent=error.message;}finally{button.disabled=false;}};
+function snapshot(item){return Object.fromEntries(fields.map(key=>[key,key==="pinned"?Boolean(item?.[key]):item?.[key]??""]));}
+function same(a,b){return JSON.stringify(snapshot(a))===JSON.stringify(snapshot(b));}
+function collect(){if(!state.current)return null;return {...state.current,title:$("#edit-title")?.value.trim()??state.current.title,content:state.editor?.getValue()??state.current.content,summary:$("#edit-summary")?.value??state.current.summary,tags:$("#edit-tags")?.value??state.current.tags,status:$("#edit-status")?.value??state.current.status,due_date:$("#edit-due")?.value??state.current.due_date,parent_id:$("#edit-parent")?.value?Number($("#edit-parent").value):null};}
+function dirty(){return Boolean(state.current&&!same(collect(),state.baseline));}
+function draftKey(item=state.current){return item?"workmoire:draft:"+item.kind+":"+(item.id||"new"):null;}
+function readDraft(item){try{return JSON.parse(localStorage.getItem(draftKey(item))||"null");}catch{return null;}}
+function clearDraft(item){try{localStorage.removeItem(draftKey(item));}catch{}}
+function writeDraft(){clearTimeout(state.draftTimer);if(!state.current||!state.editor)return;try{const draft=collect();if(!dirty()&&!state.pendingFiles.length&&!state.pendingLinks.length){clearDraft(draft);return;}localStorage.setItem(draftKey(draft),JSON.stringify({...draft,base_updated_at:state.current.updated_at||"",saved_at:new Date().toISOString(),pending_files:state.pendingFiles,pending_links:state.pendingLinks}));}catch{}}
+function changed(){state.changes++;clearTimeout(state.draftTimer);state.draftTimer=setTimeout(writeDraft,260);updateSaveState();clearTimeout(state.previewTimer);state.previewTimer=setTimeout(()=>{renderPreview();renderOutline();},180);}
+function canLeave(){writeDraft();if(state.saving){toast("正在保存，请稍候");return false;}return !dirty()||window.confirm("还有未保存的修改，已保留在本机草稿。确定离开吗？");}
+function destroyEditor(){clearTimeout(state.draftTimer);clearTimeout(state.previewTimer);state.editor?.destroy();state.editor=null;}
+function resetCurrent(){destroyEditor();state.current=null;state.baseline=null;state.pendingFiles=[];state.pendingLinks=[];state.focus=false;document.body.classList.remove("focus-mode","has-document");}
+async function goPage(page,force=false,options={}){
+  if(!force&&!canLeave())return false;
+  resetCurrent();state.page=page;state.query="";state.tag=options.tag||"";state.status="";state.cursor=null;state.selectedIds.clear();
+  $("#page-heading").textContent=state.tag?"标签 · "+state.tag:pageNames[page];$$('.nav-item').forEach(el=>el.classList.toggle("is-active",el.dataset.page===page));$(".sidebar").classList.remove("is-open");
+  try{if(page==="relations")await renderRelations();else if(page==="trash")await renderTrash();else if(page==="files")await renderFiles();else{renderWorkspace();await loadItems();renderList();renderEditor();}}catch(error){toast(error.message,true);}
   return true;
 }
-$$(".nav-item").forEach(item=>item.onclick=()=>goPage(item.dataset.page));
-async function loadStats(){state.stats=await api("/api/stats?today="+encodeURIComponent(localDateValue()))}
-async function loadItems(query="",append=false){
-  const requestId=++state.itemsRequest;
-  state.listQuery=query;
-  if(!append)state.selectedIds.clear();
-  const params=new URLSearchParams({limit:"100"});
-  if(["note","project","paper","log"].includes(state.page))params.set("kind",state.page);
-  if(query)params.set("q",query);
-  if(state.listStatus)params.set("status",state.listStatus);
-  if(state.listDue){params.set("due",state.listDue);params.set("today",localDateValue())}
-  if(state.listTag)params.set("tag",state.listTag);
-  if(state.listSort)params.set("sort",state.listSort);
-  if(state.page==="log"&&state.logDate)params.set("entry_date",state.logDate);
-  if(append&&state.itemsCursor)params.set("cursor",state.itemsCursor);
-  const result=await api("/api/items?"+params.toString());
-  if(requestId!==state.itemsRequest)return;
-  state.items=append?state.items.concat(result.items||[]):(result.items||[]);
-  state.itemsCursor=result.next_cursor||null;state.itemsTotal=Number(result.total||state.items.length);
-
+function renderWorkspace(){
+  const paper=state.page==="papers";
+  $("#page-content").innerHTML='<div class="document-workspace"><section class="document-list-panel"><div class="list-heading"><div><span class="eyebrow">'+(paper?"THE READING SHELF":"MY NOTES")+'</span><h1>'+(paper?"论文资料":state.tag?esc(state.tag):"文档")+'</h1></div><button id="list-new" class="icon-button" title="'+(paper?"整理论文":"新建文档")+'" aria-label="'+(paper?"整理论文":"新建文档")+'">＋</button></div>'+(paper?'<button id="paper-quick-start" class="button paper-quick-start">'+icon("spark")+'从标题或链接整理</button>':"")+'<div class="list-search"><span>'+icon("search")+'</span><input id="list-search" type="search" placeholder="搜索这组文档…" aria-label="搜索当前文档"></div><div class="list-controls"><label class="select-all"><input type="checkbox" id="select-all" aria-label="选择当前列表全部文档"><span id="list-total">文档</span></label><select id="list-sort" aria-label="文档排序"><option value="updated">最近编辑</option><option value="title">按标题</option><option value="due">截止日期</option></select></div><div id="bulk-actions" class="bulk-actions is-hidden"><span id="bulk-count"></span><button id="bulk-done">标记完成</button><button id="bulk-trash" title="移入回收站">'+icon("trash")+'</button></div><div id="item-list" class="item-list"></div><div id="list-pagination" class="list-pagination"></div></section><section id="editor" class="editor-surface"></section></div>';
+  $("#list-new").onclick=paper?openPaper:openTemplates;$("#paper-quick-start")?.addEventListener("click",openPaper);
+  let timer;$("#list-search").oninput=event=>{const query=event.target.value;clearTimeout(timer);timer=setTimeout(async()=>{state.query=query;try{await loadItems();renderList();}catch(error){toast(error.message,true);}},180);};
+  $("#list-sort").onchange=async event=>{state.sort=event.target.value;await loadItems();renderList();};$("#list-sort").value=state.sort;
+  $("#select-all").onchange=event=>{const ids=state.items.map(x=>x.id);if(event.target.checked){if(ids.length>100){toast("一次最多选择 100 份文档",true);event.target.checked=false;return;}ids.forEach(id=>state.selectedIds.add(id));}else state.selectedIds.clear();renderList();};
+  $("#bulk-done").onclick=()=>bulkAction("status");$("#bulk-trash").onclick=()=>bulkAction("trash");
 }
-function scheduleListSearch(){
-  clearTimeout(state.listSearchTimer);
-  const query=$("#list-search")?.value.trim()||"";
-  state.listSearchTimer=setTimeout(async()=>{try{await loadItems(query);drawItemList()}catch(error){window.alert(error.message)}},220);
+async function loadItems(append=false){const version=++state.listVersion;const params=new URLSearchParams({limit:"50",sort:state.sort});if(state.page==="papers")params.set("kind","paper");if(state.query)params.set("q",state.query);if(state.tag)params.set("tag",state.tag);if(state.status)params.set("status",state.status);if(append&&state.cursor)params.set("cursor",state.cursor);const data=await api("/api/items?"+params);if(version!==state.listVersion)return;state.items=append?state.items.concat(data.items):data.items;state.total=data.total;state.cursor=data.next_cursor;if(!append)state.selectedIds.clear();}
+function relative(value){if(!value)return "刚刚";const age=Date.now()-new Date(value);if(age<60000)return "刚刚";if(age<3600000)return Math.floor(age/60000)+" 分钟前";if(age<86400000)return Math.floor(age/3600000)+" 小时前";if(age<604800000)return Math.floor(age/86400000)+" 天前";return new Date(value).toLocaleDateString("zh-CN",{month:"short",day:"numeric"});}
+function formatBytes(value){return value<1024?value+" B":value<1048576?(value/1024).toFixed(1)+" KB":(value/1048576).toFixed(1)+" MB";}
+function plainPreview(item){return (item.summary||item.content_preview||"").replace(/[@#*_`\[\]>]/g,"").replace(/\s+/g," ").slice(0,90)||"留一点空间给新的思考。";}
+function renderList(){
+  const root=$("#item-list");if(!root)return;
+  $("#list-total").textContent=state.total+" 份文档";
+  root.innerHTML=state.items.length?state.items.map(item=>'<div class="document-row '+(state.current?.id===item.id?"is-selected":"")+'"><label class="row-checkbox"><input type="checkbox" data-select="'+item.id+'" '+(state.selectedIds.has(item.id)?"checked":"")+' aria-label="选择 '+esc(item.title)+'"></label><button class="document-open" data-open="'+item.id+'"><div class="document-row-top"><span class="document-kind">'+(item.kind==="paper"?"PAPER":(item.tags_list||[]).includes("idea")?"IDEA":"NOTE")+'</span><span class="row-updated">'+esc(relative(item.updated_at))+'</span></div><strong>'+esc(item.title||"未命名文档")+'</strong><p>'+esc(plainPreview(item))+'</p><div class="document-row-meta">'+(item.task_total?'<span>☑ '+item.task_done+" / "+item.task_total+'</span>':"")+((item.tags_list||[]).slice(0,2).map(t=>'<span># '+esc(t)+'</span>').join(""))+(item.status==="done"?'<span class="done-mark">已完成</span>':"")+'</div></button><button class="pin-button '+(item.pinned?"is-pinned":"")+'" data-pin="'+item.id+'" title="'+(item.pinned?"取消置顶":"置顶")+'" aria-label="'+(item.pinned?"取消置顶":"置顶")+'">'+(item.pinned?"★":"☆")+'</button></div>').join(""):'<div class="list-empty">'+icon("document")+'<strong>'+(state.query?"没有匹配的文档":"这里还留着空白")+'</strong><p>'+(state.query?"换一个关键词试试。":"写下一点想法，它就会出现在这里。")+'</p></div>';
+  root.querySelectorAll("[data-open]").forEach(button=>button.onclick=()=>openDocument(button.dataset.open));
+  root.querySelectorAll("[data-select]").forEach(input=>input.onchange=()=>{const id=Number(input.dataset.select);if(input.checked&&state.selectedIds.size>=100){input.checked=false;toast("一次最多选择 100 份文档",true);return;}if(input.checked)state.selectedIds.add(id);else state.selectedIds.delete(id);renderSelection();});
+  root.querySelectorAll("[data-pin]").forEach(button=>button.onclick=async()=>{const item=state.items.find(x=>x.id===Number(button.dataset.pin));if(state.current?.id===item.id&&dirty()){toast("请先保存当前修改");return;}try{const result=await post("/api/items/"+item.id+"/pin",{pinned:!item.pinned});if(state.current?.id===item.id){state.current.pinned=result.item.pinned;state.current.updated_at=result.item.updated_at;state.baseline=snapshot(result.item);}await loadItems();renderList();}catch(error){toast(error.message,true);}});
+  $("#list-pagination").innerHTML=state.cursor?'<button id="load-more" class="quiet-button">加载更多文档</button>':"";$("#load-more")?.addEventListener("click",async event=>{event.currentTarget.disabled=true;try{await loadItems(true);renderList();}catch(error){toast(error.message,true);}});renderSelection();
 }
-function scheduleListFilter(){
-  clearTimeout(state.listSearchTimer);
-  state.listStatus=$("#list-status")?.value||"";
-  state.listTag=state.listTag||"";
-  const query=$("#list-search")?.value.trim()||"";
-  state.listSearchTimer=setTimeout(async()=>{try{await loadItems(query);drawItemList()}catch(error){window.alert(error.message)}},180);
+function renderSelection(){const count=state.selectedIds.size;$("#bulk-actions")?.classList.toggle("is-hidden",!count);if($("#bulk-count"))$("#bulk-count").textContent="已选 "+count;const all=$("#select-all");if(all){all.checked=Boolean(state.items.length&&state.items.every(x=>state.selectedIds.has(x.id)));all.indeterminate=!all.checked&&count>0;}}
+async function bulkAction(action){if(!canLeave())return;const ids=[...state.selectedIds];if(!ids.length)return;if(action==="trash"&&!window.confirm("将选中的 "+ids.length+" 份文档移入回收站？"))return;try{await post("/api/items/bulk",{ids,action,status:"done"});if(state.current&&ids.includes(state.current.id)){if(action==="trash")resetCurrent();else{const data=await api("/api/items/"+state.current.id);state.current=data.item;state.baseline=snapshot(data.item);}renderEditor();}await loadItems();renderList();refreshSidebar();toast(action==="trash"?"已移入回收站":"已标记完成");}catch(error){toast(error.message,true);}}
+async function openDocument(id,force=false){if(!force&&!canLeave())return;try{const result=await api("/api/items/"+encodeURIComponent(id));if(!["documents","papers"].includes(state.page)){await goPage(result.item.kind==="paper"?"papers":"documents",true);}destroyEditor();state.current=result.item;state.baseline=snapshot(result.item);state.pendingFiles=[];state.pendingLinks=[];state.changes=0;renderList();renderEditor();}catch(error){toast(error.message,true);}}
+function openTemplates(){if(!state.authenticated)return;$("#template-grid").innerHTML=templates.map(t=>'<button class="template-card" data-template="'+t.key+'"><span class="template-symbol">'+t.symbol+'</span><strong>'+t.name+'</strong><span>'+t.caption+'</span></button>').join("");$("#template-dialog").showModal();$$("[data-template]").forEach(button=>button.onclick=()=>newDocument(button.dataset.template));}
+async function newDocument(templateKey="blank",overrides={},leaveConfirmed=false){if(!leaveConfirmed&&!canLeave())return;const template=templates.find(t=>t.key===templateKey)||templates[0];const page=template.kind==="paper"?"papers":"documents";$("#template-dialog").close();if(!["documents","papers"].includes(state.page)||state.page!==page)await goPage(page,true);else writeDraft();destroyEditor();state.current={id:null,kind:template.kind,title:template.title,content:template.content,tags:template.tags,summary:"",status:"inbox",priority:2,pinned:false,parent_id:null,due_date:"",entry_date:"",updated_at:"",...overrides};state.baseline=snapshot({...state.current,title:"",content:"",tags:""});state.pendingFiles=[];state.pendingLinks=[];state.changes=0;renderList();renderEditor(true);changed();}
+function editorTools(){return '<div class="editor-toolbar"><select id="heading-tool" title="标题级别" aria-label="标题级别"><option value="">正文</option><option value="# ">标题 1</option><option value="## ">标题 2</option><option value="### ">标题 3</option><option value="plain">普通段落</option></select><span class="toolbar-divider"></span><button data-command="bold" title="加粗 · Ctrl/⌘ B"><b>B</b></button><button data-command="italic" title="斜体 · Ctrl/⌘ I"><i>I</i></button><button data-command="inline-code" title="行内代码">&lt;/&gt;</button><span class="toolbar-divider"></span><button data-command="task" title="待办清单 · Ctrl/⌘ Shift X">☑</button><button data-command="list" title="无序列表">≡</button><button data-command="quote" title="引用">❞</button><details class="insert-menu"><summary>插入 <span>⌄</span></summary><div class="insert-options"><button data-command="formula">∑ <span>块级公式</span></button><button data-command="inline-math">𝑥 <span>行内公式</span></button><button data-command="pdf">¶ <span>PDF 阅读器</span></button><button data-command="image">'+icon("image")+'<span>图片</span></button><button data-command="code">&lt;/&gt; <span>代码块</span></button><button data-command="table">▦ <span>表格</span></button><button data-command="document-link">'+icon("relations")+'<span>文档链接</span></button><button data-command="link">'+icon("link")+'<span>网页链接</span></button><button data-command="symbols">Ω <span>常用符号</span></button><button data-command="divider">— <span>分隔线</span></button></div></details><span class="toolbar-space"></span><button data-command="undo" title="撤销">↶</button><button data-command="redo" title="重做">↷</button></div>';}
+function renderEditor(focus=false){
+  const root=$("#editor");if(!root)return;destroyEditor();
+  document.body.classList.toggle("has-document",Boolean(state.current));
+  if(!state.current){root.innerHTML='<div class="editor-welcome"><div class="welcome-mark">'+icon(state.page==="papers"?"book":"document")+'</div><span class="eyebrow">'+(state.page==="papers"?"READ WITH A QUESTION":"A PLACE TO THINK")+'</span><h2>'+(state.page==="papers"?"读过的论文，留下自己的理解。":"从一个问题开始。")+'</h2><p>'+(state.page==="papers"?"给一篇论文建档，把来源、PDF 和阅读时的想法放在一起。":"记录想法，理清思路。把论文与备忘慢慢连起来。")+'</p><button id="welcome-new" class="button primary">'+(state.page==="papers"?"＋ 整理第一篇论文":"＋ 写一份文档")+'</button><div class="welcome-rule"></div><div class="welcome-templates"><button data-welcome="idea">论文 Idea <span>↗</span></button><button data-welcome="todo">待办清单 <span>↗</span></button><button data-welcome="plan">研究规划 <span>↗</span></button></div><span class="welcome-footer">保持简单，把注意力留给思考。</span></div>';$("#welcome-new").onclick=state.page==="papers"?openPaper:openTemplates;$$("[data-welcome]").forEach(button=>button.onclick=()=>newDocument(button.dataset.welcome));return;}
+  const item=state.current,draft=readDraft(item),hasDraft=Boolean(draft),matching=hasDraft&&String(draft.base_updated_at||"")===String(item.updated_at||"");
+  root.innerHTML='<div class="document-editor"><header class="document-topline"><button id="back-to-list" class="quiet-button mobile-only">← 文档</button><div class="document-location">'+icon(item.kind==="paper"?"book":"document")+'<span>'+esc(kindNames[item.kind])+'</span><span class="quiet">/</span><span id="save-state" class="save-state" role="status"></span></div><div class="document-actions"><button id="assistant-content" class="icon-button" title="让 Codex 整理这份文档" aria-label="整理文档">'+icon("spark")+'</button><button id="focus-mode" class="icon-button" title="专注模式" aria-label="切换专注模式">'+icon("expand")+'</button><button id="inspector-toggle" class="icon-button" title="文档信息与关联" aria-label="文档信息与关联" aria-expanded="'+state.inspector+'">'+icon("panel")+'</button><button id="save-content" class="button primary small">保存 <kbd>⌘ S</kbd></button></div></header><div id="draft-notice" class="draft-notice '+(!hasDraft?"is-hidden":"")+'">'+(hasDraft?(matching?'<span>这份文档有本机未保存的草稿。</span><button id="restore-draft">恢复草稿</button>':'<span>本机留有一份旧版本草稿，复制后可手动合并。</span><button id="copy-stale-draft">复制旧草稿</button>')+'<button id="dismiss-draft" aria-label="忽略草稿">×</button>':"")+'</div><div id="conflict-notice" class="draft-notice is-hidden"></div><div class="document-content-layout"><div class="writing-area"><div class="document-title-block"><textarea id="edit-title" class="editor-title" rows="1" maxlength="200" placeholder="未命名文档" aria-label="文档标题">'+esc(item.title)+'</textarea><div class="document-subline"><span id="document-word-count"></span><span>·</span><span>'+(item.updated_at?"编辑于 "+relative(item.updated_at):"新的思考")+'</span><div class="view-modes" aria-label="编辑视图"><button data-mode="write">编辑</button><button data-mode="split">分栏</button><button data-mode="read">阅读</button></div></div></div>'+editorTools()+'<div id="editor-panes" class="editor-panes"><div class="source-pane"><textarea id="edit-content" maxlength="1048576" placeholder="写下你的思考…">'+esc(item.content)+'</textarea></div><div id="content-preview" class="prose preview-pane"></div></div><footer class="editor-footer"><span id="editor-help">Markdown · 公式 · 图片 · PDF</span><button id="document-link-button" class="quiet-button">'+icon("relations")+'链接文档</button></footer></div><aside id="doc-inspector" class="doc-inspector '+(!state.inspector?"is-hidden":"")+'"><div class="inspector-heading"><strong>文档信息</strong><button id="inspector-close" class="icon-button" aria-label="关闭文档信息">×</button></div><label class="field"><span>标签</span><input id="edit-tags" value="'+esc(item.tags)+'" placeholder="用逗号分隔，如 idea, 方法"></label><label class="field"><span>一句话摘要</span><textarea id="edit-summary" rows="3" maxlength="500" placeholder="最想记住的一点…">'+esc(item.summary)+'</textarea></label><details class="inspector-details"><summary>状态与安排</summary><label class="field"><span>状态</span><select id="edit-status">'+Object.entries(statusNames).map(([v,n])=>'<option value="'+v+'" '+(item.status===v?"selected":"")+'>'+n+'</option>').join("")+'</select></label><label class="field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date)+'"></label><label class="field"><span>上级文档</span><select id="edit-parent"><option value="">无上级文档</option>'+(item.parent_id?'<option selected value="'+item.parent_id+'">已关联上级文档</option>':"")+'</select></label></details><section class="inspector-section"><div class="section-label">大纲</div><div id="document-outline" class="document-outline"></div></section><section class="inspector-section"><div class="section-label">关联文档 <button id="add-relation" title="链接文档">＋</button></div><div id="document-relations" class="document-relations"></div></section><section class="inspector-section"><div class="section-label">附件 <button id="add-attachment" title="上传附件">＋</button></div><div id="document-assets" class="document-assets"></div></section><details class="inspector-details"><summary>历史版本</summary><div id="document-history" class="document-history"></div></details><div class="inspector-bottom"><button id="duplicate-document" class="quiet-button">另存副本</button><button id="delete-document" class="quiet-button danger">移入回收站</button></div></aside></div></div>';
+  state.editor=WorkmoireEditor.mount($("#edit-content"),changed,editorCommand);$("#edit-title").oninput=()=>{fitTitle();changed();};$("#edit-title").onkeydown=event=>{if(event.key==="Enter"){event.preventDefault();state.editor.focus();}};fitTitle();
+  ["edit-tags","edit-summary","edit-status","edit-due","edit-parent"].forEach(id=>$("#"+id).oninput=changed);
+  $("#save-content").onclick=saveDocument;$("#inspector-toggle").onclick=toggleInspector;$("#inspector-close").onclick=toggleInspector;$("#focus-mode").onclick=()=>{state.focus=!state.focus;document.body.classList.toggle("focus-mode",state.focus);state.editor.view.requestMeasure();};
+  $("#assistant-content").onclick=openAssistant;$("#assistant-content").disabled=!state.assistant?.available;$("#assistant-content").title=state.assistant?.available?"让 Codex 整理这份文档":"当前未配置可用的 Codex";
+  $("#delete-document").onclick=deleteDocument;$("#duplicate-document").onclick=()=>{const item=collect();newDocument(item.kind==="paper"?"paper":"blank",{...snapshot(item),id:null,title:(item.title||"未命名文档")+" · 副本",parent_id:null,pinned:false});};
+  $("#document-link-button").onclick=openLinkPicker;$("#add-relation").onclick=openLinkPicker;$("#add-attachment").onclick=()=>chooseAsset("any");$("#back-to-list").onclick=()=>{if(canLeave()){resetCurrent();renderList();renderEditor();}};
+  root.querySelectorAll("[data-command]").forEach(button=>button.onclick=()=>{root.querySelector(".insert-menu").open=false;editorCommand(button.dataset.command);});
+  $("#heading-tool").onchange=event=>{if(event.target.value)transformLines(line=>line.replace(/^#{1,6}\s+/,"").replace(/^/,event.target.value==="plain"?"":event.target.value));event.target.value="";};
+  root.querySelectorAll("[data-mode]").forEach(button=>button.onclick=()=>setMode(button.dataset.mode));
+  $("#restore-draft")?.addEventListener("click",()=>{const fresh=readDraft(state.current);if(!fresh||String(fresh.base_updated_at||"")!==String(state.current.updated_at||"")){toast("草稿版本已变化，请重新打开文档",true);return;}const updated=state.current.updated_at;Object.assign(state.current,fresh,{updated_at:updated});state.pendingFiles=fresh.pending_files||[];state.pendingLinks=fresh.pending_links||[];clearDraft(state.current);renderEditor();changed();});
+  $("#copy-stale-draft")?.addEventListener("click",()=>copyText((draft.title?"# "+draft.title+"\n\n":"")+(draft.content||"")));$("#dismiss-draft")?.addEventListener("click",()=>{clearDraft(state.current);$("#draft-notice").classList.add("is-hidden");});
+  root.onpaste=pasteAsset;root.ondragover=event=>{if(event.dataTransfer.types.includes("Files"))event.preventDefault();};root.ondrop=event=>{if(event.dataTransfer.files.length){event.preventDefault();uploadAsset(event.dataTransfer.files[0]);}};
+  setMode(state.mode);renderPreview();renderOutline();updateSaveState();loadDocumentDetails();
+  if(focus){$("#edit-title").focus();}else state.editor.view.requestMeasure();
 }
-function scheduleListSort(){
-  clearTimeout(state.listSearchTimer);
-  state.listSort=$("#list-sort")?.value||"updated";
-  const query=$("#list-search")?.value.trim()||"";
-  state.listSearchTimer=setTimeout(async()=>{try{await loadItems(query);drawItemList()}catch(error){window.alert(error.message)}},180);
+function fitTitle(){const title=$("#edit-title");if(title){title.style.height="auto";title.style.height=title.scrollHeight+"px";}}
+function toggleInspector(){state.inspector=!state.inspector;$("#doc-inspector").classList.toggle("is-hidden",!state.inspector);$("#inspector-toggle").setAttribute("aria-expanded",String(state.inspector));state.editor.view.requestMeasure();}
+function setMode(mode){state.mode=mode;localStorage.setItem("workmoire:editor-mode",mode);$("#editor-panes").dataset.mode=mode;$("#editor")?.querySelectorAll("[data-mode]").forEach(button=>button.classList.toggle("is-active",button.dataset.mode===mode));$(".editor-toolbar").classList.toggle("is-hidden",mode==="read");state.editor?.view.requestMeasure();}
+function updateSaveState(){const badge=$("#save-state");if(!badge||!state.current)return;const changedNow=dirty();badge.textContent=state.saving?"保存中…":changedNow?"未保存 · 本机草稿":!state.current.id?"新文档":"已保存";badge.classList.toggle("is-dirty",changedNow);const content=state.editor?.getValue()||"",count=(content.match(/[\p{Script=Han}]|[\p{L}\p{N}]+/gu)||[]).length;$("#document-word-count").textContent=count+" 字";}
+function renderPreview(){const preview=$("#content-preview");if(!preview||!state.editor)return;WorkmoireEditor.updatePreview(preview,state.editor.getValue().trim()?WorkmoireEditor.render(state.editor.getValue()):'<p class="preview-placeholder">预览会在这里慢慢长出来。</p>');bindProse(preview);}
+function bindProse(root){root.querySelectorAll(".task-check").forEach(input=>input.onchange=()=>{if(!state.editor)return;const lines=state.editor.getValue().split("\n"),index=Number(input.dataset.taskLine);if(!Number.isInteger(index)||!lines[index])return;lines[index]=lines[index].replace(/^(\s*[-+*]\s+)\[[ xX]\]/,(_,prefix)=>prefix+"["+(input.checked?"x":" ")+"]");state.editor.setValue(lines.join("\n"));});root.querySelectorAll(".copy-code").forEach(button=>button.onclick=()=>copyText(button.closest("pre").querySelector("code").textContent));root.querySelectorAll("[data-document-id]").forEach(button=>button.onclick=()=>openDocument(button.dataset.documentId));root.querySelectorAll('a[href^="http"]').forEach(link=>{link.target="_blank";link.rel="noopener noreferrer";});root.querySelectorAll(".import-pdf").forEach(button=>{if(root.id!=="content-preview"){button.disabled=true;button.textContent="放入编辑器后可导入";}else button.onclick=()=>importPreviewPDF(button);});}
+async function importPreviewPDF(button){
+  if(!state.current||!state.editor)return;const target=state.current,linkedId=target.id,url=button.dataset.pdfUrl;button.disabled=true;button.textContent="正在导入…";
+  try{const file=await post("/api/papers/pdf",{url,item_id:linkedId||null,name:(collect().title||"论文原文")+".pdf"});if(state.current!==target){toast("PDF 已导入，可在附件管理中找到");return;}if(!linkedId)state.pendingFiles.push(file.id);const next=state.editor.getValue().replace(/@\[pdf\]\((.+)\)/gi,(match,source)=>{try{return new URL(source,location.origin).href===url?"@[pdf](/files/"+file.id+"?inline=1)":match;}catch{return match;}});state.editor.setValue(next);loadDocumentDetails();toast("PDF 已导入并内嵌，保存正文后保留引用");}catch(error){toast(error.message,true);button.disabled=false;button.textContent="重试导入";}
 }
-async function loadMoreItems(){
-  const button=$("#load-more-items");
-  if(!button||!state.itemsCursor)return;
-  button.disabled=true;button.textContent="加载中…";
-  try{await loadItems(state.listQuery,true);drawItemList()}catch(error){button.disabled=false;button.textContent="加载更多";window.alert(error.message)}
-}
-function renderDashboard(){
-  const stats=state.stats||{counts:{},status_counts:{},recent:[],activity:[]};
-  const count=k=>stats.counts[k]||0;
-  const total=Object.values(stats.counts).reduce((a,b)=>a+b,0);
-  const recent=stats.recent||[];
-  const inbox=stats.inbox||[],pinned=stats.pinned||[],upcoming=stats.upcoming||[],overdue=stats.overdue||[],activity=stats.activity||[];
-  const dueItems=overdue.map(item=>({...item,overdue:true})).concat(upcoming);
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>总览</h1><p>把今天的想法放下来，再慢慢把它们组织成自己的系统。</p></div><div class="page-title-actions"><button class="button button-secondary" id="quick-review">今日复盘</button><button class="button button-secondary" id="quick-log">记录今天</button><button class="button button-primary" id="quick-note">新建内容</button></div></div>'+
-  '<div class="stats-grid"><div class="stat-card"><span class="stat-icon">◒</span><b>'+total+'</b><span>全部内容 <em>持续积累</em></span></div><div class="stat-card"><span class="stat-icon">▧</span><b>'+count("paper")+'</b><span>论文大纲</span></div><div class="stat-card"><span class="stat-icon">◈</span><b>'+count("project")+'</b><span>项目空间</span></div><div class="stat-card"><span class="stat-icon">◷</span><b>'+count("log")+'</b><span>工作日志</span></div></div>'+
-  '<div class="section-label">工作流</div><div class="dashboard-columns"><section class="surface"><div class="surface-head"><h2>最近编辑</h2><a id="view-all">查看全部</a></div><div class="recent-list">'+(recent.length?recent.map(item=>'<div class="recent-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+" · "+relativeDate(item.updated_at)+'</div></div>'+statusPill(item.status)+'</div>').join(""):'<div class="empty-state"><strong>还没有内容</strong><p>从一条知识卡片开始，给自己的思考留个位置。</p></div>')+'</div></section>'+
-  '<section class="surface"><div class="surface-head"><h2>快速开始</h2></div><div class="quick-actions"><button class="quick-button" data-create-kind="note">'+kindMark("note")+'<span><strong>捕捉一个想法</strong><small>把还没成形的念头先记下来</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="paper">'+kindMark("paper")+'<span><strong>搭一份论文大纲</strong><small>从问题、方法和实验开始</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="project">'+kindMark("project")+'<span><strong>拆解一个项目</strong><small>明确目标、下一步和截止日期</small></span><span class="quick-plus">＋</span></button><button class="quick-button" data-create-kind="log">'+kindMark("log")+'<span><strong>写今天的工作日志</strong><small>留下过程，也留下进展</small></span><span class="quick-plus">＋</span></button></div></section></div>'+
-  '<div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>置顶内容</h2></div><div class="pinned-list">'+(pinned.length?pinned.map(item=>'<div class="pinned-item" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+relativeDate(item.updated_at)+'</div></div><span class="pin-mark">★</span></div>').join(""):'<div class="empty-state"><strong>还没有置顶内容</strong><p>把正在推进的项目或重要知识置顶，它们会一直出现在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>下一步期限</h2></div><div class="due-list">'+(dueItems.length?dueItems.map(dueItemMarkup).join(""):'<div class="empty-state"><strong>暂时没有待处理的截止日期</strong><p>在项目或论文中加上日期，下一步会出现在这里。</p></div>')+'</div></section></div><div class="dashboard-lower"><section class="surface"><div class="surface-head"><h2>待整理</h2><span class="surface-count">'+inbox.length+'</span></div><div class="inbox-list">'+(inbox.length?inbox.map(inboxItemMarkup).join(""):'<div class="empty-state"><strong>待整理箱是空的</strong><p>捕捉到的想法会先停在这里。</p></div>')+'</div></section><section class="surface"><div class="surface-head"><h2>最近活动</h2></div><div class="activity-list">'+(activity.length?activity.map(entry=>'<div class="activity-item '+(entry.target_type==="item"||entry.target_type==="file"?"is-clickable":"")+'" data-target-type="'+esc(entry.target_type||"")+'" data-target-id="'+esc(entry.target_id||"")+'" title="'+(entry.target_type==="item"||entry.target_type==="file"?"打开关联内容":"")+'"><span class="activity-dot"></span><div><div class="recent-title">'+esc(entry.label)+'</div><div class="recent-meta">'+esc(formatDate(entry.created_at,true))+'</div></div></div>').join(""):'<div class="empty-state"><strong>还没有活动</strong><p>保存第一条内容后，这里会留下轨迹。</p></div>')+'</div></section></div>';
-  $("#quick-note").onclick=openCapture;$("#quick-log").onclick=openTodayLog;$("#quick-review").onclick=()=>goPage("review");
-  $("#view-all").onclick=()=>goPage("all");
-  $$(".quick-button").forEach(button=>button.onclick=()=>button.dataset.createKind==="note"?openCapture():button.dataset.createKind==="log"?openTodayLog():createItem(button.dataset.createKind));
-  $$(".recent-item,.due-item,.pinned-item,.inbox-item").forEach(row=>row.onclick=openDashboardItem);
-  $$(".inbox-start").forEach(button=>button.onclick=promoteInboxItem);
-  $$(".due-complete").forEach(button=>button.onclick=completeDueItem);
-  $$(".activity-item.is-clickable").forEach(row=>row.onclick=openActivity);
-}
-async function openDashboardItem(event){
-  event.stopPropagation();
+function renderOutline(){const box=$("#document-outline");if(!box||!state.editor)return;const headings=WorkmoireEditor.outline(state.editor.getValue());box.innerHTML=headings.length?headings.map((h,index)=>'<button class="outline-level-'+Math.min(h.level,3)+'" data-outline="'+index+'" title="'+esc(h.title)+'">'+esc(h.title)+'</button>').join(""):'<span class="quiet">用标题组织思路。</span>';box.querySelectorAll("[data-outline]").forEach(button=>button.onclick=()=>{const i=Number(button.dataset.outline);if(state.mode==="read")$("#document-heading-"+i)?.scrollIntoView({behavior:"smooth",block:"start"});else state.editor.jump(headings[i].line);});}
+function transformLines(transform){if(!state.editor)return;const view=state.editor.view,{from,to}=view.state.selection.main,first=view.state.doc.lineAt(from),last=view.state.doc.lineAt(to),text=view.state.sliceDoc(first.from,last.to).split("\n").map(transform).join("\n");view.dispatch({changes:{from:first.from,to:last.to,insert:text},selection:{anchor:first.from,head:first.from+text.length},userEvent:"input"});view.focus();}
+function wrap(before,after=before,placeholder="文字"){const selected=state.editor.selection().text||placeholder;state.editor.replaceSelection(before+selected+after,before.length,before.length+selected.length);}
+function block(text){const selection=state.editor.selection(),before=state.editor.getValue().slice(0,selection.from),prefix=before&&!before.endsWith("\n\n")?(before.endsWith("\n")?"\n":"\n\n"):"";state.editor.replaceSelection(prefix+text+"\n\n",prefix.length,prefix.length+text.length);}
+function editorCommand(command){if(!state.editor)return;if(state.mode==="read")setMode("split");switch(command){case"bold":wrap("**","**","加粗文本");break;case"italic":wrap("*","*","斜体文本");break;case"inline-code":wrap("`","`","code");break;case"task":transformLines(line=>/^\s*[-+*]\s+\[[ xX]\]/.test(line)?line:line.replace(/^\s*[-+*]\s+/,"").replace(/^/,"- [ ] "));break;case"list":transformLines(line=>line.startsWith("- ")?line:"- "+line);break;case"quote":transformLines(line=>"> "+line);break;case"formula":block("$$\n"+(state.editor.selection().text||"E = mc^2")+"\n$$");break;case"inline-math":wrap("$","$","\\alpha + \\beta");break;case"code":block("```python\n"+(state.editor.selection().text||"# 写下代码")+"\n```");break;case"table":block("| 项目 | 说明 |\n| --- | --- |\n|  |  |\n|  |  |");break;case"divider":block("---");break;case"image":openMedia("image");break;case"pdf":openMedia("pdf");break;case"document-link":openLinkPicker();break;case"link":{const text=state.editor.selection().text||"链接文字";state.editor.replaceSelection("["+text+"](https://)",text.length+3,text.length+11);break;}case"symbols":$("#symbol-dialog").showModal();break;case"undo":state.editor.undo();break;case"redo":state.editor.redo();break;}}
+async function copyText(text){try{if(navigator.clipboard&&window.isSecureContext)await navigator.clipboard.writeText(text);else{const field=document.createElement("textarea");field.value=text;field.style.position="fixed";field.style.opacity="0";document.body.append(field);field.select();if(!document.execCommand("copy"))throw new Error();field.remove();}toast("已复制");}catch{toast("浏览器未允许复制，请手动选择文本",true);}}
+async function saveDocument(){
+  if(!state.current||state.saving)return;const current=state.current,wasNew=!current.id,oldDraftKey=draftKey(current),data=snapshot(collect());
+  if(!data.title){data.title=(data.content.split("\n").find(line=>line.trim())||"未命名文档").replace(/^#+\s*/,"").slice(0,80);$("#edit-title").value=data.title;}
+  if(data.content.length>1048576){toast("文档超过 1 MB，请拆分后保存",true);return;}
+  const version=state.changes,pendingFiles=[...state.pendingFiles],pendingLinks=[...state.pendingLinks];state.saving=true;$("#save-content").disabled=true;updateSaveState();
   try{
-    const result=await api("/api/items/"+encodeURIComponent(event.currentTarget.dataset.id));
-    if(!await goPage(result.item.kind))return;
-    state.selected=result.item;state.savedSnapshot=editorSnapshot(result.item);renderContentPage();
-  }catch(error){window.alert(error.message)}
-}
-function reviewItemMarkup(item){
-  const start=item.status==="inbox"?'<button class="review-promote" data-review-id="'+item.id+'" type="button">开始整理</button>':'';
-  return '<div class="review-row" data-review-id="'+item.id+'" data-review-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title||"未命名")+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · '+(item.due_date?esc(formatDueDate(item.due_date)):esc(relativeDate(item.updated_at)))+'</div></div>'+priorityMarkup(item.priority||2)+'<div class="review-row-actions"><button class="review-open" data-review-id="'+item.id+'" type="button">打开</button>'+start+'<button class="review-done" data-review-id="'+item.id+'" type="button">完成</button></div></div>';
-}
-function reviewItemById(itemId){
-  const groups=state.reviewData||{};
-  return ["inbox","overdue","today","stale"].flatMap(key=>groups[key]||[]).find(item=>String(item.id)===String(itemId));
-}
-async function openReviewItem(event){
-  event.stopPropagation();
-  const itemId=event.currentTarget.dataset.reviewId;
-  try{
-    const result=await api("/api/items/"+encodeURIComponent(itemId));
-    if(!await goPage(result.item.kind))return;
-    state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
-  }catch(error){window.alert(error.message)}
-}
-async function updateReviewStatus(event,status){
-  event.stopPropagation();
-  const button=event.currentTarget,item=reviewItemById(button.dataset.reviewId);
-  if(!item)return;
-  button.disabled=true;button.textContent="更新中…";
-  try{
-    await api("/api/items/bulk",{method:"POST",body:JSON.stringify({ids:[Number(item.id)],action:"status",status})});
-    await renderReview();
-  }catch(error){button.disabled=false;button.textContent=status==="done"?"完成":"开始整理";window.alert(error.message)}
-}
-async function renderReview(){
-  state.reviewData=await api("/api/review?today="+encodeURIComponent(localDateValue()));
-  const data=state.reviewData,totals=data.totals||{},total=["inbox","overdue","today","stale"].reduce((sum,key)=>sum+Number(totals[key]??(data[key]||[]).length),0);
-  const section=(key,title,hint,empty)=>{const shown=(data[key]||[]).length,available=Number(totals[key]??shown),more=available>shown?'<button class="review-more review-more-link" data-review-queue="'+key+'">打开完整队列（还有 '+(available-shown)+' 项）</button>':"";return '<section class="surface review-section"><div class="surface-head"><div><h2>'+title+'</h2><p class="review-hint">'+hint+'</p></div><span class="surface-count">'+(shown<available?shown+" / "+available:available)+'</span></div><div class="review-list">'+(shown?(data[key]||[]).map(reviewItemMarkup).join(""):'<div class="empty-state review-empty"><strong>'+empty+'</strong></div>')+more+'</div></section>'};
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>今日复盘</h1><p>先处理最需要你注意的内容，再回到深度工作。</p></div><div class="page-title-actions"><button id="review-refresh" class="button button-secondary">刷新队列</button></div></div><div class="review-summary"><div><span class="review-summary-label">今天建议处理</span><strong>'+total+'</strong><span>项</span></div><p>每组最多展示 12 项；完成或开始整理后，队列会自动更新。</p></div><div class="review-grid">'+section("overdue","已逾期","先处理已经错过日期的事项。","没有逾期内容")+section("today","今天到期","今天需要给出明确结果的内容。","今天没有到期内容")+section("inbox","待整理","把捕捉到的碎片变成下一步。","待整理箱是空的")+section("stale","很久没更新","超过 7 天没有推进、且没有截止日期的进行中内容。","没有长期停滞内容")+'</div>';
-  $("#review-refresh").onclick=renderReview;
-  $$(".review-open").forEach(button=>button.onclick=openReviewItem);
-  $$(".review-done").forEach(button=>button.onclick=event=>updateReviewStatus(event,"done"));
-  $$(".review-promote").forEach(button=>button.onclick=event=>updateReviewStatus(event,"active"));
-  $$(".review-row").forEach(row=>row.onclick=openReviewItem);
-  $$(".review-more-link").forEach(button=>button.onclick=()=>openReviewQueue(button.dataset.reviewQueue));
-}
-async function openReviewQueue(queue){
-  if(!["inbox","overdue","today","stale"].includes(queue))return;
-  if(!await goPage("all"))return;
-  state.listDue=queue==="inbox"?"":queue;
-  state.listStatus=queue==="inbox"?"inbox":"";
-  await loadItems();
-  renderContentPage();
-}
-function calendarDateKey(year,month,day){return year+"-"+String(month+1).padStart(2,"0")+"-"+String(day).padStart(2,"0")}
-async function openCalendarItem(event){
-  event.stopPropagation();
-  try{
-    const result=await api("/api/items/"+encodeURIComponent(event.currentTarget.dataset.id));
-    if(!await goPage(result.item.kind))return;
-    state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
-  }catch(error){window.alert(error.message)}
-}
-async function renderCalendar(offset=0,append=false){
-  const year=state.calendarDate.getFullYear(),month=state.calendarDate.getMonth();
-  const data=await api("/api/calendar?year="+year+"&month="+(month+1)+"&limit=500&offset="+offset);
-  const items=append?(state.calendarItems||[]).concat(data.items||[]):(data.items||[]);state.calendarItems=items;
-  const byDay={};items.forEach(item=>{(byDay[item.due_date] ||= []).push(item)});
-  const firstDay=new Date(year,month,1),gridOffset=(firstDay.getDay()+6)%7,days=new Date(year,month+1,0).getDate(),cellCount=Math.ceil((gridOffset+days)/7)*7;
-  const today=new Date(),todayKey=calendarDateKey(today.getFullYear(),today.getMonth(),today.getDate());
-  const weekdayLabels=["一","二","三","四","五","六","日"];
-  let cells="";
-  for(let index=0;index<cellCount;index++){
-    const day=index-gridOffset+1,inside=day>=1&&day<=days,key=inside?calendarDateKey(year,month,day):"";
-    const dayItems=inside?(byDay[key]||[]):[];
-    cells+='<div class="calendar-cell '+(inside?"":"is-muted")+(key===todayKey?" is-today":"")+'">'+(inside?'<div class="calendar-day-number">'+day+'</div>':'')+(dayItems.length?'<div class="calendar-items">'+dayItems.map(item=>'<button class="calendar-item '+esc(item.status||"")+'" data-id="'+item.id+'" data-kind="'+item.kind+'" title="'+esc(item.title)+'"><span class="calendar-item-mark '+esc(item.kind)+'"></span><span>'+esc(item.title||"未命名")+'</span></button>').join("")+'</div>':"")+'</div>';
-  }
-  const doneCount=items.filter(item=>item.status==="done").length;
-  const calendarSummary=(data.next_offset!=null?"显示 "+items.length+" / "+data.total+" 项安排":"共 "+items.length+" 项安排")+" · "+doneCount+" 项已完成";
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>计划日历</h1><p>把项目、论文和工作日志的截止日期放到同一条时间线上。</p></div><div class="page-title-actions"><button id="calendar-today" class="button button-secondary">回到今天</button></div></div><section class="surface calendar-surface"><div class="calendar-toolbar"><button id="calendar-prev" class="icon-button" aria-label="上个月">‹</button><h2>'+year+'年'+(month+1)+'月</h2><button id="calendar-next" class="icon-button" aria-label="下个月">›</button><span class="spacer"></span><span class="calendar-summary">'+calendarSummary+'</span></div><div class="calendar-weekdays">'+weekdayLabels.map(day=>'<span>'+day+'</span>').join("")+'</div><div class="calendar-grid">'+cells+'</div>'+(data.next_offset!=null?'<button id="calendar-load-more" class="calendar-load-more">加载更多安排</button>':"")+'</section>';
-  $("#calendar-prev").onclick=()=>{state.calendarDate=new Date(year,month-1,1);renderCalendar()};
-  $("#calendar-next").onclick=()=>{state.calendarDate=new Date(year,month+1,1);renderCalendar()};
-  $("#calendar-today").onclick=()=>{state.calendarDate=new Date();renderCalendar()};
-  $("#calendar-load-more")?.addEventListener("click",()=>renderCalendar(data.next_offset,true));
-  $$(".calendar-item").forEach(button=>button.onclick=openCalendarItem);
-}
-function graphTitle(value){
-  const text=String(value||"未命名");
-  return text.length>28?text.slice(0,28)+"…":text;
-}
-async function openGraphNode(event){
-  event.stopPropagation();
-  try{
-    const result=await api("/api/items/"+encodeURIComponent(event.currentTarget.dataset.id));
-    if(!await goPage(result.item.kind))return;
-    state.selected=result.item;
-    state.savedSnapshot=editorSnapshot(state.selected);
-    renderContentPage();
-  }catch(error){window.alert(error.message)}
-}
-function drawGraph(){
-  const data=state.graphData||{nodes:[],edges:[],total:0,truncated:false};
-  const filter=state.graphFilter||"",nodes=(data.nodes||[]).filter(node=>!filter||node.kind===filter);
-  const columns={project:24,paper:272,note:520,log:768},grouped={note:[],project:[],paper:[],log:[]};
-  nodes.forEach(node=>(grouped[node.kind]||grouped.note).push(node));
-  const positions=new Map();Object.keys(grouped).forEach(kind=>grouped[kind].forEach((node,index)=>positions.set(String(node.id),{x:columns[kind],y:70+index*78})));
-  const canvasHeight=Math.max(420,...Array.from(positions.values()).map(position=>position.y+78));
-  const edges=(data.edges||[]).filter(edge=>positions.has(String(edge.source_id))&&positions.has(String(edge.target_id)));
-  const edgeMarkup=edges.map(edge=>{const source=positions.get(String(edge.source_id)),target=positions.get(String(edge.target_id)),bend=Math.max(42,Math.abs(target.y-source.y)*.35);return '<path class="graph-edge '+esc(edge.kind||"related")+'" d="M '+(source.x+190)+' '+(source.y+30)+' C '+(source.x+190+bend)+' '+(source.y+30)+', '+(target.x-bend)+' '+(target.y+30)+', '+target.x+' '+(target.y+30)+'"></path>'}).join("");
-  const nodeMarkup=nodes.map(node=>{const position=positions.get(String(node.id));return '<button class="graph-node '+esc(node.kind)+'" data-id="'+node.id+'" title="打开：'+esc(node.title||"未命名")+'"><span class="graph-node-head">'+kindMark(node.kind)+statusPill(node.status)+'</span><strong>'+esc(graphTitle(node.title))+'</strong><small>'+esc(node.summary||((node.due_date?"截止 "+formatDueDate(node.due_date):"最近更新 "+relativeDate(node.updated_at))))+'</small></button>'}).join("");
-  const filterMarkup='<button class="graph-filter '+(!filter?"is-active":"")+'" data-kind="">全部</button>'+["project","paper","note","log"].map(kind=>'<button class="graph-filter '+(filter===kind?"is-active":"")+'" data-kind="'+kind+'">'+labels[kind]+'</button>').join("");
-  const note=data.truncated?' · 当前结果显示 '+nodes.length+' / '+data.total+' 条内容':"";
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>关系地图</h1><p>从上级层级和横向关联中，看见论文、项目与思路如何连成一张网。</p></div></div><section class="surface graph-surface"><div class="graph-toolbar"><div class="graph-filters">'+filterMarkup+'</div><input id="graph-search" class="control-input graph-search" type="search" placeholder="按标题、摘要或标签聚焦" value="'+esc(state.graphQuery)+'" aria-label="搜索关系地图"><span class="spacer"></span><span class="graph-summary">'+nodes.length+' 个节点 · '+edges.length+' 条连接'+note+'</span></div><div class="graph-legend"><span><i class="graph-legend-line hierarchy"></i>层级关系</span><span><i class="graph-legend-line related"></i>横向关联</span><span class="graph-hint">点击节点打开内容</span></div><div class="graph-viewport"><div class="graph-stage"><svg class="graph-lines" viewBox="0 0 1000 '+canvasHeight+'" aria-hidden="true">'+edgeMarkup+'</svg>'+nodeMarkup+'</div></div></section>';
-  const stage=$("#page-content .graph-stage");stage.style.width="1000px";stage.style.height=canvasHeight+"px";
-  $$(".graph-node").forEach(button=>{const position=positions.get(String(button.dataset.id));if(position){button.style.left=position.x+"px";button.style.top=position.y+"px"}});
-  $$(".graph-filter").forEach(button=>button.onclick=()=>{state.graphFilter=button.dataset.kind;renderGraph()});
-  $("#graph-search").oninput=event=>{state.graphQuery=event.target.value;clearTimeout(state.graphSearchTimer);state.graphSearchTimer=setTimeout(renderGraph,220)};
-  $$(".graph-node").forEach(button=>button.onclick=openGraphNode);
-}
-async function renderGraph(){
-  const params=new URLSearchParams({limit:"300"});
-  if(state.graphFilter)params.set("kind",state.graphFilter);
-  if(state.graphQuery.trim())params.set("q",state.graphQuery.trim());
-  state.graphData=await api("/api/graph?"+params);
-  drawGraph();
-}
-async function openActivity(event){
-  const row=event.currentTarget,type=row.dataset.targetType,id=row.dataset.targetId;
-  if(!id)return;
-  if(type==="file"){window.open("/files/"+encodeURIComponent(id),"_blank","noopener");return}
-  if(type!=="item")return;
-  try{
-    const result=await api("/api/items/"+encodeURIComponent(id));
-    if(!await goPage(result.item.kind))return;
-    state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
-  }catch(_){row.title="这条内容已移入回收站或不存在"}
-}
-function defaultContent(kind){
-  const templates={
-    note:{title:"",summary:"",content:"",tags:"",status:"inbox",priority:2,due_date:"",parent_id:null,pinned:false},
-    project:{title:"",summary:"目标：\n下一步：\n",content:"## 背景\n\n## 目标\n\n## 下一步\n\n## 记录\n",tags:"",status:"active",priority:2,due_date:"",parent_id:null,pinned:false},
-    paper:{title:"",summary:"研究问题：",content:"# 论文大纲\n\n## 研究问题\n\n## 核心假设\n\n## 方法\n\n## 实验与验证\n\n## 预期贡献\n",tags:"",status:"inbox",priority:2,due_date:"",parent_id:null,pinned:false},
-    log:{title:formatDueDate(state.logDate||localDateValue()),entry_date:state.logDate||localDateValue(),summary:"",content:"## 今天完成\n\n## 遇到的问题\n\n## 明天继续\n",tags:"日志",status:"active",priority:2,due_date:"",parent_id:null,pinned:false}
-  };
-  return {...templates[kind],kind};
-}
-function createItem(kind,entryDate=""){
-  if(!confirmEditorLeave())return;
-  if(kind==="log")state.logDate=entryDate||state.logDate||localDateValue();
-  state.page=kind;state.listTag="";state.listStatus="";state.listDue="";state.listSort="updated";state.listQuery="";state.focusMode=false;document.body.classList.remove("editor-focus-mode");state.selected={id:null,...defaultContent(kind),...(readLocalDraft(kind,null,kind==="log"?state.logDate:"")||{})};state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";$$('.nav-item').forEach(item=>item.classList.toggle("is-active",item.dataset.page===kind));$("#page-heading").textContent=labels[kind];loadItems().then(()=>renderContentPage()).catch(error=>{state.items=[];renderContentPage();window.alert(error.message)});
-}
-async function openTodayLog(){
-  const day=localDateValue();
-  createItem("log",day);
-}
-function renderContentPage(){
-  const item=state.selected;
-  state.selectedIds.clear();state.visibleItemIds=[];
-  const journalNav=state.page==="log"?'<div class="journal-nav surface"><button id="log-date-prev" class="button button-secondary" type="button" aria-label="前一天">←</button><label class="journal-date-field"><span>查看日志日期</span><input id="log-date" type="date" value="'+esc(state.logDate)+'"></label><button id="log-date-next" class="button button-secondary" type="button" aria-label="后一天">→</button><button id="log-date-today" class="button button-secondary" type="button">今天</button><button id="log-date-all" class="button button-secondary" type="button">查看全部日志</button><span class="journal-date-hint">同一天可以保留多条日志</span></div>':'';
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>'+esc(labels[state.page])+'</h1><p>'+({note:"把碎片知识收拢起来，形成可以复用的脉络。",project:"让每一个项目都有清晰的目标和下一步。",paper:"从研究问题出发，把论文结构逐步搭起来。",log:"记录过程，让进展和思考可回看。",all:"在一个列表中浏览所有知识、项目、论文和日志。"}[state.page])+'</p></div><div class="page-title-actions"><button class="button button-primary" id="new-content">新建'+esc((labels[state.page]||"内容").replace("空间",""))+'</button></div></div>'+journalNav+
-  '<div class="content-layout"><section class="surface list-surface"><div class="list-toolbar"><div class="input-with-icon"><span>⌕</span><input id="list-search" class="control-input" placeholder="搜索当前空间"></div><select id="list-status" class="control-input"><option value="">全部状态</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select><select id="list-sort" class="control-input" aria-label="排序"><option value="updated">最近更新</option><option value="priority">优先级最高</option><option value="due">截止日期</option><option value="title">标题（字典序）</option></select><div id="list-tags" class="tag-filter" aria-label="标签筛选"></div><div class="bulk-toolbar" id="bulk-toolbar" aria-live="polite"><label class="select-all-control"><input id="select-all-items" type="checkbox"><span>全选当前列表</span></label><span id="bulk-count" class="bulk-count">选择内容后可批量处理</span><div id="bulk-actions" class="bulk-actions is-hidden"><select id="bulk-status" class="control-input" aria-label="批量设置状态"><option value="">设置状态…</option><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select><button id="bulk-apply-status" class="button button-secondary" type="button">应用</button><button id="bulk-trash" class="button button-danger" type="button">移入回收站</button></div></div></div><div id="item-list" class="item-list"></div><div id="item-list-pagination" class="list-pagination"></div></section><section id="editor" class="surface editor-surface"></section></div>';
-  $("#new-content").onclick=()=>createItem(state.page==="all"?"note":state.page);$("#list-search").oninput=scheduleListSearch;$("#list-status").onchange=scheduleListFilter;$("#list-sort").onchange=scheduleListSort;$("#select-all-items").onchange=toggleSelectAll;$("#bulk-apply-status").onclick=()=>bulkUpdateItems("status",$("#bulk-status").value);$("#bulk-trash").onclick=()=>bulkUpdateItems("trash");$("#list-status").value=state.listStatus;$("#list-sort").value=state.listSort;
-  if(state.page==="log"){$("#log-date").onchange=changeLogDate;$("#log-date-prev").onclick=()=>shiftLogDate(-1);$("#log-date-next").onclick=()=>shiftLogDate(1);$("#log-date-today").onclick=()=>changeLogDate({target:{value:localDateValue()}});$("#log-date-all").onclick=()=>changeLogDate({target:{value:""}})}
-  drawItemList();drawEditor();
-}
-async function changeLogDate(event){
-  if(!confirmEditorLeave())return;
-  state.logDate=event.target.value||"";state.selected=null;state.savedSnapshot=null;await loadItems();renderContentPage();
-}
-async function shiftLogDate(offset){
-  const current=state.logDate||localDateValue(),parts=current.split("-");
-  const next=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2])+offset);
-  await changeLogDate({target:{value:localDateValue(next)}});
-}
-async function renderTrash(itemOffset=0,fileOffset=0){
-  const data=await api("/api/trash?item_offset="+itemOffset+"&file_offset="+fileOffset);
-  const items=data.items||[],files=data.files||[],totals=data.totals||{},itemCount=Number(totals.items??items.length),fileCount=Number(totals.files??files.length),next=data.next_offsets||{};
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>回收站</h1><p>误删的内容会暂时保留在这里，恢复后会回到原来的工作空间。</p></div></div><div class="trash-grid"><section class="surface"><div class="surface-head"><h2>内容</h2><span class="surface-count">'+(items.length<itemCount?itemOffset+items.length+" / "+itemCount:itemCount)+'</span></div><div id="trash-items" class="trash-list"></div>'+(next.items!=null?'<button id="trash-items-more" class="button button-secondary">加载更早内容</button>':"")+'</section><section class="surface"><div class="surface-head"><h2>文件</h2><span class="surface-count">'+(files.length<fileCount?fileOffset+files.length+" / "+fileCount:fileCount)+'</span></div><div id="trash-files" class="trash-list"></div>'+(next.files!=null?'<button id="trash-files-more" class="button button-secondary">加载更早文件</button>':"")+'</section></div>';
-  const itemBox=$("#trash-items"),fileBox=$("#trash-files");
-  itemBox.innerHTML=items.length?items.map(item=>'<div class="trash-row"><div class="trash-row-body">'+kindMark(item.kind)+'<div class="recent-body"><div class="recent-title">'+esc(item.title)+'</div><div class="recent-meta">'+esc(labels[item.kind])+' · 删除于 '+formatDate(item.deleted_at,true)+'</div></div></div><div class="trash-actions"><button class="button button-secondary restore-item" data-id="'+item.id+'">恢复</button><button class="button button-danger purge-item" data-id="'+item.id+'">永久删除</button></div></div>').join(""):'<div class="empty-state"><strong>回收站是空的</strong><p>最近删除的内容会在这里暂存。</p></div>';
-  fileBox.innerHTML=files.length?files.map(file=>'<div class="trash-row"><div class="trash-row-body"><span class="file-symbol">↧</span><div class="recent-body"><div class="recent-title">'+esc(file.name)+'</div><div class="file-size">'+formatBytes(file.size)+' · 删除于 '+formatDate(file.deleted_at,true)+'</div></div></div><div class="trash-actions"><button class="button button-secondary restore-file" data-id="'+esc(file.id)+'">恢复</button><button class="button button-danger purge-file" data-id="'+esc(file.id)+'">永久删除</button></div></div>').join(""):'<div class="empty-state"><strong>没有已删除文件</strong><p>上传文件后，删除的附件会在这里暂存。</p></div>';
-  $$(".restore-item").forEach(button=>button.onclick=async()=>{await api("/api/trash/items/"+button.dataset.id+"/restore",{method:"POST"});await renderTrash(itemOffset,fileOffset)});
-  $$(".purge-item").forEach(button=>button.onclick=async()=>{if(window.confirm("永久删除后无法恢复，确定继续吗？")){await api("/api/trash/items/"+button.dataset.id,{method:"DELETE"});await renderTrash(itemOffset,fileOffset)}});
-  $$(".restore-file").forEach(button=>button.onclick=async()=>{await api("/api/trash/files/"+encodeURIComponent(button.dataset.id)+"/restore",{method:"POST"});await renderTrash(itemOffset,fileOffset)});
-  $$(".purge-file").forEach(button=>button.onclick=async()=>{if(window.confirm("永久删除后无法恢复，确定继续吗？")){await api("/api/trash/files/"+encodeURIComponent(button.dataset.id),{method:"DELETE"});await renderTrash(itemOffset,fileOffset)}});
-  $("#trash-items-more")?.addEventListener("click",()=>renderTrash(next.items||itemOffset,fileOffset));
-  $("#trash-files-more")?.addEventListener("click",()=>renderTrash(itemOffset,next.files||fileOffset));
-}
-function drawBulkToolbar(){
-  const toolbar=$("#bulk-toolbar"),selectAll=$("#select-all-items");
-  if(!toolbar||!selectAll)return;
-  const count=state.selectedIds.size,visible=state.visibleItemIds;
-  $("#bulk-actions")?.classList.toggle("is-hidden",!count);
-  $("#bulk-count").textContent=count?"已选择 "+count+" 项":"选择内容后可批量处理";
-  selectAll.checked=Boolean(visible.length&&visible.every(id=>state.selectedIds.has(String(id))));
-  selectAll.indeterminate=Boolean(visible.some(id=>state.selectedIds.has(String(id)))&&!selectAll.checked);
-  $("#bulk-apply-status").disabled=!count||!( $("#bulk-status")?.value );
-}
-function toggleSelectAll(event){
-  const ids=state.visibleItemIds.map(id=>String(id));
-  if(event.currentTarget.checked)ids.forEach(id=>state.selectedIds.add(id));
-  else ids.forEach(id=>state.selectedIds.delete(id));
-  drawItemList();
-}
-async function bulkUpdateItems(action,status=""){
-  const ids=[...state.selectedIds].map(Number).filter(Number.isInteger);
-  if(!ids.length)return;
-  if(action==="status"&&!status){window.alert("请选择要设置的状态");return}
-  if(!confirmEditorLeave())return;
-  if(action==="trash"&&!window.confirm("选中的 "+ids.length+" 条内容会移入回收站，之后仍可恢复。继续吗？"))return;
-  const buttons=[$("#bulk-apply-status"),$("#bulk-trash")].filter(Boolean);buttons.forEach(button=>{button.disabled=true});
-  try{
-    const result=await api("/api/items/bulk",{method:"POST",body:JSON.stringify({ids,action,status})});
-    const selectedId=state.selected?.id;
-    await loadItems();
-    if(selectedId&&ids.includes(Number(selectedId))){
-      const refreshed=state.items.find(item=>Number(item.id)===Number(selectedId));
-      if(refreshed){if(state.selected)Object.assign(state.selected,refreshed);else state.selected=refreshed;state.savedSnapshot=editorSnapshot(state.selected)}
-      else{state.selected=null;state.savedSnapshot=null}
-    }
-    state.selectedIds.clear();drawItemList();drawEditor();
-    if($("#save-indicator"))$("#save-indicator").textContent=(result.updated||0)+" 项已更新";
-  }catch(error){window.alert(error.message)}
-  finally{buttons.forEach(button=>{button.disabled=false})}
-}
-function drawListPagination(){
-  const box=$("#item-list-pagination");
-  if(!box)return;
-  if(state.itemsCursor)box.innerHTML='<button id="load-more-items" class="button button-secondary" type="button">加载更多</button><span>已加载 '+state.items.length+' / '+state.itemsTotal+' 条</span>';
-  else box.innerHTML=state.itemsTotal?'<span>已加载全部 '+state.itemsTotal+' 条</span>':'';
-  $("#load-more-items")?.addEventListener("click",loadMoreItems);
-}
-function drawItemList(){
-  const status=$("#list-status")?.value||state.listStatus||"",sort=$("#list-sort")?.value||state.listSort;state.listStatus=status;state.listSort=sort;
-  drawTagFilter();
-  // The API owns the global order so cursor pages cannot be reordered
-  // differently by the browser (especially for locale-sensitive titles).
-  // Search, status, and tag filters are already applied server-side. The
-  // list DTO intentionally omits full content, so filtering again in the
-  // browser would hide a valid body-only search hit.
-  const items=state.items.filter(item=>(!status||item.status===status)&&(!state.listTag||item.tags_list?.includes(state.listTag)||item.tags?.split(",").includes(state.listTag)));
-  state.visibleItemIds=items.map(item=>item.id);
-  const box=$("#item-list");
-  if(!items.length){box.innerHTML='<div class="empty-state"><strong>这里还没有内容</strong><p>点击右上角，先创建第一条。</p></div>';drawBulkToolbar();drawListPagination();return}
-  box.innerHTML=items.map(item=>'<div class="content-item '+(state.selected&&String(state.selected.id)===String(item.id)?"is-selected":"")+'" data-id="'+item.id+'"><div class="content-item-head"><label class="item-select"><input type="checkbox" data-id="'+item.id+'" '+(state.selectedIds.has(String(item.id))?"checked":"")+'><span class="sr-only">选择 '+esc(item.title||"未命名")+'</span></label><div class="content-item-title">'+esc(item.title||"未命名")+'</div><button class="pin-toggle '+(item.pinned?"is-pinned":"")+'" data-id="'+item.id+'" title="'+(item.pinned?"取消置顶":"置顶内容")+'" aria-label="'+(item.pinned?"取消置顶":"置顶内容")+'">★</button></div><div class="content-item-summary">'+esc(item.summary||item.content_preview||"暂无摘要")+'</div><div class="content-item-meta">'+priorityMarkup(item.priority||2)+taskProgressMarkup(item)+(item.kind==="log"&&item.entry_date?'<span>'+esc(formatDueDate(item.entry_date))+'</span>':"")+'<span>'+relativeDate(item.updated_at)+'</span><span class="spacer"></span>'+statusPill(item.status)+'</div></div>').join("");
-  $$(".content-item").forEach(row=>row.onclick=async event=>{if(event.target.closest("button,label,input"))return;if(!confirmEditorLeave())return;try{const result=await api("/api/items/"+encodeURIComponent(row.dataset.id));state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";drawItemList();drawEditor()}catch(error){window.alert(error.message)}});
-  $$(".item-select input").forEach(input=>input.onchange=event=>{event.stopPropagation();const id=String(input.dataset.id);if(input.checked)state.selectedIds.add(id);else state.selectedIds.delete(id);drawBulkToolbar()});
-  $$(".pin-toggle").forEach(button=>button.onclick=async event=>{event.stopPropagation();if(!confirmEditorLeave())return;const item=state.items.find(candidate=>String(candidate.id)===button.dataset.id);if(!item)return;try{const result=await api("/api/items/"+item.id+"/pin",{method:"POST",body:JSON.stringify({pinned:!item.pinned})});Object.assign(item,result.item);if(state.selected&&String(state.selected.id)===button.dataset.id){Object.assign(state.selected,result.item);state.savedSnapshot=editorSnapshot(result.item);drawEditor()}drawItemList()}catch(error){window.alert(error.message)}});
-  $("#bulk-status")?.addEventListener("change",drawBulkToolbar);drawBulkToolbar();drawListPagination();
-}
-function compareItems(a,b,sort){
-  const updated=(b.updated_at||"").localeCompare(a.updated_at||"");
-  const pinned=Number(b.pinned||0)-Number(a.pinned||0);
-  if(sort==="priority")return pinned||Number(b.priority||0)-Number(a.priority||0)||updated;
-  if(sort==="due")return pinned||(a.due_date?0:1)-(b.due_date?0:1)||(a.due_date||"").localeCompare(b.due_date||"")||updated;
-  if(sort==="title")return pinned||String(a.title||"").localeCompare(String(b.title||""),"zh-CN")||Number(a.id)-Number(b.id);
-  return pinned||updated;
-}
-function drawTagFilter(){
-  const box=$("#list-tags");
-  if(!box)return;
-  if(!box.querySelector("input")){
-    box.innerHTML='<input class="control-input" type="search" placeholder="查找标签" aria-label="查找标签"><div class="tag-choices"></div><button class="button button-secondary tag-more is-hidden" type="button">更多标签</button>';
-    let timer;
-    box.querySelector("input").oninput=()=>{clearTimeout(timer);timer=setTimeout(()=>loadTagChoices(box),180)};
-  }
-  loadTagChoices(box);
-}
-async function loadTagChoices(box,offset=0){
-  const request=(box.request||0)+1;box.request=request;
-  const params=new URLSearchParams({limit:"18",offset:String(offset),q:box.querySelector("input").value.trim()});
-  if(["note","project","paper","log"].includes(state.page))params.set("kind",state.page);
-  try{
-    const data=await api("/api/tags?"+params);
-    if(!box.isConnected||box.request!==request)return;
-    box.tags=offset?(box.tags||[]).concat(data.tags):data.tags;
-    const tags=box.tags,selected=state.listTag;
-    box.querySelector(".tag-choices").innerHTML='<button class="tag-chip '+(!selected?"is-active":"")+'" data-tag="">全部标签</button>'+(selected&&!tags.some(row=>row.tag===selected)?'<button class="tag-chip is-active" data-tag="'+esc(selected)+'">'+esc(selected)+'</button>':"")+tags.map(row=>'<button class="tag-chip '+(selected===row.tag?"is-active":"")+'" data-tag="'+esc(row.tag)+'">'+esc(row.tag)+' <small>'+row.count+'</small></button>').join("");
-    box.querySelectorAll(".tag-chip").forEach(button=>button.onclick=()=>{state.listTag=button.dataset.tag;scheduleListFilter()});
-    const more=box.querySelector(".tag-more");more.classList.toggle("is-hidden",data.next_offset==null);more.textContent="更多标签（"+tags.length+" / "+data.total+"）";more.onclick=()=>loadTagChoices(box,data.next_offset);
-  }catch(error){if(box.isConnected&&box.request===request)box.querySelector(".tag-choices").textContent="标签暂时无法加载"}
-}
-// Each picker fetches small metadata pages on demand. Preserve the user's
-// current choice while a search is in flight; a delayed response never clears it.
-function bindItemPicker(selectId,searchId,moreId,hintId,options={}){
-  const select=$("#"+selectId),search=$("#"+searchId),more=$("#"+moreId),hint=$("#"+hintId);
-  if(!select||!search)return;
-  let request=0,timer,rows=[],next=null;
-  async function load(offset=0){
-    const version=++request;
-    const params=new URLSearchParams({limit:"50",offset:String(offset),q:search.value.trim(),...options});
-    if(select.value)params.set("selected_id",select.value);
-    try{
-      const data=await api("/api/item-candidates?"+params);
-      if(!select.isConnected||version!==request)return;
-      const value=select.value,old=select.selectedOptions[0];
-      rows=offset?rows.concat(data.items):data.items;
-      const unique=[...new Map(rows.map(item=>[String(item.id),item])).values()];
-      const preserved=value&&!unique.some(item=>String(item.id)===value)?(data.selected&&String(data.selected.id)===value?'<option value="'+esc(value)+'">'+esc(data.selected.title)+'</option>':'<option value="'+esc(value)+'">'+esc(old?.textContent||"已选内容")+'</option>'):"";
-      select.innerHTML='<option value="">'+esc(select.dataset.empty||"请选择内容…")+'</option>'+preserved+unique.map(item=>'<option value="'+item.id+'">'+esc((labels[item.kind]||"内容")+" · "+(item.title||"未命名"))+'</option>').join("");
-      select.value=value;next=data.next_offset;
-      more.classList.toggle("is-hidden",next==null);hint.textContent=unique.length+" / "+data.total+" 条候选";
-    }catch(error){if(select.isConnected&&version===request)hint.textContent="候选加载失败，请重新搜索"}
-  }
-  search.oninput=()=>{clearTimeout(timer);++request;timer=setTimeout(()=>load(),180)};
-  more.onclick=()=>{if(next!=null)load(next)};
-  load();
-}
-async function renderHierarchy(item,offset=0){
-  const panel=$("#hierarchy-panel");
-  if(!panel||!item.id)return;
-  const params=new URLSearchParams({parent_id:String(item.id),limit:"50",offset:String(offset)});
-  if(item.parent_id)params.set("selected_id",String(item.parent_id));
-  try{
-    const data=await api("/api/item-candidates?"+params);
-    if($("#hierarchy-panel")!==panel)return;
-    panel.childrenRows=offset?(panel.childrenRows||[]).concat(data.items):data.items;
-    const parent=data.selected,children=panel.childrenRows;
-    panel.innerHTML='<div class="relation-heading">层级关系</div>'+(parent?'<div class="relation-group"><span class="relation-label">上级</span><button class="related-link" data-related-id="'+parent.id+'" data-related-kind="'+parent.kind+'">'+esc(parent.title)+'</button></div>':'')+'<div class="relation-group"><span class="relation-label">下级 · '+children.length+' / '+data.total+'</span><div class="relation-children">'+children.map(child=>'<button class="related-link" data-related-id="'+child.id+'" data-related-kind="'+child.kind+'">'+kindMark(child.kind)+'<span>'+esc(child.title)+'</span></button>').join("")+'</div></div>'+(data.next_offset!=null?'<button class="button button-secondary hierarchy-more">加载更多下级</button>':"");
-    bindRelationLinks(panel);
-    panel.querySelector(".hierarchy-more")?.addEventListener("click",()=>renderHierarchy(item,data.next_offset));
-  }catch(error){if($("#hierarchy-panel")===panel)panel.textContent="层级关系暂时无法加载"}
-}
-function bindRelationLinks(root=document){
-  root.querySelectorAll(".related-link").forEach(link=>link.onclick=async()=>{
-    try{
-      const result=await api("/api/items/"+encodeURIComponent(link.dataset.relatedId));
-      if(!await goPage(result.item.kind))return;
-      state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
-    }catch(error){window.alert(error.message)}
-  });
-}
-async function renderRelatedItems(itemId){
-  const list=$("#related-list");
-  if(!list)return;
-  try{
-    const result=await api("/api/items/"+encodeURIComponent(itemId)+"/links");
-    if(!state.selected||String(state.selected.id)!==String(itemId)||$("#related-list")!==list)return;
-    const items=result.items||[];
-    list.innerHTML=items.length?items.map(item=>'<div class="related-row"><button class="related-link" data-related-id="'+item.id+'" data-related-kind="'+item.kind+'">'+kindMark(item.kind)+'<span>'+esc(item.title||"未命名")+'</span></button><button class="related-remove" data-related-id="'+item.id+'" title="解除关联" aria-label="解除与 '+esc(item.title||"未命名")+' 的关联">×</button></div>').join(""):'<span class="related-empty">还没有横向关联</span>';
-    $$("#related-list .related-remove").forEach(button=>button.onclick=async event=>{event.stopPropagation();button.disabled=true;try{await api("/api/items/"+encodeURIComponent(itemId)+"/links/"+encodeURIComponent(button.dataset.relatedId),{method:"DELETE"});await renderRelatedItems(itemId)}catch(error){button.disabled=false;window.alert(error.message)}});
-    $$("#related-list .related-link").forEach(link=>link.onclick=async()=>{
-      try{
-        const result=await api("/api/items/"+encodeURIComponent(link.dataset.relatedId));
-        if(!await goPage(result.item.kind))return;
-        state.selected={...result.item};state.savedSnapshot=editorSnapshot(state.selected);renderContentPage();
-      }catch(error){window.alert(error.message)}
-    });
-  }catch(error){if($("#related-list")===list)list.innerHTML='<span class="related-empty">关联列表暂时不可用</span>'}
-}
-async function addRelatedItem(){
-  const select=$("#related-target"),button=$("#add-related");
-  if(!select||!button||!select.value||!state.selected?.id)return;
-  const itemId=state.selected.id;
-  button.disabled=true;
-  try{
-    await api("/api/items/"+encodeURIComponent(itemId)+"/links",{method:"POST",body:JSON.stringify({target_id:Number(select.value)})});
-    select.value="";
-    if(state.selected?.id===itemId&&$("#related-target")===select)await renderRelatedItems(itemId);
-  }catch(error){window.alert(error.message)}
-  finally{if($("#add-related")===button)button.disabled=false}
-}
-async function restoreRevision(event){
-  event.stopPropagation();
-  const button=event.currentTarget,itemId=state.selected?.id,revisionId=button.dataset.revisionId;
-  if(!itemId||!revisionId||!confirmEditorLeave()||!window.confirm("恢复这个历史版本吗？当前内容会先保存为一个新的历史版本。未保存的本机草稿将被清除。"))return;
-  button.disabled=true;button.textContent="恢复中…";
-  try{
-    const previousKind=state.page,result=await api("/api/items/"+encodeURIComponent(itemId)+"/revisions/"+encodeURIComponent(revisionId)+"/restore",{method:"POST"});
-    state.selected=result.item;state.savedSnapshot=editorSnapshot(result.item);clearLocalDraft(previousKind,itemId);clearLocalDraft(result.item.kind,result.item.id);
-    if(previousKind!==result.item.kind){if(previousKind==="log")state.logDate="";state.page=result.item.kind;state.listTag="";state.listSort="updated";$$('.nav-item').forEach(item=>item.classList.toggle("is-active",item.dataset.page===state.page));$("#page-heading").textContent=labels[state.page]}
-    if(state.page==="log")state.logDate=result.item.entry_date||"";
-    if($("#log-date"))$("#log-date").value=state.logDate;
-    await loadItems();drawItemList();drawEditor();$("#save-indicator").textContent="已恢复历史版本 · "+new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
-  }catch(error){button.disabled=false;button.textContent="恢复";window.alert(error.message)}
-}
-async function renderItemHistory(itemId){
-  const list=$("#item-history");
-  if(!list)return;
-  try{
-    const result=await api("/api/items/"+encodeURIComponent(itemId)+"/revisions");
-    if(!state.selected||String(state.selected.id)!==String(itemId)||$("#item-history")!==list)return;
-    const revisions=result.revisions||[];
-    list.innerHTML=revisions.length?revisions.map(revision=>'<div class="history-row"><div class="history-row-body"><strong>'+esc(revision.title||"未命名")+'</strong><span>'+esc(formatDate(revision.created_at,true))+' · '+esc(labels[revision.kind]||revision.kind)+(revision.kind==="log"&&revision.entry_date?" · "+esc(formatDueDate(revision.entry_date)):"")+'</span><small>'+esc((revision.content||revision.summary||"无正文").replace(/\s+/g," ").slice(0,120))+(String(revision.content||revision.summary||"").length>120?"…":"")+'</small></div><button class="button button-secondary restore-revision" data-revision-id="'+revision.id+'">恢复</button></div>').join(""):'<span class="history-empty">保存修改后，旧版本会出现在这里</span>';
-    $$(".restore-revision").forEach(button=>button.onclick=restoreRevision);
-  }catch(error){if($("#item-history")===list)list.innerHTML='<span class="history-empty">历史版本暂时不可用</span>'}
-}
-function renderTaskProgress(){
-  const box=$("#task-progress");
-  if(!box)return;
-  const stats=taskStats($("#edit-content")?.value||"");
-  box.innerHTML=stats.total?'<span>任务进度 '+stats.done+'/'+stats.total+'</span><span class="task-progress-track" role="progressbar" aria-label="任务完成进度" aria-valuemin="0" aria-valuemax="'+stats.total+'" aria-valuenow="'+stats.done+'"><i class="task-progress-fill"></i></span>':"";
-  const fill=box.querySelector(".task-progress-fill");if(fill)fill.style.width=Math.round(stats.done/stats.total*100)+"%";
-  box.classList.toggle("is-hidden",!stats.total);
-}
-function drawEditor(){
-  const editor=$("#editor");
-  if(!state.selected){editor.innerHTML='<div class="editor-empty"><div><div class="empty-icon">✎</div><strong>选择一条内容开始整理</strong><p>也可以点击右上角新建一条。</p></div></div>';return}
-  const item=state.selected;
-  const localDraft=item.id?readLocalDraft(state.page,item.id):readLocalDraft(state.page,null,state.page==="log"?(item.entry_date||state.logDate):"");
-  const draftAvailable=Boolean(localDraft&&(!item.id||String(localDraft.base_updated_at||"")===String(item.updated_at||"")));
-  const staleDraftAvailable=Boolean(localDraft&&item.id&&String(localDraft.base_updated_at||"")!==String(item.updated_at||""));
-  const conflictDraftAvailable=Boolean(localDraft&&localDraft.conflict&&item.id);
-  const draftNotice=(draftAvailable||staleDraftAvailable||conflictDraftAvailable)?'<div class="draft-notice" id="draft-notice"><span>'+(staleDraftAvailable?"发现一份基于旧版本的本机草稿，请确认后恢复":conflictDraftAvailable?"发现服务器更新前的本机未保存草稿":"发现这条内容的本机未保存草稿")+'</span><button id="restore-draft" class="button button-secondary">恢复草稿</button><button id="dismiss-draft" class="draft-dismiss">忽略</button></div>':'';
-  const kindOptions=["note","project","paper","log"].map(kind=>'<option value="'+kind+'">'+labels[kind]+'</option>').join("");
-  const parentOptions=item.parent_id?'<option value="'+esc(item.parent_id)+'">已关联的上级内容</option>':"";
-  const hierarchyMarkup=item.id?'<section id="hierarchy-panel" class="relation-panel"><span class="related-empty">加载层级关系…</span></section>':"";
-  const relatedMarkup=item.id?'<section class="relation-panel related-content-panel"><div class="relation-heading">横向关联 · 更改即时保存</div><div id="related-list" class="related-list"><span class="related-empty">加载中…</span></div><input id="related-search" type="search" class="control-input" placeholder="按标题或标签查找关联内容" aria-label="查找关联内容"><div class="related-add"><select id="related-target" class="control-input" aria-label="要关联的内容"><option value="">选择要关联的内容…</option></select><button id="add-related" class="button button-secondary" type="button">关联</button></div><div class="picker-footer"><small id="related-hint" aria-live="polite"></small><button id="related-more" type="button" class="button button-secondary is-hidden">更多候选</button></div></section>':"";
-  const relationMarkup=hierarchyMarkup+relatedMarkup;
-  const attachmentMarkup=item.id?'<section class="attachment-panel"><div class="attachment-head"><div><strong>关联文件</strong><small>只显示属于这条内容的附件</small></div><label class="button button-secondary attachment-upload">上传文件<input id="item-file-input" class="file-input" type="file"></label></div><div id="item-file-list" class="item-file-list"></div></section>':'<section class="attachment-panel attachment-empty"><strong>关联文件</strong><span>保存内容后可以上传论文、数据或项目资料。</span></section>';
-  const historyMarkup=item.id?'<section class="history-panel"><div class="history-head"><div><strong>编辑历史</strong><small>每次保存前的版本最多保留 100 个</small></div></div><div id="item-history" class="history-list"><span class="history-empty">加载中…</span></div></section>':'';
-  editor.innerHTML=draftNotice+'<input id="edit-title" class="editor-title" placeholder="给这条内容起个标题" value="'+esc(item.title)+'"><input id="edit-summary" class="editor-summary" placeholder="用一句话概括它（可选）" value="'+esc(item.summary)+'"><div class="editor-grid"><div class="editor-body"><div class="editor-tabs"><button class="editor-tab '+(state.editorTab==="write"?"is-active":"")+'" data-tab="write">编辑</button><button class="editor-tab '+(state.editorTab==="preview"?"is-active":"")+'" data-tab="preview">预览</button></div><div id="task-progress" class="editor-task-progress"></div><textarea id="edit-content" maxlength="'+(1024*1024)+'" class="'+(state.editorTab==="preview"?"is-hidden":"")+'" placeholder="用 Markdown 写下你的思路……">'+esc(item.content)+'</textarea><div id="content-preview" class="preview-box '+(state.editorTab!=="preview"?"is-hidden":"")+'">'+parseMarkdown(item.content)+'</div></div><div class="editor-meta"><label class="form-field"><span>内容类型</span><select id="edit-kind">'+kindOptions+'</select></label><label class="form-field"><span>状态</span><select id="edit-status"><option value="inbox">待整理</option><option value="active">进行中</option><option value="done">已完成</option><option value="paused">已暂停</option></select></label><label class="form-field"><span>优先级</span><select id="edit-priority"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select></label><label id="entry-date-field" class="form-field '+(item.kind==="log"?"":"is-hidden")+'"><span>日志日期</span><input id="edit-entry-date" type="date" value="'+esc(item.entry_date||"")+'"></label><label class="form-field"><span>截止日期</span><input id="edit-due" type="date" value="'+esc(item.due_date||"")+'"></label><label class="form-field"><span>标签</span><input id="edit-tags" placeholder="用逗号分隔" value="'+esc(item.tags||"")+'"></label><div class="form-field"><label for="edit-parent">上级内容</label><input id="parent-search" type="search" placeholder="查找上级标题或标签" aria-label="查找上级内容"><select id="edit-parent" data-empty="无上级内容"><option value="">无上级内容</option>'+parentOptions+'</select><small id="parent-hint" aria-live="polite"></small><button id="parent-more" type="button" class="button button-secondary is-hidden">更多候选</button></div><label class="form-check"><input id="edit-pinned" type="checkbox" '+(item.pinned?"checked":"")+'><span>置顶内容</span></label></div></div>'+relationMarkup+attachmentMarkup+historyMarkup+'<div class="editor-footer"><span id="save-indicator" class="save-indicator"></span><span class="spacer"></span>'+'<button id="focus-mode" class="button button-secondary">'+(state.focusMode?"退出专注":"专注模式")+'</button>'+(item.id?'<button id="duplicate-content" class="button button-secondary">另存副本</button>':"")+'<button id="delete-content" class="button button-danger">删除</button><button id="assistant-content" class="button button-secondary">整理建议</button><button id="save-content" class="button button-primary">保存内容</button></div>';
-  $("#edit-kind").value=item.kind||state.page;$("#edit-status").value=item.status||"inbox";$("#edit-priority").value=String(item.priority||2);$("#edit-parent").value=item.parent_id==null?"":String(item.parent_id);
-  $("#edit-kind").onchange=()=>{const isLog=$("#edit-kind").value==="log";$("#entry-date-field").classList.toggle("is-hidden",!isLog);if(isLog&&!$("#edit-entry-date").value)$("#edit-entry-date").value=state.selected?.entry_date||state.logDate||localDateValue()};
-  $$(".editor-tab").forEach(tab=>tab.onclick=()=>{collectEditorIntoState();state.editorTab=tab.dataset.tab;drawEditor()});
-  $("#edit-content").oninput=()=>{renderTaskProgress();if(state.editorTab==="preview"){$("#content-preview").innerHTML=parseMarkdown($("#edit-content").value);$$("#content-preview input[type=checkbox]").forEach(input=>input.onchange=toggleTask)}};
-  $$("#content-preview input[type=checkbox]").forEach(input=>input.onchange=toggleTask);
-  renderTaskProgress();
-  $("#save-content").onclick=saveItem;$("#delete-content").onclick=deleteItem;$("#focus-mode").onclick=toggleFocusMode;if($("#duplicate-content"))$("#duplicate-content").onclick=duplicateItem;$("#assistant-content").onclick=openAssistant;$("#assistant-content").disabled=!state.assistant?.available;if($("#assistant-content").disabled)$("#assistant-content").title="服务器尚未配置本地 Codex";if($("#add-related"))$("#add-related").onclick=addRelatedItem;
-  $$("#editor input, #editor textarea, #editor select").forEach(field=>field.addEventListener("input",scheduleLocalDraft));
-  if(draftAvailable||staleDraftAvailable||conflictDraftAvailable){
-    $("#restore-draft").onclick=()=>{Object.assign(state.selected,localDraft);clearLocalDraft(state.page,state.selected.id,state.selected.entry_date||state.logDate);drawEditor();$("#save-indicator").textContent="草稿已恢复，请保存内容"};
-    $("#dismiss-draft").onclick=()=>{clearLocalDraft(state.page,state.selected.id,state.selected.entry_date||state.logDate);drawEditor()};
-  }
-  bindRelationLinks(editor);
-  bindItemPicker("edit-parent","parent-search","parent-more","parent-hint",{exclude_id:String(item.id||0),mode:"parent"});
-  if(item.id){bindItemPicker("related-target","related-search","related-more","related-hint",{exclude_id:String(item.id)});renderHierarchy(item);renderItemFiles(item.id);renderRelatedItems(item.id);renderItemHistory(item.id)}
-  $("#edit-title").focus();
-}
-function collectEditor(){
-  const kind=$("#edit-kind").value;
-  return {kind,title:$("#edit-title").value.trim(),summary:$("#edit-summary").value.trim(),content:$("#edit-content").value,tags:$("#edit-tags").value,status:$("#edit-status").value,priority:Number($("#edit-priority").value),entry_date:kind==="log"?($("#edit-entry-date")?.value||""):"",due_date:$("#edit-due").value,parent_id:$("#edit-parent").value?Number($("#edit-parent").value):null,pinned:$("#edit-pinned").checked};
-}
-function collectEditorIntoState(){
-  if(!state.selected||!$("#edit-title"))return;
-  Object.assign(state.selected,collectEditor());
-}
-function duplicateItem(){
-  if(!state.selected?.id)return;
-  collectEditorIntoState();
-  const source=state.selected;
-  state.selected={...source,id:null,title:(source.title||"未命名")+" · 副本",status:"inbox",due_date:"",pinned:false,created_at:"",updated_at:"",deleted_at:""};
-  state.savedSnapshot=editorSnapshot(state.selected);state.editorTab="write";clearLocalDraft(state.page,null,state.page==="log"?state.logDate:"");drawItemList();drawEditor();$("#save-indicator").textContent="副本已创建，保存后写入知识库";
-}
-function toggleFocusMode(){
-  collectEditorIntoState();
-  state.focusMode=!state.focusMode;document.body.classList.toggle("editor-focus-mode",state.focusMode);drawEditor();
-  if($("#edit-content"))$("#edit-content").focus();
-}
-function openAssistant(){
-  if(!state.selected)return;
-  collectEditorIntoState();
-  const result=$("#assistant-result");
-  state.assistantResult="";
-  result.classList.remove("is-error");
-  result.textContent=state.assistant?.available?"选择整理方式后点击“开始整理”。":"服务器尚未配置本地 Codex。";
-  $("#assistant-apply-summary").classList.add("is-hidden");$("#assistant-apply-content").classList.add("is-hidden");
-  $("#assistant-dialog").showModal();
-}
-async function runAssistant(){
-  if(!state.selected)return;
-  collectEditorIntoState();
-  const result=$("#assistant-result");
-  const runButton=$("#assistant-run");runButton.disabled=true;runButton.textContent="整理中…";result.classList.remove("is-error");result.textContent="正在整理…";
-  try{
-    const data=await api("/api/assistant",{method:"POST",body:JSON.stringify({task:$("#assistant-task").value,title:state.selected.title,kind:state.selected.kind||state.page,summary:state.selected.summary,tags:state.selected.tags,content:state.selected.content})});
-    state.assistantResult=data.result;result.textContent=data.result;$("#assistant-apply-summary").classList.remove("is-hidden");$("#assistant-apply-content").classList.remove("is-hidden");
-  }catch(error){result.textContent=error.message;result.classList.add("is-error")}
-  finally{runButton.disabled=false;runButton.textContent="再次整理"}
-}
-function applyAssistantResult(target){
-  if(!state.selected||!state.assistantResult)return;
-  if(target==="content"){
-    const current=$("#edit-content").value.trim();
-    state.selected.content=current?current+"\n\n"+state.assistantResult:state.assistantResult;
-  }else{
-    state.selected.summary=state.assistantResult.trim().slice(0,500);
-  }
-  $("#assistant-dialog").close();drawEditor();scheduleLocalDraft();$("#save-indicator").textContent="助手结果已加入未保存修改";
-}
-
-async function saveItem(){
-  const data=collectEditor(),indicator=$("#save-indicator");
-  if(!data.title){indicator.textContent="请先填写标题";return}
-  const button=$("#save-content");button.disabled=true;indicator.textContent="保存中…";
-  try{
-    const previousKind=state.page,draftDate=state.selected.entry_date||$("#edit-entry-date")?.value||state.logDate||"",payload=state.selected.id?{...data,base_updated_at:state.selected.updated_at||""}:data,result=state.selected.id?await api("/api/items/"+state.selected.id,{method:"PUT",body:JSON.stringify(payload)}):await api("/api/items",{method:"POST",body:JSON.stringify(payload)});
-    const draftId=state.selected.id||null;state.selected=result.item;state.savedSnapshot=editorSnapshot(result.item);clearLocalDraft(previousKind,draftId,draftDate);clearLocalDraft(result.item.kind,result.item.id||null,result.item.entry_date||"");
-    if(previousKind!==result.item.kind){if(previousKind==="log")state.logDate="";state.page=result.item.kind;state.listTag="";state.listSort="updated";$$('.nav-item').forEach(item=>item.classList.toggle("is-active",item.dataset.page===state.page));$("#page-heading").textContent=labels[state.page]}
-    if(state.page==="log")state.logDate=result.item.entry_date||"";
-    if($("#log-date"))$("#log-date").value=state.logDate;
-    await loadItems();drawItemList();if(!editorHasChanges())drawEditor();$("#save-indicator").textContent="已保存 · "+new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
+    const result=current.id?await api("/api/items/"+current.id,{method:"PUT",body:JSON.stringify({...data,base_updated_at:current.updated_at})}):await post("/api/items",data);
+    if(state.current!==current)return;
+    const live=snapshot(collect());Object.assign(current,result.item);if(state.changes!==version)Object.assign(current,live);else{for(const [id,key] of [["edit-title","title"],["edit-summary","summary"],["edit-tags","tags"],["edit-status","status"],["edit-due","due_date"]])if($("#"+id))$("#"+id).value=result.item[key]||"";}fitTitle();state.baseline=snapshot(result.item);
+    const failures=[];
+    for(const id of pendingFiles){try{await api("/api/files/"+id,{method:"PATCH",body:JSON.stringify({item_id:current.id})});state.pendingFiles=state.pendingFiles.filter(x=>x!==id);}catch{failures.push("附件关联");}}
+    for(const id of pendingLinks){try{await post("/api/items/"+current.id+"/links",{target_id:id});state.pendingLinks=state.pendingLinks.filter(x=>x!==id);}catch{failures.push("文档关联");}}
+    try{localStorage.removeItem(oldDraftKey);}catch{}clearDraft(current);if(state.changes!==version)writeDraft();
+    $("#draft-notice").classList.add("is-hidden");$("#conflict-notice").classList.add("is-hidden");
+    await loadItems();renderList();refreshSidebar();loadDocumentDetails();
+    if(wasNew)$("#document-history").innerHTML='<span class="quiet">下次保存时保留旧版本。</span>';
+    toast(failures.length?"正文已保存，部分关联失败；请再保存重试。":"已保存");
   }catch(error){
-    if(error.status===409&&error.body?.item){
-      try{localStorage.setItem(draftKey(state.page,state.selected.id),JSON.stringify({...data,item_id:state.selected.id,base_updated_at:state.selected.updated_at||"",conflict:true,saved_at:new Date().toISOString()}))}catch(_){ }
-      indicator.textContent="服务器已有更新，当前修改未覆盖";
-      if(window.confirm("这条内容已在其他窗口更新。加载服务器版本并保留当前修改为本机草稿吗？")){
-        state.selected=error.body.item;state.savedSnapshot=editorSnapshot(state.selected);drawEditor();$("#save-indicator").textContent="已加载服务器版本；当前修改已保存在本机草稿";
-      }
-    }else indicator.textContent=error.message
+    writeDraft();if(error.status===409&&error.body?.item){const notice=$("#conflict-notice");notice.classList.remove("is-hidden");notice.innerHTML='<span>其他窗口已更新。当前修改已保留为本机草稿，请打开最新版本后合并。</span><button id="load-current-version">打开最新版本</button>';$("#load-current-version").onclick=()=>openDocument(current.id,true);}toast(error.message,true);
+  }finally{state.saving=false;if($("#save-content"))$("#save-content").disabled=false;updateSaveState();}
+}
+async function deleteDocument(){if(!state.current)return;if(!state.current.id){if(canLeave()){clearDraft(state.current);resetCurrent();renderEditor();}return;}if(!window.confirm("把这份文档移入回收站？未保存的修改会留在本机草稿。"))return;try{writeDraft();await api("/api/items/"+state.current.id,{method:"DELETE"});resetCurrent();renderEditor();await loadItems();renderList();refreshSidebar();toast("已移入回收站，可以恢复");}catch(error){toast(error.message,true);}}
+async function loadDocumentDetails(){
+  const item=state.current;if(!item)return;
+  const assets=$("#document-assets"),relations=$("#document-relations"),history=$("#document-history");
+  if(!item.id){assets.innerHTML='<span class="quiet">可粘贴图片、上传文件。</span>';relations.innerHTML=state.pendingLinks.length?'<span class="quiet">'+state.pendingLinks.length+' 份文档将在保存时关联。</span>':'<span class="quiet">把相关思考连起来。</span>';history.innerHTML='<span class="quiet">保存后自动保留旧版本。</span>';}else{
+    const jobs=[
+      api("/api/files?item_id="+item.id).then(data=>{if(state.current!==item||assets!==$("#document-assets"))return;assets.innerHTML=data.files.length?data.files.map(file=>'<div class="asset-row"><a href="/files/'+file.id+'" target="_blank" rel="noopener">'+icon(file.content_type==="application/pdf"?"book":"document")+'<span>'+esc(file.name)+'</span></a><button data-insert-asset="'+file.id+'" title="插入正文">＋</button><button data-trash-asset="'+file.id+'" title="移入回收站">×</button></div>').join(""):'<span class="quiet">把 PDF 和图片放在手边。</span>';assets.querySelectorAll("[data-insert-asset]").forEach(button=>button.onclick=()=>{const file=data.files.find(f=>f.id===button.dataset.insertAsset);insertAsset(file,file.content_type);});assets.querySelectorAll("[data-trash-asset]").forEach(button=>button.onclick=async()=>{if(!window.confirm("将附件移入回收站？正文中的引用将暂时无法预览。"))return;try{await api("/api/files/"+button.dataset.trashAsset,{method:"DELETE"});loadDocumentDetails();toast("附件已移入回收站");}catch(error){toast(error.message,true);}});}),
+      api("/api/items/"+item.id+"/links").then(data=>{if(state.current!==item||relations!==$("#document-relations"))return;relations.innerHTML=data.items.length?data.items.map(link=>'<div class="relation-chip"><button data-open-relation="'+link.id+'">'+icon("document")+esc(link.title)+'</button><button data-unlink="'+link.id+'" title="解除关联">×</button></div>').join(""):'<span class="quiet">把相关思考连起来。</span>';relations.querySelectorAll("[data-open-relation]").forEach(button=>button.onclick=()=>openDocument(button.dataset.openRelation));relations.querySelectorAll("[data-unlink]").forEach(button=>button.onclick=async()=>{try{await api("/api/items/"+item.id+"/links/"+button.dataset.unlink,{method:"DELETE"});loadDocumentDetails();}catch(error){toast(error.message,true);}});}),
+      api("/api/items/"+item.id+"/revisions").then(data=>{if(state.current!==item||history!==$("#document-history"))return;history.innerHTML=data.revisions.length?data.revisions.map(rev=>'<button class="revision-row" data-revision="'+rev.id+'"><span>'+esc(new Date(rev.created_at).toLocaleString("zh-CN"))+'</span><small>'+esc(rev.title)+'</small></button>').join(""):'<span class="quiet">下次保存时保留旧版本。</span>';history.querySelectorAll("[data-revision]").forEach(button=>button.onclick=async()=>{if(!canLeave()||!window.confirm("恢复此版本？当前已保存内容会保留到历史中。"))return;try{const result=await post("/api/items/"+item.id+"/revisions/"+button.dataset.revision+"/restore",{});clearDraft(item);state.current=result.item;state.baseline=snapshot(result.item);renderEditor();await loadItems();renderList();toast("已恢复历史版本");}catch(error){toast(error.message,true);}});})
+    ];
+    const outcomes=await Promise.allSettled(jobs);outcomes.forEach((outcome,index)=>{if(outcome.status==="rejected"&&state.current===item)[assets,relations,history][index].innerHTML='<span class="quiet">暂时无法加载，请重新打开文档。</span>';});
   }
-  finally{if($("#save-content"))$("#save-content").disabled=false}
+  try{const data=await api("/api/item-candidates?mode=parent&limit=50&exclude_id="+(item.id||0)+(item.parent_id?"&selected_id="+item.parent_id:""));if(state.current!==item)return;const select=$("#edit-parent"),previous=select.value,rows=[...(data.selected?[data.selected]:[]),...data.items],unique=[...new Map(rows.map(x=>[x.id,x])).values()];select.innerHTML='<option value="">无上级文档</option>'+unique.map(x=>'<option value="'+x.id+'">'+esc(x.title)+'</option>').join("");select.value=previous;}catch{}
 }
-async function deleteItem(){
-  if(!state.selected.id||!window.confirm("确定把这条内容移入回收站吗？之后仍可恢复。"))return;
-  const itemId=state.selected.id,entryDate=$("#edit-entry-date")?.value||state.selected.entry_date||state.logDate;clearLocalDraft(state.page,itemId,entryDate);await api("/api/items/"+itemId,{method:"DELETE"});state.selected=null;state.savedSnapshot=null;await loadItems();drawItemList();drawEditor()
+function chooseAsset(type){state.mediaType=type;const input=$("#asset-input");input.accept=type==="pdf"?"application/pdf,.pdf":type==="image"?"image/png,image/jpeg,image/gif,image/webp":"";input.value="";input.click();}
+async function uploadAsset(file){if(!file||!state.current)return;if(file.size>64*1024*1024){toast("单个附件最大 64 MB",true);return;}const target=state.current,linkedId=target.id;const form=new FormData();form.append("file",file);if(linkedId)form.append("item_id",linkedId);toast("正在上传附件…");try{const result=await api("/api/files",{method:"POST",body:form});if(state.current!==target){toast("附件已上传，可在附件管理中找到");return;}if(!linkedId)state.pendingFiles.push(result.id);insertAsset({id:result.id,name:file.name},file.type||(/\.pdf$/i.test(file.name)?"application/pdf":""));$("#media-dialog").close();loadDocumentDetails();toast("已插入附件，保存文档后保留正文引用");}catch(error){toast(error.message,true);}}
+function insertAsset(file,type){const url="/files/"+file.id+"?inline=1",name=file.name.replace(/[\[\]\\\n]/g,"");if(type==="application/pdf")block("@[pdf]("+url+")");else if(type.startsWith("image/")&&!type.includes("svg"))block("!["+name+"]("+url+")");else block("["+name+"](/files/"+file.id+")");}
+function pasteAsset(event){const files=Array.from(event.clipboardData?.items||[]).filter(item=>item.kind==="file"&&item.type.startsWith("image/"));if(files.length){event.preventDefault();event.stopPropagation();uploadAsset(files[0].getAsFile());}}
+function openMedia(type){state.mediaType=type;$("#media-title").textContent=type==="pdf"?"插入 PDF":"插入图片";$("#media-note").textContent=type==="pdf"?"在文档内阅读原文。上传本地 PDF，或导入公开的 PDF 链接。":"图片可直接粘贴或拖入编辑器，也可以使用 HTTPS 图片链接。";$("#media-label").textContent=type==="pdf"?"PDF 的 HTTPS 链接":"图片的 HTTPS 链接";$("#pdf-local-row").classList.toggle("is-hidden",type!=="pdf");$("#media-url").value="";$("#media-error").textContent="";$("#media-dialog").showModal();}
+$("#asset-input").onchange=event=>uploadAsset(event.target.files[0]);$("#media-upload").onclick=()=>chooseAsset(state.mediaType);
+$("#media-form").onsubmit=async event=>{event.preventDefault();const button=$("#media-submit"),target=state.current,linkedId=target.id,url=$("#media-url").value.trim();if(!/^https:\/\//i.test(url)){$("#media-error").textContent="请使用 HTTPS 链接";return;}button.disabled=true;$("#media-error").textContent="";try{if(state.mediaType==="pdf"&&$("#pdf-local").checked){const file=await post("/api/papers/pdf",{url,item_id:linkedId||null,name:(target.title||"论文原文")+".pdf"});if(state.current!==target)throw new Error("附件已保存，请到附件管理查看");if(!linkedId)state.pendingFiles.push(file.id);insertAsset(file,"application/pdf");loadDocumentDetails();}else if(state.mediaType==="pdf")block("@[pdf]("+encodeURI(url).replace(/[()]/g,c=>c==="("?"%28":"%29")+")");else block("![图片]("+encodeURI(url).replace(/[()]/g,c=>c==="("?"%28":"%29")+")");$("#media-dialog").close();}catch(error){$("#media-error").textContent=error.message;}finally{button.disabled=false;}};
+async function openLinkPicker(){if(!state.current)return;$("#link-search").value="";$("#link-dialog").showModal();$("#link-search").focus();await loadLinkCandidates("");}
+let linkTimer,linkVersion=0;$("#link-search").oninput=event=>{clearTimeout(linkTimer);const query=event.target.value;linkTimer=setTimeout(()=>loadLinkCandidates(query),150);};
+async function loadLinkCandidates(query){const version=++linkVersion;try{const data=await api("/api/item-candidates?limit=50&exclude_id="+(state.current?.id||0)+"&q="+encodeURIComponent(query));if(version!==linkVersion)return;$("#link-results").innerHTML=data.items.length?data.items.map(item=>'<button class="picker-row" data-link-id="'+item.id+'">'+icon(item.kind==="paper"?"book":"document")+'<span><strong>'+esc(item.title)+'</strong><small>'+esc(kindNames[item.kind])+'</small></span><span>↗</span></button>').join(""):'<p class="empty-hint">还没有其他文档，先写下另一条思路。</p>';$("#link-results").querySelectorAll("[data-link-id]").forEach(button=>button.onclick=()=>{const item=data.items.find(x=>x.id===Number(button.dataset.linkId));state.editor.replaceSelection("[["+item.id+"|"+item.title.replace(/[\]\n|]/g,"")+"]]");if(!state.pendingLinks.includes(item.id))state.pendingLinks.push(item.id);writeDraft();$("#link-dialog").close();toast("已插入文档链接，保存时更新关联");});}catch(error){$("#link-results").textContent=error.message;}}
+function openPaper(){if(!state.authenticated)return;$("#paper-dialog").showModal();if(!state.paperBusy)$("#paper-reference").focus();}
+$("#paper-form").onsubmit=async event=>{event.preventDefault();if(state.paperBusy)return;const button=$("#paper-lookup");button.disabled=true;button.textContent="查找中…";$("#paper-error").textContent="";$("#paper-result").classList.add("is-hidden");try{const data=await post("/api/papers/lookup",{reference:$("#paper-reference").value.trim()});$("#paper-candidates").innerHTML=data.papers.length?'<div class="section-label">确认你要阅读的论文</div>'+data.papers.map((paper,index)=>'<article class="paper-candidate"><div class="paper-source-label">'+esc(paper.provider)+(paper.year?" · "+esc(paper.year):"")+'</div><h3>'+esc(paper.title)+'</h3><p>'+esc((paper.authors||[]).slice(0,5).join(" · "))+'</p>'+(paper.abstract?'<p class="candidate-abstract">'+esc(paper.abstract.slice(0,260))+'</p>':"")+'<div class="candidate-actions"><a href="'+esc(paper.url)+'" target="_blank" rel="noopener noreferrer">查看来源 ↗</a><button class="button secondary small" data-paper-blank="'+index+'">创建空白档案</button><button class="button primary small" data-paper-generate="'+index+'" '+(!state.assistant?.available?"disabled":"")+'>'+icon("spark")+'生成阅读档案</button></div></article>').join(""):'<p class="empty-hint">没有找到这篇论文。可以尝试 DOI 或原文介绍页链接。</p>';
+  $$("[data-paper-generate]").forEach(button=>button.onclick=()=>generatePaper(data.papers[Number(button.dataset.paperGenerate)],button));$$("[data-paper-blank]").forEach(button=>button.onclick=()=>{state.paperDraft={title:data.papers[Number(button.dataset.paperBlank)].title,content:paperHeader(data.papers[Number(button.dataset.paperBlank)])+"\n\n## 我的阅读笔记\n\n"};usePaperDraft();});if(!state.assistant?.available)$("#paper-error").textContent="当前没有可用的 Codex，可以先创建空白论文档案。";
+  }catch(error){$("#paper-error").textContent=error.message;}finally{button.disabled=false;button.textContent="查找论文";}};
+function paperHeader(paper){return "## 论文信息\n\n- 标题："+paper.title+"\n- 作者："+(paper.authors||[]).join("; ")+"\n- 年份："+(paper.year||"待确认")+"\n- 来源：[原文页面]("+paper.url+")\n"+(paper.abstract?"\n## 原文摘要\n\n"+paper.abstract+"\n":"")+(paper.pdf_url?"\n## 原文 PDF\n\n@[pdf]("+paper.pdf_url+")\n":"");}
+async function generatePaper(paper,button){if(state.paperBusy)return;state.paperBusy=true;const buttons=$$("#paper-candidates button");buttons.forEach(b=>b.disabled=true);$("#paper-lookup").disabled=true;button.textContent="正在整理，约需一分钟…";$("#paper-error").textContent="";try{state.paperDraft=await post("/api/papers/draft",{reference:paper.reference});$("#paper-preview").innerHTML=WorkmoireEditor.render(state.paperDraft.content);bindProse($("#paper-preview"));$("#paper-result").classList.remove("is-hidden");$("#paper-result").scrollIntoView({behavior:"smooth",block:"start"});}catch(error){$("#paper-error").textContent=error.message;}finally{state.paperBusy=false;buttons.forEach(b=>b.disabled=false);$("#paper-lookup").disabled=false;button.innerHTML=icon("spark")+"生成阅读档案";}}
+async function usePaperDraft(){if(!state.paperDraft)return;if(!canLeave())return;const draft=state.paperDraft;$("#paper-dialog").close();await newDocument("paper",{title:draft.title,content:draft.content},true);toast("档案已放入编辑器，核对后保存即可");}$("#paper-use").onclick=usePaperDraft;
+function openAssistant(){if(!state.current)return;state.assistantResult="";$("#assistant-error").textContent="";$("#assistant-result").innerHTML='<p class="quiet">选择整理方式后开始。</p>';$("#assistant-actions").classList.add("is-hidden");$("#assistant-dialog").showModal();}
+$("#assistant-run").onclick=async()=>{const item=collect(),target=state.current,button=$("#assistant-run");if(!item)return;button.disabled=true;button.textContent="正在整理…";$("#assistant-error").textContent="";$("#assistant-actions").classList.add("is-hidden");try{const result=await post("/api/assistant",{task:$("#assistant-task").value,...snapshot(item)});if(state.current!==target)throw new Error("文档已切换，请重新整理");state.assistantResult=result.result;$("#assistant-result").innerHTML=WorkmoireEditor.render(result.result);$("#assistant-actions").classList.remove("is-hidden");}catch(error){$("#assistant-error").textContent=error.message;}finally{button.disabled=false;button.textContent="再次整理";}};
+$("#assistant-append").onclick=()=>{if(!state.editor||!state.assistantResult)return;state.editor.setValue(state.editor.getValue().trimEnd()+"\n\n"+state.assistantResult+"\n");$("#assistant-dialog").close();toast("已追加到未保存的正文");};$("#assistant-summary").onclick=()=>{if(!state.current)return;$("#edit-summary").value=state.assistantResult.slice(0,500);changed();$("#assistant-dialog").close();toast("已填入摘要，保存后生效");};
+async function refreshSidebar(){try{const outcomes=await Promise.allSettled([api("/api/stats"),api("/api/tags?limit=7")]);if(outcomes[0].status==="fulfilled"){const c=outcomes[0].value.counts;$("#document-count").textContent=Object.values(c).reduce((a,b)=>a+b,0)||"";$("#paper-count").textContent=c.paper||"";}if(outcomes[1].status==="fulfilled"){const tags=outcomes[1].value.tags;$("#sidebar-tags").innerHTML=tags.length?tags.map(t=>'<button data-sidebar-tag="'+esc(t.tag)+'"><span>#</span>'+esc(t.tag)+'<small>'+t.count+'</small></button>').join(""):'<span class="quiet sidebar-empty">给文档加上标签，就能在这里快速找到。</span>';$("#sidebar-tags").querySelectorAll("button").forEach(button=>button.onclick=()=>goPage("documents",false,{tag:button.dataset.sidebarTag}));}outcomes.filter(x=>x.status==="rejected").forEach(()=>console.info("Sidebar metadata temporarily unavailable"));}catch{}}
+async function renderRelations(query=""){
+  const root=$("#page-content");root.innerHTML='<div class="standalone-page relations-page"><div class="standalone-heading"><div><span class="eyebrow">CONNECTED THOUGHTS</span><h1>文档关系</h1><p>围绕一份文档，看见它的来源、延伸和相关思考。</p></div></div><div class="relation-workspace"><aside class="relation-picker"><div class="list-search">'+icon("search")+'<input id="relation-search" type="search" placeholder="找到一份文档…" aria-label="搜索关系文档"></div><div id="relation-documents"></div></aside><section id="relation-map" class="relation-map"></section></div></div>';
+  let timer;$("#relation-search").value=query;$("#relation-search").oninput=event=>{clearTimeout(timer);const q=event.target.value;timer=setTimeout(()=>loadRelationGraph(q),180);};await loadRelationGraph(query);
 }
-async function renderItemFiles(itemId){
-  const list=$("#item-file-list");
-  if(!list)return;
-  try{
-    const data=await api("/api/files?item_id="+encodeURIComponent(itemId));
-    if(!state.selected||String(state.selected.id)!==String(itemId))return;
-    list.innerHTML=data.files.length?data.files.map(file=>'<div class="item-file-row"><a href="/files/'+encodeURIComponent(file.id)+'" target="_blank">'+esc(file.name)+'</a><span>'+formatBytes(file.size)+'</span><button class="item-file-delete" data-id="'+esc(file.id)+'" title="移入回收站">×</button></div>').join(""):'<span class="attachment-hint">还没有关联文件</span>';
-    $("#item-file-input").onchange=()=>uploadItemFile($("#item-file-input").files[0],itemId);
-    $$(".item-file-delete").forEach(button=>button.onclick=async()=>{if(window.confirm("把这个附件移入回收站吗？之后仍可恢复。")){await api("/api/files/"+encodeURIComponent(button.dataset.id),{method:"DELETE"});await renderItemFiles(itemId)}});
-  }catch(error){list.innerHTML='<span class="attachment-hint">附件列表暂时不可用</span>'}
+async function loadRelationGraph(query=""){try{const data=await api("/api/graph?limit=200"+(query?"&q="+encodeURIComponent(query):""));if(state.page!=="relations")return;state.relationData=data;if(!data.nodes.some(n=>n.id===state.relationFocus))state.relationFocus=data.nodes[0]?.id||null;$("#relation-documents").innerHTML=data.nodes.length?data.nodes.map(node=>'<button class="relation-picker-row" data-focus-id="'+node.id+'">'+icon(node.kind==="paper"?"book":"document")+'<span>'+esc(node.title)+'</span></button>').join(""):'<p class="empty-hint">还没有匹配的文档。</p>';$("#relation-documents").querySelectorAll("button").forEach(button=>button.onclick=()=>{state.relationFocus=Number(button.dataset.focusId);drawRelationMap();});drawRelationMap();}catch(error){toast(error.message,true);}}
+function drawRelationMap(){
+  const root=$("#relation-map"),data=state.relationData;if(!root||!data)return;const current=data.nodes.find(n=>n.id===state.relationFocus);
+  $("#relation-documents").querySelectorAll("[data-focus-id]").forEach(button=>button.classList.toggle("is-active",Number(button.dataset.focusId)===current?.id));
+  if(!current){root.innerHTML='<div class="relation-empty">'+icon("relations")+'<h2>思路会在这里连起来。</h2><p>在编辑器中使用“链接文档”，或设置上级文档。</p></div>';return;}
+  const parents=[],children=[],related=[];for(const edge of data.edges){const source=edge.source_id,target=edge.target_id;if(source!==current.id&&target!==current.id)continue;const other=data.nodes.find(n=>n.id===(source===current.id?target:source));if(!other)continue;if(edge.kind==="hierarchy"){if(target===current.id)parents.push(other);else children.push(other);}else related.push(other);}
+  const cards=(nodes,type)=>nodes.length?nodes.map(n=>'<button class="map-node" data-map-focus="'+n.id+'"><small>'+esc(type)+'</small><strong>'+esc(n.title)+'</strong><span>'+esc(kindNames[n.kind])+'</span></button>').join(""):'<div class="map-placeholder">'+(type==="上级文档"?"还没有上级文档":"还没有下级文档")+'</div>';
+  root.innerHTML='<div class="map-caption"><span>当前文档及相邻关系</span><span>'+((data.truncated?"仅显示前 "+data.nodes.length+" 份文档 · ":""))+(parents.length+children.length+related.length)+' 条连接</span></div><div class="map-hierarchy"><div class="map-column">'+cards(parents,"上级文档")+'</div><span class="map-connector" aria-hidden="true">—</span><button id="map-current" class="map-node map-current"><small>'+esc(kindNames[current.kind])+'</small><strong>'+esc(current.title)+'</strong><span>打开文档 ↗</span></button><span class="map-connector" aria-hidden="true">—</span><div class="map-column">'+cards(children,"下级文档")+'</div></div><div class="map-related"><div class="section-label">关联的思考与资料</div><div class="map-related-grid">'+(related.length?related.map(n=>'<button class="map-related-card" data-map-focus="'+n.id+'">'+icon(n.kind==="paper"?"book":"document")+'<span>'+esc(n.title)+'</span><span>↗</span></button>').join(""):'<p class="quiet">打开这份文档，链接另一份相关的笔记或论文。</p>')+'</div></div>';
+  $("#map-current").onclick=()=>openDocument(current.id);root.querySelectorAll("[data-map-focus]").forEach(button=>button.onclick=()=>{state.relationFocus=Number(button.dataset.mapFocus);drawRelationMap();});
 }
-async function uploadItemFile(file,itemId){
-  if(!file)return;
-  const form=new FormData();form.append("file",file);form.append("item_id",String(itemId));
-  try{await api("/api/files",{method:"POST",body:form});await renderItemFiles(itemId)}catch(error){window.alert(error.message)}
+async function renderTrash(itemOffset=0,fileOffset=0){const data=await api("/api/trash?item_offset="+itemOffset+"&file_offset="+fileOffset);$("#page-content").innerHTML='<div class="standalone-page"><div class="standalone-heading"><div><span class="eyebrow">A SECOND CHANCE</span><h1>回收站</h1><p>误删的文档和附件可以在这里恢复。</p></div></div><div class="trash-grid">'+[["items","文档",data.items],["files","附件",data.files]].map(([type,label,rows])=>'<section class="plain-card"><div class="section-label">'+label+' · '+data.totals[type]+'</div>'+(rows.length?rows.map(item=>'<div class="trash-row"><div><strong>'+esc(item.title||item.name)+'</strong><small>'+esc(relative(item.deleted_at))+'</small></div><button class="button secondary small" data-trash-restore="'+type+':'+item.id+'">恢复</button><button class="quiet-button danger" data-trash-purge="'+type+':'+item.id+'">永久删除</button></div>').join(""):'<p class="empty-hint">这里是空的。</p>')+(data.next_offsets[type]!=null?'<button class="quiet-button" data-trash-more="'+type+'">加载更多</button>':"")+'</section>').join("")+'</div></div>';
+  $$("[data-trash-restore]").forEach(button=>button.onclick=async()=>{const [type,id]=button.dataset.trashRestore.split(":");try{await post("/api/trash/"+type+"/"+id+"/restore",{});await renderTrash(itemOffset,fileOffset);refreshSidebar();toast("已恢复");}catch(error){toast(error.message,true);}});$$("[data-trash-purge]").forEach(button=>button.onclick=async()=>{if(!window.confirm("永久删除后无法恢复，确定继续吗？"))return;const [type,id]=button.dataset.trashPurge.split(":");try{await api("/api/trash/"+type+"/"+id,{method:"DELETE"});await renderTrash(itemOffset,fileOffset);toast("已永久删除");}catch(error){toast(error.message,true);}});$$("[data-trash-more]").forEach(button=>button.onclick=()=>renderTrash(button.dataset.trashMore==="items"?data.next_offsets.items:itemOffset,button.dataset.trashMore==="files"?data.next_offsets.files:fileOffset));
 }
-function openFileAssociation(file){
-  $("#file-association-dialog")?.remove();
-  const dialog=document.createElement("dialog");dialog.id="file-association-dialog";dialog.className="dialog";
-  dialog.innerHTML='<form method="dialog" class="dialog-body"><h2>关联文件</h2><p>'+esc(file.name)+'</p><input id="file-item-search" type="search" class="control-input" placeholder="按标题或标签查找内容" aria-label="查找文件关联内容"><select id="file-item-target" class="control-input" data-empty="未关联" aria-label="关联到内容"><option value="">未关联</option>'+(file.item_id&&file.item_title?'<option value="'+file.item_id+'" selected>'+esc(file.item_title)+'</option>':'')+'</select><div class="picker-footer"><small id="file-item-hint" aria-live="polite"></small><button id="file-item-more" type="button" class="button button-secondary is-hidden">更多候选</button></div><p id="file-link-message" role="status"></p><div class="dialog-actions"><button class="button button-secondary" value="cancel">取消</button><button id="file-link-save" class="button button-primary" type="button">保存关联</button></div></form>';
-  document.body.appendChild(dialog);dialog.showModal();
-  dialog.addEventListener("close",()=>dialog.remove());
-  bindItemPicker("file-item-target","file-item-search","file-item-more","file-item-hint");
-  $("#file-link-save").onclick=async()=>{const button=$("#file-link-save"),select=$("#file-item-target");button.disabled=true;try{await api("/api/files/"+encodeURIComponent(file.id),{method:"PATCH",body:JSON.stringify({item_id:select.value?Number(select.value):null})});dialog.close();if(state.page==="files")await loadFileList()}catch(error){button.disabled=false;$("#file-link-message").textContent=error.message}};
-}
-function renderFileList(files,total=files.length,nextOffset=null){
-  const list=$("#file-list"),count=$("#file-count");
-  if(count)count.textContent=(total>files.length?files.length+" / "+total:total)+" 个文件 · "+formatBytes(state.fileBytes);
-  if(!files.length){list.innerHTML=state.fileSearch?'<div class="empty-state"><strong>没有匹配文件</strong><p>试试文件名或关联内容标题中的其他关键词。</p></div>':'<div class="empty-state"><strong>还没有文件</strong><p>上传第一份资料，让它和你的思路放在一起。</p></div>';return}
-  list.innerHTML=files.map(file=>'<div class="file-row"><span class="file-symbol">↧</span><div><a href="/files/'+encodeURIComponent(file.id)+'" target="_blank">'+esc(file.name)+'</a><div class="file-size">'+formatBytes(file.size)+" · "+formatDate(file.created_at,true)+(file.item_title?" · "+esc(file.item_title):" · 未关联")+'</div></div><button class="file-associate button button-secondary" data-id="'+esc(file.id)+'" type="button">'+(file.item_title?"更改关联":"关联内容")+'</button><button class="file-delete" data-id="'+file.id+'" title="删除">×</button></div>').join("")+(nextOffset!=null?'<button id="file-list-more" class="button button-secondary">加载更多文件</button>':"");
-  $$(".file-associate").forEach(button=>button.onclick=()=>{const file=state.fileRows.find(row=>String(row.id)===button.dataset.id);if(file)openFileAssociation(file)});
-  $$(".file-delete").forEach(button=>button.onclick=async()=>{if(window.confirm("把这个文件移入回收站吗？之后仍可恢复。")){await api("/api/files/"+button.dataset.id,{method:"DELETE"});await loadFileList()}});
-  $("#file-list-more")?.addEventListener("click",()=>loadFileList(nextOffset,true));
-}
-async function loadFileList(offset=0,append=false){
-  if(state.fileSearchController)state.fileSearchController.abort();
-  const controller=new AbortController();state.fileSearchController=controller;
-  const params=new URLSearchParams({limit:"200",offset:String(offset)}),query=state.fileSearch.trim();
-  if(query)params.set("q",query);
-  if(state.fileLinked)params.set("linked",state.fileLinked);
-  try{
-    const data=await api("/api/files?"+params.toString(),{signal:controller.signal});
-    if(!controller.signal.aborted&&state.page==="files"){
-      state.fileRows=append?state.fileRows.concat(data.files||[]):(data.files||[]);
-      state.fileTotal=Number(data.total??state.fileRows.length);
-      state.fileBytes=Number(data.total_bytes||0);
-      renderFileList(state.fileRows,state.fileTotal,data.next_offset??null);
-    }
-  }catch(error){if(error.name!=="AbortError"&&$("#file-list"))$("#file-list").innerHTML='<div class="empty-state"><strong>文件列表暂时不可用</strong><p>请稍后重试。</p></div>'}
-}
-async function renderFiles(){
-  state.fileSearch="";state.fileLinked="";state.fileRows=[];state.fileTotal=0;state.fileBytes=0;
-  $("#page-content").innerHTML='<div class="page-title-row"><div><h1>文件空间</h1><p>把论文、数据和项目资料放在一个可回看的位置。</p></div></div><section class="surface file-surface"><label id="upload-zone" class="upload-zone"><strong>拖拽文件到这里，或点击选择文件</strong><span>文件会保存在当前服务器的私有数据目录</span><small>单个文件最大 64 MB</small><input id="file-input" class="file-input" type="file"></label><div class="file-toolbar"><label class="input-with-icon file-search"><span>⌕</span><input id="file-search" class="control-input" type="search" placeholder="搜索文件名或关联内容" autocomplete="off"></label><select id="file-linked" class="control-input" aria-label="文件关联筛选"><option value="">全部文件</option><option value="no">未关联</option><option value="yes">已关联</option></select><span id="file-count" class="file-count"></span></div><div id="file-list" class="file-list"></div></section>';
-  const zone=$("#upload-zone"),input=$("#file-input");input.onchange=()=>uploadFile(input.files[0]);["dragenter","dragover"].forEach(event=>zone.addEventListener(event,e=>{e.preventDefault();zone.classList.add("dragover")}));["dragleave","drop"].forEach(event=>zone.addEventListener(event,e=>{e.preventDefault();zone.classList.remove("dragover")}));zone.addEventListener("drop",e=>uploadFile(e.dataTransfer.files[0]));
-  $("#file-search").oninput=event=>{state.fileSearch=event.target.value;clearTimeout(state.fileSearchTimer);state.fileSearchTimer=setTimeout(loadFileList,160)};
-  $("#file-linked").onchange=event=>{state.fileLinked=event.target.value;loadFileList()};
-  await loadFileList();
-}
-function formatBytes(bytes){if(bytes<1024)return bytes+" B";if(bytes<1024*1024)return (bytes/1024).toFixed(1)+" KB";return (bytes/1024/1024).toFixed(1)+" MB"}
-async function uploadFile(file){
-  if(!file)return;
-  const form=new FormData();form.append("file",file);
-  try{await api("/api/files",{method:"POST",body:form});await renderFiles()}catch(error){window.alert(error.message)}
-}
-$("#settings-button").onclick=()=>$("#settings-menu").classList.toggle("is-hidden");
-$("#export-data").onclick=()=>{$("#settings-menu").classList.add("is-hidden");const link=document.createElement("a");link.href="/api/export";link.download="workmoire-export.json";document.body.appendChild(link);link.click();link.remove()};
-$("#export-archive").onclick=()=>{$("#settings-menu").classList.add("is-hidden");const link=document.createElement("a");link.href="/api/export-archive";link.download="workmoire-archive.zip";document.body.appendChild(link);link.click();link.remove()};
-$("#import-data").onclick=()=>{$("#settings-menu").classList.add("is-hidden");$("#import-input").click()};
-$("#import-input").onchange=async()=>{const file=$("#import-input").files[0];if(!file)return;try{const payload=JSON.parse(await file.text());const count=Array.isArray(payload.items)?payload.items.length:0;if(!window.confirm("将追加导入 "+count+" 条内容，已有内容不会被覆盖。继续吗？")){$("#import-input").value="";return}const result=await api("/api/import",{method:"POST",body:JSON.stringify(payload)});window.alert("已导入 "+result.imported_items+" 条内容。文件附件元数据已跳过，请使用备份包恢复文件。");$("#import-input").value="";await goPage("dashboard")}catch(error){window.alert(error.message);$("#import-input").value=""}};
-$("#import-archive").onclick=()=>{$("#settings-menu").classList.add("is-hidden");$("#import-archive-input").click()};
-$("#import-archive-input").onchange=async()=>{const file=$("#import-archive-input").files[0];if(!file)return;try{if(!window.confirm("将从完整归档追加导入内容和附件，已有内容不会被覆盖。继续吗？")){$("#import-archive-input").value="";return}const form=new FormData();form.append("file",file,file.name);const result=await api("/api/import-archive",{method:"POST",body:form});window.alert("已导入 "+result.imported_items+" 条内容和 "+result.imported_files+" 个附件。");$("#import-archive-input").value="";await goPage("dashboard")}catch(error){window.alert(error.message);$("#import-archive-input").value=""}};
-$("#logout").onclick=async()=>{await api("/api/logout",{method:"POST"});state.authenticated=false;state.focusMode=false;document.body.classList.remove("editor-focus-mode");showApp(false);setAuthMode(false)};
-$("#change-password").onclick=()=>{$("#settings-menu").classList.add("is-hidden");$("#password-message").textContent="";$("#password-dialog").showModal()};
-$("#password-form").addEventListener("submit",async event=>{if(event.submitter?.value==="cancel")return;event.preventDefault();$("#password-message").textContent="";try{await api("/api/password",{method:"POST",body:JSON.stringify({old_password:$("#old-password").value,new_password:$("#new-password").value})});$("#password-message").textContent="密码已更新";setTimeout(()=>$("#password-dialog").close(),500)}catch(error){$("#password-message").textContent=error.message}});
-$("#assistant-close").onclick=()=>$("#assistant-dialog").close();$("#assistant-run").onclick=runAssistant;$("#assistant-apply-summary").onclick=()=>applyAssistantResult("summary");$("#assistant-apply-content").onclick=()=>applyAssistantResult("content");
-$("#capture-form").addEventListener("submit",saveCapture);
-$("#capture-title").addEventListener("input",scheduleCaptureDraft);$("#capture-content").addEventListener("input",scheduleCaptureDraft);$("#restore-capture-draft").onclick=restoreCaptureDraft;$("#discard-capture-draft").onclick=discardCaptureDraft;
-$("#global-search-trigger").onclick=()=>{$("#search-dialog").showModal();$("#global-search").focus()};
-async function searchGlobal(query,append=false){
-  const box=$("#search-results");
-  if(state.searchController)state.searchController.abort();
-  if(!query){box.innerHTML='<div class="search-empty">输入关键词开始搜索</div>';return}
-  if(!append||query!==state.searchQuery){state.searchQuery=query;state.searchOffset=0;state.searchItems=[];state.searchFiles=[];state.searchNextOffset=null}
-  const controller=new AbortController();state.searchController=controller;if(!append)box.innerHTML='<div class="search-empty">搜索中…</div>';
-  try{
-    const kind=$("#global-search-kind").value,status=$("#global-search-status").value;
-    const params=new URLSearchParams({q:query,limit:"50",offset:String(state.searchOffset)});if(kind)params.set("kind",kind);if(status)params.set("status",status);
-    const result=await api("/api/search?"+params.toString(),{signal:controller.signal});
-    if(controller.signal.aborted)return;
-    state.searchItems=state.searchItems.concat(result.items||[]);state.searchFiles=state.searchFiles.concat(result.files||[]);state.searchNextOffset=result.next_offset??null;
-    const items=state.searchItems,files=state.searchFiles;
-    const itemMarkup=items.map(item=>'<div class="search-result search-item-result" data-id="'+item.id+'" data-kind="'+item.kind+'">'+kindMark(item.kind)+'<div class="search-result-body"><strong>'+esc(item.title)+'</strong><div class="search-snippet">'+esc(item.snippet||item.summary||"暂无摘要")+'</div><div class="recent-meta">'+esc(labels[item.kind])+" · "+esc(statusLabels[item.status]||item.status)+" · "+relativeDate(item.updated_at)+'</div></div></div>').join("");
-    const fileMarkup=files.map(file=>'<div class="search-result search-file-result" data-id="'+esc(file.id)+'"><span class="file-symbol">↧</span><div><strong>'+esc(file.name)+'</strong><div class="recent-meta">文件 · '+formatBytes(file.size)+(file.item_title?" · "+esc(file.item_title):"")+'</div></div></div>').join("");
-    const moreMarkup=state.searchNextOffset!=null?'<button id="search-more" class="button button-secondary search-more">加载更多搜索结果</button>':"";
-    box.innerHTML=itemMarkup||fileMarkup?((itemMarkup?'<div class="search-section-label">内容</div>'+itemMarkup:"")+(fileMarkup?'<div class="search-section-label">文件</div>'+fileMarkup:"")+moreMarkup):'<div class="search-empty">没有找到匹配内容或文件</div>';
-    $$("#search-results .search-item-result").forEach(row=>row.onclick=async()=>{try{const result=await api("/api/items/"+encodeURIComponent(row.dataset.id));if(!await goPage(result.item.kind))return;$("#search-dialog").close();state.selected=result.item;state.savedSnapshot=editorSnapshot(state.selected);renderContentPage()}catch(error){window.alert(error.message)}});
-    $$("#search-results .search-file-result").forEach(row=>row.onclick=()=>{window.open("/files/"+encodeURIComponent(row.dataset.id),"_blank","noopener")});
-    $("#search-more")?.addEventListener("click",async event=>{event.currentTarget.disabled=true;state.searchOffset=state.searchNextOffset;await searchGlobal(query,true)});
-  }catch(error){if(error.name!=="AbortError")box.innerHTML='<div class="search-empty">搜索暂时不可用，请稍后重试</div>'}
-}
-$("#global-search").oninput=()=>searchGlobal($("#global-search").value.trim());
-$("#global-search-kind").onchange=()=>searchGlobal($("#global-search").value.trim());
-$("#global-search-status").onchange=()=>searchGlobal($("#global-search").value.trim());
-document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.shiftKey&&event.key.toLowerCase()==="n"){event.preventDefault();openCapture()}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();$("#search-dialog").showModal();$("#global-search").focus()}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="s"&&state.selected){event.preventDefault();saveItem()}if((event.ctrlKey||event.metaKey)&&event.key==="Enter"&&state.selected){event.preventDefault();saveItem()}if(event.key==="Escape"){$("#settings-menu")?.classList.add("is-hidden")}});
-$("#mobile-menu").onclick=()=>$(".sidebar").classList.toggle("is-open");
-refreshServiceStatus();setInterval(refreshServiceStatus,60000);
-boot();
+async function renderFiles(){const data=await api("/api/files?limit=200");$("#page-content").innerHTML='<div class="standalone-page"><div class="standalone-heading"><div><span class="eyebrow">SUPPORTING MATERIAL</span><h1>附件管理</h1><p>图片、PDF 和其他附件。'+data.total+' 个文件 · '+formatBytes(data.total_bytes)+'</p></div></div><section class="plain-card file-manager">'+(data.files.length?data.files.map(file=>'<div class="managed-file"><a href="/files/'+file.id+'" target="_blank" rel="noopener">'+icon(file.content_type==="application/pdf"?"book":"document")+'<span><strong>'+esc(file.name)+'</strong><small>'+formatBytes(file.size)+(file.item_title?" · "+esc(file.item_title):" · 未关联文档")+'</small></span></a><button class="quiet-button" data-file-preview="'+file.id+'">打开</button><button class="quiet-button danger" data-file-trash="'+file.id+'">移入回收站</button></div>').join(""):'<p class="empty-hint">在文档中粘贴图片或上传 PDF，附件就会出现在这里。</p>')+'</section></div>';$$("[data-file-preview]").forEach(button=>button.onclick=()=>window.open("/files/"+button.dataset.filePreview+"?inline=1","_blank","noopener"));$$("[data-file-trash]").forEach(button=>button.onclick=async()=>{if(!window.confirm("将这个附件移入回收站？正文中的引用将暂时无法预览。"))return;try{await api("/api/files/"+button.dataset.fileTrash,{method:"DELETE"});await renderFiles();}catch(error){toast(error.message,true);}});}
+let searchTimer,searchVersion=0;$("#global-search").oninput=event=>{clearTimeout(searchTimer);const query=event.target.value;searchTimer=setTimeout(()=>searchGlobal(query),160);};
+async function searchGlobal(query){const version=++searchVersion,root=$("#search-results");state.searchController?.abort();if(!query.trim()){root.innerHTML='<p class="empty-hint">输入关键词，找回一条思路。</p>';return;}state.searchController=new AbortController();try{const data=await api("/api/search?limit=50&q="+encodeURIComponent(query),{signal:state.searchController.signal});if(version!==searchVersion)return;root.innerHTML=data.items.length||data.files.length?data.items.map(item=>'<button class="search-result" data-search-id="'+item.id+'">'+icon(item.kind==="paper"?"book":"document")+'<span><strong>'+esc(item.title)+'</strong><p>'+esc(item.snippet||item.summary||"")+'</p><small>'+esc(kindNames[item.kind])+" · "+relative(item.updated_at)+'</small></span></button>').join("")+data.files.map(file=>'<a class="search-result" href="/files/'+file.id+'" target="_blank" rel="noopener">'+icon("document")+'<span><strong>'+esc(file.name)+'</strong><small>附件 · '+formatBytes(file.size)+'</small></span></a>').join(""):'<p class="empty-hint">没有找到匹配的内容。</p>';root.querySelectorAll("[data-search-id]").forEach(button=>button.onclick=async()=>{if(!canLeave())return;$("#search-dialog").close();await openDocument(button.dataset.searchId,true);});}catch(error){if(error.name!=="AbortError")root.innerHTML='<p class="error">'+esc(error.message)+'</p>';}}
+function openSearch(){if(!state.authenticated)return;$("#search-dialog").showModal();$("#global-search").focus();}
+function hideSettings(){$("#settings-menu").classList.add("is-hidden");$("#settings-button").setAttribute("aria-expanded","false");}
+$("#settings-button").onclick=()=>{const open=$("#settings-menu").classList.toggle("is-hidden");$("#settings-button").setAttribute("aria-expanded",String(!open));};
+$$('[data-settings-page]').forEach(button=>button.onclick=()=>{hideSettings();goPage(button.dataset.settingsPage);});
+function download(path,name){hideSettings();const a=document.createElement("a");a.href=path;a.download=name;document.body.append(a);a.click();a.remove();}
+$("#export-data").onclick=()=>download("/api/export","workmoire-export.json");$("#export-archive").onclick=()=>download("/api/export-archive","workmoire-archive.zip");
+$("#import-data").onclick=()=>{hideSettings();$("#import-input").click();};$("#import-archive").onclick=()=>{hideSettings();$("#import-archive-input").click();};
+$("#import-input").onchange=async event=>{const file=event.target.files[0];if(!file||!canLeave())return;try{const data=JSON.parse(await file.text());if(!window.confirm("追加导入 "+(data.items?.length||0)+" 份文档？已有内容不会被覆盖。"))return;const result=await post("/api/import",data);toast("已导入 "+result.imported_items+" 份文档");await goPage("documents",true);refreshSidebar();}catch(error){toast(error.message,true);}finally{event.target.value="";}};
+$("#import-archive-input").onchange=async event=>{const file=event.target.files[0];if(!file||!canLeave())return;if(!window.confirm("追加导入归档中的文档和附件？已有内容不会被覆盖。"))return;const form=new FormData();form.append("file",file);try{const result=await api("/api/import-archive",{method:"POST",body:form});toast("已导入 "+result.imported_items+" 份文档及 "+result.imported_files+" 个附件");await goPage("documents",true);refreshSidebar();}catch(error){toast(error.message,true);}finally{event.target.value="";}};
+$("#change-password").onclick=()=>{hideSettings();$("#password-error").textContent="";$("#password-dialog").showModal();};$("#password-form").onsubmit=async event=>{event.preventDefault();try{await post("/api/password",{old_password:$("#old-password").value,new_password:$("#new-password").value});$("#old-password").value="";$("#new-password").value="";$("#password-dialog").close();toast("密码已更新");}catch(error){$("#password-error").textContent=error.message;}};
+$("#logout").onclick=async()=>{if(!canLeave())return;try{await post("/api/logout",{});hideSettings();resetCurrent();state.authenticated=false;showAuthenticated(false);authMode(false);}catch(error){toast(error.message,true);}};
+$$('[data-close]').forEach(button=>button.onclick=()=>$("#"+button.dataset.close).close());
+$$('dialog').forEach(dialog=>dialog.addEventListener("click",event=>{if(event.target!==dialog)return;const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}));
+$$('.nav-item').forEach(button=>button.onclick=()=>goPage(button.dataset.page));$("#new-document").onclick=openTemplates;$("#brand-home").onclick=event=>{event.preventDefault();goPage("documents");};$("#global-search-trigger").onclick=openSearch;$("#shortcuts-button").onclick=()=>$("#shortcuts-dialog").showModal();$("#mobile-menu").onclick=()=>$(".sidebar").classList.toggle("is-open");
+$("#symbol-grid").innerHTML="α β γ δ ε θ λ μ π σ φ ψ ω Δ Σ Ω ∂ ∇ ∫ ∑ ∏ √ ∞ ≈ ≠ ≤ ≥ ± × ÷ ∈ ∉ ⊂ ⊆ ∪ ∩ ∅ ∀ ∃ ⇒ ⇔ → ← ↔ · … ✓ ✗".split(" ").map(s=>'<button type="button" data-symbol="'+s+'">'+s+'</button>').join("");$$("[data-symbol]").forEach(button=>button.onclick=()=>{state.editor?.replaceSelection(button.dataset.symbol);$("#symbol-dialog").close();});
+document.addEventListener("click",event=>{if(!event.target.closest("#settings-button,#settings-menu"))hideSettings();});
+document.addEventListener("keydown",event=>{if(!state.authenticated)return;const mod=event.ctrlKey||event.metaKey,key=event.key.toLowerCase(),dialog=$('dialog[open]');if(mod&&key==="k"){event.preventDefault();openSearch();}if(mod&&event.shiftKey&&key==="n"){event.preventDefault();openTemplates();}if(mod&&key==="s"&&state.current&&!dialog){event.preventDefault();saveDocument();}if(key==="escape"){hideSettings();if(state.focus&&!dialog){state.focus=false;document.body.classList.remove("focus-mode");}}});
+window.addEventListener("beforeunload",event=>{if(dirty()){writeDraft();event.preventDefault();event.returnValue="";}});
+async function serviceStatus(){try{const r=await fetch("/healthz",{cache:"no-store"});if(!r.ok)throw new Error();$("#service-status").classList.remove("is-offline");$("#service-status").title="服务在线";}catch{$("#service-status").classList.add("is-offline");$("#service-status").title="服务连接异常";}}
+hydrateIcons();serviceStatus();setInterval(serviceStatus,60000);boot();

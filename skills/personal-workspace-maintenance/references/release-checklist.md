@@ -7,8 +7,8 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - Check git status and review the complete staged file list.
 - Confirm data/, databases, uploads, backups, logs, .env, SSH files, server addresses, and personal content are ignored or absent.
 - Run make compile (including `bash -n backup.sh`), make test, and node --check workspace/static/app.js.
-- Compile tests/browser_smoke.py even when a Chromium binary is unavailable; syntax validation keeps the browser gate executable in CI.
-- For browser changes, run tests/browser_smoke.py in an isolated Playwright environment against synthetic temporary data. Syntax checks alone do not prove that navigation or page startup works.
+- Compile tests/browser_server.py and syntax-check tests/browser.spec.cjs so the browser gate remains executable.
+- For browser changes, run npm run test:browser in its isolated Playwright environment against synthetic temporary data. Syntax checks alone do not prove that navigation or page startup works.
 - After restarting, allow a bounded startup interval and retry health probes before deciding that the deployment failed; never treat systemd active state alone as proof of readiness.
 - Run an HTTP smoke test for /healthz, /api/session, login/setup, content CRUD, and file upload when applicable.
 - Verify first-run protection on synthetic servers: a non-loopback bind without `WORKSPACE_SETUP_TOKEN` must reject setup, a loopback bind may allow local setup, and a configured token must reject incorrect values and accept the correct one. Check the bounded server's request timeout and queue attributes.
@@ -45,3 +45,12 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - Push only after the remote owner and repository are known.
 - Never put credentials in the remote URL or commit history.
 - If a repository secret was exposed, rotate it before continuing.
+
+## Rich documents and papers
+
+- Rebuild and ship locally vendored editor/math assets and fonts together; retain license notices and the dependency lockfile.
+- Verify inline media magic bytes, authentication, same-origin frame policy, and PDF byte ranges; HTML/SVG must remain downloads.
+- Verify title, DOI, and arXiv lookup using public metadata, and test private/redirect destinations using synthetic fixtures.
+- Verify generated paper text preserves the source and uncertainty notice, and creates no records before explicit insertion/save.
+- Verify concurrent saves keep current typing, stale local drafts require manual merging, and mobile editing has no horizontal page overflow.
+- If source retrieval requires an egress proxy, configure it only in the private environment file and test a public source through pinned DNS before deploying.

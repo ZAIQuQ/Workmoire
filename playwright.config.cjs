@@ -1,0 +1,2 @@
+const {defineConfig}=require('@playwright/test');
+module.exports=defineConfig({testDir:'./tests',testMatch:'browser.spec.cjs',timeout:45000,expect:{timeout:8000},workers:1,fullyParallel:false,reporter:'list',use:{baseURL:'http://127.0.0.1:8765',viewport:{width:1440,height:1000},headless:true,trace:'retain-on-failure'},webServer:{command:'python3 tests/browser_server.py',url:'http://127.0.0.1:8765/healthz',reuseExistingServer:false,timeout:15000},outputDir:'artifacts/browser-results'});

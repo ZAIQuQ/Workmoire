@@ -79,3 +79,11 @@ changes belong in normal commit history.
 - Added optimistic edit conflict protection with microsecond item timestamps,
   a `409` response carrying the current item, and a browser-local draft fallback
   so concurrent tabs cannot silently overwrite a paper, project, or log.
+
+## 2026-10-27
+
+- Simplified the interface around documents, paper reading, and neighborhood relationships while retaining the account, existing content model, trash, and exports.
+- Added locally bundled CodeMirror, Markdown, LaTeX, and code highlighting with signature-checked authenticated media previews and PDF byte-range handling. The bundled PDF.js reader supports search, selectable text, page navigation, and zoom; incremental preview updates retain its reading position.
+- Added public-only pinned-DNS metadata/PDF retrieval with validated redirects and an optional trusted proxy. Paper drafts are source-grounded, explicit, and unsaved until insertion and normal save.
+- Moved Codex work to disposable empty directories and read only its final-message file; kept explicit ephemeral/read-only CLI flags and synthetic invocation verification.
+- Added HTTP/security checks and an isolated browser suite for rich editing, drafts/conflicts, media, paper drafting, relationships, trash, and mobile layout. The development checkout and test data remain separate from production runtime data.
