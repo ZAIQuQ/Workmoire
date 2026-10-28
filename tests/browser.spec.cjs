@@ -139,3 +139,52 @@ test('Chinese composition commits before slash selection and exact labels rank f
  const menu=page.locator('.rich-slash-menu');await expect(menu).toBeVisible();await expect(menu.locator('[role="option"]').first()).toHaveAttribute('data-command-id','quote');await page.keyboard.press('Enter');await expect(page.locator('.rich-document blockquote')).toHaveCount(1);
  await setContent(page,'');await page.locator('.rich-document').click();await page.keyboard.insertText('／ＤＤＭ');await expect(menu.locator('[role="option"]').first()).toHaveAttribute('data-command-id','code');await page.keyboard.press('Escape');await expect(menu).toBeHidden();await expect(page.locator('.rich-document')).toContainText('／ＤＤＭ');
 });
+
+test('code folding saves its state while copy, Markdown and caret retain the full script',async({page})=>{
+ await login(page);await blank(page,'浏览器测试：代码折叠');
+ const source=Array.from({length:120},(_,i)=>'print("line '+i+'")').join('\n');
+ await setContent(page,'脚本说明\n\n```python\n'+source+'\n```\n\n后续分析');await save(page);
+ const block=page.locator('.native-code-block');await expect(block.locator('.code-line-count')).toHaveText('120 行');
+ await page.evaluate(()=>{let pos;state.editor.tiptap.state.doc.descendants((node,at)=>{if(node.type.name==='codeBlock')pos=at+6;});state.editor.tiptap.commands.setTextSelection(pos);state.editor.focus();});
+ await block.locator('.code-fold').click();await expect(block.locator('pre')).toBeHidden();await expect(block.locator('.code-fold')).toHaveAttribute('aria-expanded','false');await expect(block.locator('.code-fold-preview')).toHaveText('print("line 0")');
+ expect(await page.evaluate(()=>state.editor.tiptap.state.selection.$from.parent.type.name)).toBe('paragraph');await expect(page.locator('#save-state')).toHaveText('未保存 · 本机草稿');
+ await page.keyboard.insertText('折叠后继续写。');await expect(page.locator('.rich-document > p').last()).toContainText('折叠后继续写。');expect((await native(page)).document.content.find(n=>n.type==='codeBlock').content[0].text).toBe(source);
+ await page.keyboard.press('Control+z');await expect(block.locator('pre')).toBeHidden();await page.keyboard.press('Control+z');await expect(block.locator('pre')).toBeVisible();
+ await block.locator('.code-fold').click();await save(page);const id=await page.evaluate(()=>state.current.id);await reopen(page,id);await expect(block.locator('pre')).toBeHidden();expect(await page.evaluate(()=>state.editor.hasChanges())).toBeFalsy();
+ await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copiedCode=text;}}}));await block.locator('.code-copy').click();expect(await page.evaluate(()=>window.copiedCode)).toBe(source);expect(await content(page)).toContain(source);
+ const stored=(await (await page.request.get('/api/items/'+id)).json()).item;expect(stored.rich_content.document.content.find(n=>n.type==='codeBlock').attrs.collapsed).toBe(true);expect(stored.content).toContain(source);
+ const exported=await (await page.request.get('/api/export')).json();expect(exported.items.find(item=>item.id===id).rich_content.document.content.find(n=>n.type==='codeBlock').attrs.collapsed).toBe(true);
+ await page.evaluate(()=>state.editor.showFind());await page.locator('.rich-findbar input').fill('line 119');await expect(block.locator('.rich-find-current')).toBeInViewport();expect(await page.evaluate(()=>state.editor.hasChanges())).toBeFalsy();await page.locator('.rich-findbar [data-rich-command="find-close"]').click();
+ await block.locator('code').click();await page.evaluate(()=>{let start;state.editor.tiptap.state.doc.descendants((node,pos)=>{if(node.type.name==='codeBlock')start=pos+1;});state.editor.tiptap.commands.setTextSelection(start);state.editor.focus();});await page.keyboard.type('# edited\n');await expect(block.locator('.code-line-count')).toHaveText('121 行');expect((await native(page)).document.content.find(n=>n.type==='codeBlock').content[0].text).toBe('# edited\n'+source);
+});
+
+test('reading folds, code themes and search are view preferences without document edits',async({page})=>{
+ await login(page);await blank(page,'浏览器测试：代码阅读');await setContent(page,'查找示例\n\n```python\ndef attention(query):\n    # 只展开当前命中的代码\n    return hidden_match(query)\n```\n\n```json\n{"second": true}\n```');
+ const blocks=page.locator('.native-code-block');await blocks.nth(0).locator('.code-fold').click();await blocks.nth(1).locator('.code-fold').click();await save(page);const baseline=await native(page);await page.locator('button[data-mode="read"]').click();
+ await blocks.first().locator('.code-fold-preview').click();await expect(blocks.first().locator('pre')).toBeVisible();await blocks.first().locator('.code-fold').click();await expect(blocks.first().locator('pre')).toBeHidden();
+ await blocks.first().locator('.code-theme').click();await expect(page.locator('html')).toHaveAttribute('data-code-theme','dark');await expect(blocks.nth(1).locator('.code-theme')).toHaveAttribute('aria-pressed','true');
+ expect((await native(page)).document).toEqual(baseline.document);expect(await page.evaluate(()=>state.editor.hasChanges())).toBeFalsy();await expect(page.locator('#save-state')).toHaveText('已保存');
+ await page.evaluate(()=>state.editor.showFind());await page.locator('.rich-findbar input').fill('hidden_match');await expect(blocks.first().locator('pre')).toBeVisible();await expect(blocks.nth(1).locator('pre')).toBeHidden();await expect(blocks.first().locator('.rich-find-current')).toHaveText('hidden_match');await expect(blocks.first().locator('.rich-find-current')).toBeInViewport();
+ expect((await native(page)).document).toEqual(baseline.document);expect(await page.evaluate(()=>state.editor.hasChanges())).toBeFalsy();
+ const id=await page.evaluate(()=>state.current.id);await reopen(page,id);await expect(page.locator('html')).toHaveAttribute('data-code-theme','dark');await expect(blocks.first().locator('pre')).toBeHidden();
+ await page.locator('button[data-mode="write"]').click();await blocks.first().locator('.code-fold').focus();await page.keyboard.press('Enter');await expect(blocks.first().locator('pre')).toBeVisible();expect((await native(page)).document.content.find(n=>n.type==='codeBlock').attrs.collapsed).toBe(false);
+});
+
+test('code typography loads locally, remains readable in both themes and scrolls within narrow pages',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await login(page);await blank(page,'浏览器测试：代码排版');
+ const source='def attention(query, key, value):\n    # 中文注释与英文代码一起阅读\n    weights = softmax(query @ key.T * 0.125)\n    return weights @ value\n\n'+Array.from({length:80},(_,i)=>'result_'+i+' = "'+('long_script_'.repeat(12))+'"').join('\n');
+ await setContent(page,'## 注意力计算\n\n记录实现与实验结果。\n\n```python\n'+source+'\n```\n\n后续实验记录');
+ const block=page.locator('.native-code-block');await page.evaluate(()=>document.fonts.ready);expect(await page.evaluate(()=>Array.from(document.fonts).some(f=>f.family==='Maple Mono'&&f.status==='loaded'))).toBeTruthy();
+ expect(await block.locator('code').evaluate(el=>getComputedStyle(el).fontFamily)).toContain('Maple Mono');expect(await block.locator('code').evaluate(el=>getComputedStyle(el).fontVariantLigatures)).toBe('none');
+ for(const theme of ['light','dark']){
+  if(await page.locator('html').getAttribute('data-code-theme')!==theme)await block.locator('.code-theme').click();
+  const contrast=await block.evaluate(el=>{
+   const luminance=color=>{const rgb=color.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;});return .2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2];};
+   const bg=luminance(getComputedStyle(el).backgroundColor);return Array.from(el.querySelectorAll('code,code span,.code-line-count,select')).map(token=>{const fg=luminance(getComputedStyle(token).color);return (Math.max(bg,fg)+.05)/(Math.min(bg,fg)+.05);});
+  });expect(Math.min(...contrast)).toBeGreaterThanOrEqual(4.5);
+ }
+ const scroll=await block.locator('pre').evaluate(el=>({height:el.clientHeight,total:el.scrollHeight,width:el.clientWidth,fullWidth:el.scrollWidth}));expect(scroll.height).toBeLessThanOrEqual(620);expect(scroll.total).toBeGreaterThan(scroll.height);expect(scroll.fullWidth).toBeGreaterThan(scroll.width);
+ await block.locator('pre').evaluate(el=>{el.scrollTop=180;el.scrollLeft=100;});await block.locator('.code-fold').click();await block.locator('.code-fold').click();expect(await block.locator('pre').evaluate(el=>[el.scrollTop,el.scrollLeft])).toEqual([180,100]);
+ for(const width of [390,320]){await page.setViewportSize({width,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);const fit=await block.locator('.native-code-head').evaluate(el=>{const box=el.getBoundingClientRect();return Array.from(el.children).every(child=>child.getBoundingClientRect().right<=box.right);});expect(fit).toBeTruthy();}
+ await page.screenshot({path:'artifacts/code-research/code-mobile.png'});expect(errors).toEqual([]);
+});

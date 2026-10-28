@@ -62,6 +62,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - Verify additive native-document columns on a private copy before production migration; compare existing content and account state without printing either.
 - Exercise native marks, list/task nesting, tables and image widths through save/reload, history, conflicts, local drafts and JSON/ZIP import. Check stale mirror hashes and remapped document/file references.
 - Verify real keyboard input, Chinese composition, rich HTML paste, slash menus, block drag/undo and long documents. Confirm typing does not serialize all Markdown or recreate PDF frames.
+- For code blocks, verify authored folds survive save/history/import while read/search/theme preferences leave content clean; copy/export retain the full script, search reveals matches, and keyboard input/undo never silently target hidden code. Check local fonts, syntax contrast, long-script scrolling and phone-width headers.
 - Verify draft quota failures stay visible and do not silently discard edits.
 - Verify gzip GET/HEAD negotiation, disabled gzip and stale-copy fallback. Retain notices for the bundled runtime dependency graph.
 - Run the exact-service assistant check with `--paper` as well as the general mode. Use a public-paper or synthetic evidence fixture, confirm the reasoning budget and truthful source scope, and do not persist acceptance content into personal documents.

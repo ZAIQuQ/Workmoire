@@ -64,6 +64,34 @@ class RichDocumentTests(unittest.TestCase):
         self.assertIsNone(changed['rich_content'])
         self.assertEqual(changed['content'], 'Legacy Markdown update')
 
+    def test_code_folding_survives_history_and_portable_import_without_losing_source(self):
+        source = '\n'.join('print(%d)' % i for i in range(120))
+        markdown = '```python\n' + source + '\n```'
+        rich = {'version': 1, 'document': {'type': 'doc', 'content': [
+            {'type': 'codeBlock', 'attrs': {'language': 'python', 'collapsed': True}, 'content': [{'type': 'text', 'text': source}]},
+        ]}}
+        first = self.create(title='Folded script', content=markdown, rich=rich)
+        changed = copy.deepcopy(first)
+        changed['rich_content']['document']['content'][0]['attrs']['collapsed'] = False
+        changed['base_updated_at'] = first['updated_at']
+        self.assertEqual(self.request('/api/items/'+str(first['id']), 'PUT', changed)[0], 200)
+        revisions = json.loads(self.request('/api/items/'+str(first['id'])+'/revisions')[1])['revisions']
+        restored = json.loads(self.request('/api/items/'+str(first['id'])+'/revisions/'+str(revisions[0]['id'])+'/restore', 'POST', {})[1])['item']
+        self.assertEqual(restored['rich_content'], first['rich_content'])
+        self.assertEqual(restored['content'], markdown)
+        exported = json.loads(self.request('/api/export')[1])
+        self.assertEqual(self.request('/api/import', 'POST', exported)[0], 201)
+        rows = json.loads(self.request('/api/items')[1])['items']
+        imported = json.loads(self.request('/api/items/'+str(max(row['id'] for row in rows)))[1])['item']
+        self.assertEqual(imported['rich_content'], first['rich_content'])
+        self.assertEqual(imported['content'], markdown)
+        for invalid in ['true', 1, None, [], {}]:
+            rich['document']['content'][0]['attrs']['collapsed'] = invalid
+            with self.assertRaises(ValueError):
+                normalized_rich_content(rich)
+        del rich['document']['content'][0]['attrs']['collapsed']
+        self.assertFalse(json.loads(normalized_rich_content(rich))['document']['content'][0]['attrs']['collapsed'])
+
     def test_stale_versions_and_old_server_writes_cannot_resurface_an_older_native_body(self):
         first = self.create()
         second = json.loads(self.request('/api/items/'+str(first['id']), 'PUT', {**first, 'content':'New body', 'rich_content':native('New body'), 'base_updated_at':first['updated_at']})[1])['item']
@@ -94,7 +122,7 @@ class RichDocumentTests(unittest.TestCase):
 
     def test_complete_archive_remaps_native_and_markdown_attachment_ids(self):
         path = self.fixture_file('synthetic.pdf',b'%PDF-1.4\nsynthetic archive fixture','application/pdf')
-        document = {'version':1,'document':{'type':'doc','content':[{'type':'pdf','attrs':{'src':path+'?inline=1','title':'Synthetic PDF'}}]}}
+        document = {'version':1,'document':{'type':'doc','content':[{'type':'pdf','attrs':{'src':path+'?inline=1','title':'Synthetic PDF'}}, {'type':'codeBlock','attrs':{'language':'python','collapsed':True},'content':[{'type':'text','text':'print(123)'}]}]}}
         first = self.create(content='@[pdf]('+path+'?inline=1)',rich=document)
         with app.open_db() as con:con.execute('UPDATE files SET item_id=?',(first['id'],))
         archive = self.request('/api/export-archive')[1]
@@ -113,6 +141,7 @@ class RichDocumentTests(unittest.TestCase):
         expected='/files/'+files[0]['id']+'?inline=1'
         self.assertEqual(restored['rich_content']['document']['content'][0]['attrs']['src'],expected)
         self.assertEqual(restored['content'],'@[pdf]('+expected+')')
+        self.assertEqual(restored['rich_content']['document']['content'][1], document['document']['content'][1])
 
     def test_additive_migration_preserves_existing_content_and_is_repeatable(self):
         item=self.create(rich='')

@@ -41,6 +41,15 @@ aliases rank first; matching ignores case and normalizes full-width input.
 Choose with the arrow keys and Enter, or click a result. Unmatched/cancelled
 queries remain ordinary document text.
 
+Code blocks use locally bundled Maple Mono NL with distinct light/dark palettes.
+Use the chevron to fold a block; its language, line count and first nonempty line
+remain visible. Editing-mode folds save with the document and support undo;
+reading-mode folds are temporary. The sun/moon button remembers the code theme
+in this browser. Search reveals folded matches, and copying or Markdown export
+always includes the full source. Native JSON/ZIP exports retain folding.
+Long expanded scripts scroll within the block. See the
+[code-block design research](docs/code-block-design.md) for references and choices.
+
 The interface uses white and gray surfaces, dark text, one blue interaction
 accent, and a consistent Lucide icon set. Inter is bundled locally; Chinese text
 prefers native platform fonts, with a locally bundled Noto Sans SC fallback.

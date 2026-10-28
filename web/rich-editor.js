@@ -12,7 +12,7 @@ import Superscript from '@tiptap/extension-superscript';
 import Placeholder from '@tiptap/extension-placeholder';
 import {BubbleMenu} from '@tiptap/extension-bubble-menu';
 import {DragHandle} from '@tiptap/extension-drag-handle';
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import {createCodeBlocks} from './code-block.js';
 import {Plugin, PluginKey, TextSelection, NodeSelection} from '@tiptap/pm/state';
 import {Fragment} from '@tiptap/pm/model';
 import {closeHistory} from '@tiptap/pm/history';
@@ -33,7 +33,6 @@ import {searchSlashCommands} from './slash-commands.mjs';
 
 const lowlight=createLowlight({javascript,python,cpp,json,sql,bash,xml,css,latex});
 const icon=name=>window.WorkmoireIcons.render(name);
-const languages=[['','纯文本'],['python','Python'],['javascript','JavaScript'],['cpp','C / C++'],['json','JSON'],['sql','SQL'],['bash','Shell'],['xml','HTML / XML'],['css','CSS'],['latex','LaTeX']];
 function button(command,label,glyph){const el=document.createElement('button');el.type='button';el.dataset.richCommand=command;el.title=label;el.setAttribute('aria-label',label);el.innerHTML=icon(glyph);return el;}
 function positionMenu(menu,anchor,maxHeight=350){
  const width=Math.min(menu.offsetWidth||270,innerWidth-24),availableBelow=innerHeight-anchor.bottom-14,above=anchor.top-14;
@@ -86,20 +85,19 @@ export function mountRichEditor(host,options={}){
    return tr.docChanged?decorations.map(tr.mapping,tr.doc):decorations;
   }
  },props:{decorations:state=>findKey.getState(state)}})];}});
- function search(direction=0){findQuery=findInput.value;findMatches=findText(editor.state.doc,findQuery);if(direction&&findMatches.length)findIndex=(findIndex+direction+findMatches.length)%findMatches.length;else findIndex=0;let tr=editor.state.tr.setMeta(findKey,true);if(findMatches.length){const match=findMatches[findIndex];tr=tr.setSelection(TextSelection.create(tr.doc,match.from,match.to)).scrollIntoView();}editor.view.dispatch(tr);}
+ function search(direction=0){
+  findQuery=findInput.value;findMatches=findText(editor.state.doc,findQuery);
+  if(direction&&findMatches.length)findIndex=(findIndex+direction+findMatches.length)%findMatches.length;else findIndex=0;
+  let tr=editor.state.tr.setMeta(findKey,true);
+  if(findMatches.length){const match=findMatches[findIndex],selection=TextSelection.create(tr.doc,match.from,match.to);codeBlocks.reveal(selection);tr=tr.setSelection(selection).scrollIntoView();}
+  editor.view.dispatch(tr);
+  // The find input owns DOM focus; ProseMirror alone may skip the code's scroller.
+  editor.view.dom.querySelector('.rich-find-current')?.scrollIntoView({block:'nearest',inline:'nearest'});
+ }
  findInput.oninput=()=>search();findInput.onkeydown=event=>{if(event.isComposing)return;if(event.key==='Enter'){event.preventDefault();search(event.shiftKey?-1:1);}if(event.key==='Escape')hideFind();};previous.onclick=()=>search(-1);next.onclick=()=>search(1);closeFind.onclick=()=>hideFind();
  function hideFind(){findbar.hidden=true;findQuery='';findInput.value='';editor.view.dispatch(editor.state.tr.setMeta(findKey,true));editor.commands.focus();}
 
- const CodeBlock=CodeBlockLowlight.extend({
-  addNodeView(){return ({node,getPos,editor:instance})=>{
-   const dom=document.createElement('div');dom.className='native-code-block';const top=document.createElement('div');top.className='native-code-head';top.contentEditable='false';
-   const language=document.createElement('select');language.setAttribute('aria-label','代码语言');for(const [value,label] of languages){const option=document.createElement('option');option.value=value;option.textContent=label;language.append(option);}language.value=node.attrs.language||'';
-   language.onchange=()=>{const pos=getPos();if(instance.isEditable&&typeof pos==='number')instance.view.dispatch(instance.state.tr.setNodeMarkup(pos,undefined,{...node.attrs,language:language.value||null}));};
-   const copy=document.createElement('button');copy.type='button';copy.textContent='复制代码';copy.onclick=()=>options.copy?.(node.textContent);
-   top.append(language,copy);const pre=document.createElement('pre'),code=document.createElement('code');pre.append(code);dom.append(top,pre);
-   return {dom,contentDOM:code,update(updated){if(updated.type!==node.type)return false;node=updated;language.value=node.attrs.language||'';language.disabled=!instance.isEditable;return true;},stopEvent:event=>top.contains(event.target),ignoreMutation:mutation=>top.contains(mutation.target)};
-  };},
- }).configure({lowlight,defaultLanguage:null,exitOnTripleEnter:true,exitOnArrowDown:true});
+ const codeBlocks=createCodeBlocks({lowlight,copy:options.copy});cleanup.push(codeBlocks.destroy);
  const callbacks={math:openMath,openDocument:id=>options.openDocument?.(id),importPDF:(src,el)=>options.importPDF?.(src,el)};
  const NativeKeys=Extension.create({name:'workmoireKeys',addKeyboardShortcuts(){return {
   'Mod-Shift-x':()=>editor.commands.toggleTaskList(),
@@ -117,7 +115,7 @@ export function mountRichEditor(host,options={}){
    TableKit.configure({table:{resizable:true,cellMinWidth:80,allowTableNodeSelection:true}}),TaskList,TaskItem.configure({nested:true,HTMLAttributes:{'data-type':'taskItem'},a11y:{checkboxLabel:node=>'切换待办：'+(node.textContent||'空白任务')}}),
    TextAlign.configure({types:['heading','paragraph']}),TextStyle,Color,Highlight.configure({multicolor:true}),Subscript,Superscript,
    Placeholder.configure({placeholder:({node})=>node.type.name==='heading'?'标题':'输入 / 插入内容',showOnlyCurrent:true,includeChildren:false}),
-   ...researchNodes(callbacks),CodeBlock,SearchExtension,NativeKeys,
+   ...researchNodes(callbacks),codeBlocks.extension,SearchExtension,NativeKeys,
    BubbleMenu.configure({element:bubble,appendTo:()=>document.body,updateDelay:80,options:{placement:'top',offset:8},shouldShow:({editor:instance,state})=>instance.isEditable&&!state.selection.empty&&!(state.selection instanceof NodeSelection)&&!instance.isActive('codeBlock')&&!instance.isActive('table')}),
    DragHandle.configure({render(){
     const handle=document.createElement('div');handle.className='rich-block-handle';handle.setAttribute('aria-label','内容块操作');
@@ -159,7 +157,7 @@ export function mountRichEditor(host,options={}){
   },
   onTransaction({transaction}){for(const reservation of reservations)reservation.mark=reservation.mark.map(transaction.mapping);},
   onUpdate({transaction}){if(ready&&transaction.docChanged){diagnostics.documentUpdates++;options.onChange?.();scheduleControls();}},
-  onSelectionUpdate(){if(ready)scheduleControls();},
+  onSelectionUpdate(){if(ready){codeBlocks.reveal(editor.state.selection);scheduleControls();}},
   onBlur(){clearTimeout(blurTimer);blurTimer=setTimeout(()=>{if(destroyed)return;if(!slash.contains(document.activeElement))hideSlash();if(!bubble.contains(document.activeElement))editor.view.dispatch(editor.state.tr.setMeta('bubbleMenu','hide'));},120);},
  });
  function completeDocument(doc){return doc.lastChild?.type.name==='paragraph'?doc:doc.copy(doc.content.append(Fragment.from(editor.schema.nodes.paragraph.create())));}
@@ -273,7 +271,7 @@ export function mountRichEditor(host,options={}){
   insertReference(item){editor.chain().focus().insertContent({type:'documentLink',attrs:{id:Number(item.id),title:item.title}}).run();},
   insertAttachment(file,reservation){insertAtReservation({type:'paragraph',content:[{type:'text',text:file.name,marks:[{type:'link',attrs:{href:'/files/'+file.id,target:'_blank',rel:'noopener noreferrer nofollow'}}]}]},reservation);},
   replacePDFSource(original,file){let tr=editor.state.tr;editor.state.doc.descendants((node,pos)=>{if(node.type.name==='pdf'&&new URL(node.attrs.src,location.origin).href===new URL(original,location.origin).href)tr=tr.setNodeMarkup(pos,undefined,{...node.attrs,src:'/files/'+file.id+'?inline=1',title:file.name||node.attrs.title});});if(tr.docChanged)editor.view.dispatch(tr);},
-  setEditable(value){editor.setEditable(value,false);host.dataset.editable=String(value);if(!value)editor.view.dispatch(editor.state.tr.setMeta('bubbleMenu','hide'));hideSlash();blockMenu.hidden=true;for(const select of host.querySelectorAll('.native-code-head select'))select.disabled=!value;for(const checkbox of host.querySelectorAll('li[data-type="taskItem"] input'))checkbox.disabled=!value;},
+  setEditable(value){editor.setEditable(value,false);host.dataset.editable=String(value);if(!value)editor.view.dispatch(editor.state.tr.setMeta('bubbleMenu','hide'));hideSlash();blockMenu.hidden=true;codeBlocks.refresh();for(const checkbox of host.querySelectorAll('li[data-type="taskItem"] input'))checkbox.disabled=!value;},
   outline(){const headings=[];editor.state.doc.descendants((node,pos)=>{if(node.type.name==='heading')headings.push({level:node.attrs.level,title:node.textContent,pos});});return headings;},
   jump(pos){const node=editor.view.nodeDOM(pos);if(node instanceof HTMLElement)node.scrollIntoView({behavior:'smooth',block:'start'});if(editor.isEditable)editor.chain().focus().setTextSelection(Math.min(pos+1,editor.state.doc.content.size)).run();},
   active:isActive,command:run,

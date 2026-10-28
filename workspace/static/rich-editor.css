@@ -58,13 +58,6 @@
 .native-node-delete:hover { background: var(--hover); color: var(--danger); }
 .native-pdf iframe { display: block; width: 100%; height: clamp(440px, 65vh, 720px); border: 0; background: #eaeef2; }
 .native-pdf-import { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 24px 16px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
-.native-code-block { margin: 1.2em 0; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; background: var(--surface); white-space: normal; }
-.native-code-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 7px 12px; user-select: none; }
-.native-code-head select { font: 11px var(--ui-font); border: 0; padding: 2px 0; color: var(--muted); background: transparent; max-width: 180px; box-shadow: none; }
-.native-code-head button { font-size: 11px; color: var(--muted); }
-.native-code-head button:hover { color: var(--accent); }
-.rich-document .native-code-block pre { margin: 0; border: 0; border-radius: 0; padding: 0; background: transparent; overflow: auto; }
-.rich-document .native-code-block code { display: block; font: 13px/1.75 var(--mono-font); white-space: pre; min-height: 54px; padding: 16px 18px; color: var(--ink); border: 0; border-radius: 0; background: transparent; }
 .rich-block-handle { display: flex; align-items: center; gap: 0; padding: 2px; border-radius: 4px; background: var(--paper); }
 .rich-block-handle button { display: grid; place-items: center; width: 22px; height: 25px; border-radius: 3px; color: #8c959f; padding: 2px; }
 .rich-block-handle button:hover { color: var(--body); background: var(--hover); }

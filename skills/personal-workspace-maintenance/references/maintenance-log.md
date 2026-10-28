@@ -116,3 +116,4 @@ changes belong in normal commit history.
 - Set the paper generation default to gpt-6.1-sol with xhigh reasoning and a bounded 240-second timeout, independently from general document tasks.
 - Added deterministic slash-command aliases for Chinese, pinyin and English, including the requested ddm/yy/cite/todo/db shortcuts. Verified compound queries, exact-match ordering, cancelled queries and Chinese composition through browser input.
 - Recorded per-service AI skill/template standardization in TODO.md for user-guided refinement after overall design convergence.
+- Added lossless code-folding boundaries and checks: authored state persists through native history/import, reading/search/theme overrides stay outside document history, and caret/search/copy retain complete source. Recorded personal-site typography research and verified licensed local Maple Mono assets, contrast and responsive scrolling.

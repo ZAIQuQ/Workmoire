@@ -76,6 +76,9 @@ def normalized_rich_content(value: object, markdown: str | None = None) -> str:
             if language is not None and (not isinstance(language, str) or not re.fullmatch(r'[\w+#.-]{0,40}', language)):
                 raise ValueError('代码语言无效')
             attrs['language'] = language
+            if type(raw.get('collapsed', False)) is not bool:
+                raise ValueError('代码折叠状态无效')
+            attrs['collapsed'] = raw.get('collapsed', False)
         if kind == 'orderedList':
             start = raw.get('start', 1)
             if type(start) is not int or not 1 <= start <= 100000:

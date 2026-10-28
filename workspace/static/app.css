@@ -289,14 +289,7 @@ kbd { font-family: var(--ui-font); font-weight: 400; }
 .code-head { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 8px 14px; color: var(--muted); font: 11px var(--ui-font); border-color: var(--line); }
 .code-head button { font-size: 11px; color: var(--accent); padding: 2px 0; }
 .code-block > code { display: block; padding: 16px 18px !important; overflow: auto; }
-.hljs-keyword, .hljs-selector-tag { color: #cf222e; }
-.hljs-literal { color: #0550ae; }
-.hljs-string { color: #0a3069; }
-.hljs-attr { color: #0550ae; }
-.hljs-title, .hljs-function { color: #8250df; }
-.hljs-comment { color: #6e7781; font-style: normal; }
-.hljs-number { color: #0550ae; }
-.hljs-built_in { color: #953800; }
+
 .prose table { border-collapse: collapse; width: 100%; margin: 1.4em 0; font-size: 13px; display: block; overflow-x: auto; }
 .prose th { border: 1px solid var(--line); padding: 10px 13px; min-width: 80px; text-align: left; border-color: var(--line); background: var(--surface); color: var(--body); font-weight: 500; }
 .prose td { border: 1px solid var(--line); padding: 10px 13px; min-width: 80px; text-align: left; border-color: var(--line); }
