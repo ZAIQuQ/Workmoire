@@ -42,6 +42,7 @@ from rich_documents import normalized_rich_content, read_rich_content, remap_ref
 from paper_intake import download_paper, paper_source, selected_pdf_header
 from share_store import SharePublisher
 from app_release import release_info
+import bug_reports
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "workspace" / "static"
@@ -363,6 +364,7 @@ def init_db() -> None:
             except ValueError:
                 continue
             con.execute("UPDATE %s SET entry_date=? WHERE id=?" % table, (recovered, row["id"]))
+    bug_reports.init_schema(con)
     con.commit()
     con.close()
     if SHARE_DATA_DIR:
@@ -1291,6 +1293,25 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             self.login_cookie(username, session_version),
         )
 
+    def serve_bug_image(self, report_id, image_id, head=False):
+        if not self.require_user():
+            return
+        with closing(open_db()) as con:
+            found = bug_reports.image_file(con, FILES_DIR, report_id, image_id)
+        if not found:
+            self.error('截图不存在', 404)
+            return
+        info, target = found
+        self.send_response(200)
+        self.send_header('Content-Type', info['content_type'])
+        self.send_header('Content-Length', str(target.stat().st_size))
+        self.send_header('Content-Disposition', "inline; filename*=UTF-8''" + quote(info['name'], safe=''))
+        self.send_header('Cache-Control', 'private, no-store')
+        self.add_security_headers()
+        self.end_headers()
+        if not head:
+            self.wfile.write(target.read_bytes())
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
@@ -1311,6 +1332,33 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 self.send_error(404)
                 return
             self.serve_static(requested)
+            return
+        if path in {'/bugs', '/bugs/new'}:
+            self.serve_static('bugs.html', 'text/html; charset=utf-8')
+            return
+        bug_image = re.fullmatch(r'/api/bug-reports/([a-f0-9]{32})/images/([a-f0-9]{32})', path)
+        if bug_image:
+            self.serve_bug_image(*bug_image.groups())
+            return
+        bug_detail = re.fullmatch(r'/api/bug-reports/([a-f0-9]{32})', path)
+        if path == '/api/bug-reports' or bug_detail:
+            if not self.require_user():
+                return
+            try:
+                with closing(open_db()) as con:
+                    if bug_detail:
+                        result = bug_reports.detail(con, bug_detail[1])
+                        if not result:
+                            self.error('上报记录不存在', 404)
+                            return
+                        self.json_response({'report': result})
+                    else:
+                        offset = int(parse_qs(parsed.query).get('offset', ['0'])[0])
+                        if not 0 <= offset <= 1000000:
+                            raise ValueError('分页参数无效')
+                        self.json_response(bug_reports.listing(con, offset))
+            except Exception as exc:
+                self.request_error(exc, '暂时无法读取 Bug 记录')
             return
         if path == "/api/session":
             con = open_db()
@@ -1946,6 +1994,10 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+        bug_image = re.fullmatch(r'/api/bug-reports/([a-f0-9]{32})/images/([a-f0-9]{32})', path)
+        if bug_image:
+            self.serve_bug_image(*bug_image.groups(), head=True)
+            return
         if path == "/healthz":
             raw = json.dumps({"ok": True, "service": "workmoire"}, ensure_ascii=False).encode("utf-8")
             self.send_response(200)
@@ -2006,6 +2058,28 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
+        if path.startswith('/api/bug-reports'):
+            user = self.require_user()
+            if not user:
+                return
+            if path != '/api/bug-reports':
+                self.error('Bug 记录只读', 405)
+                return
+            try:
+                origin = self.headers.get('Origin', '')
+                if origin and (urlparse(origin).netloc != self.headers.get('Host', '') or urlparse(origin).scheme not in {'http', 'https'}):
+                    self.error('请求来源无效', 403)
+                    return
+                if self.headers.get('Content-Type', '').split(';')[0].strip() != 'application/json':
+                    self.error('请求格式无效', 415)
+                    return
+                payload = parse_json_bounded(self, bug_reports.MAX_REQUEST)
+                with closing(open_db()) as con:
+                    report, created = bug_reports.create(con, FILES_DIR, payload, user, release_info()['version'], self.headers.get('User-Agent', ''))
+                self.json_response({'report': report}, 201 if created else 200)
+            except Exception as exc:
+                self.request_error(exc, 'Bug 上报暂时不可用，请稍后重试')
+            return
         if path == "/api/setup":
             if setup_token_required_for(self.server) and not SETUP_TOKEN:
                 self.error("公网初始化必须配置 WORKSPACE_SETUP_TOKEN", 503)
@@ -2904,6 +2978,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         user = self.require_user()
         if not user:
             return
+        if path.startswith('/api/bug-reports'):
+            self.error('Bug 记录只读', 405)
+            return
         if not path.startswith("/api/files/"):
             self.error("未找到接口", 404)
             return
@@ -3029,6 +3106,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         user = self.require_user()
         if not user:
             return
+        if path.startswith('/api/bug-reports'):
+            self.error('Bug 记录只读', 405)
+            return
         if path.startswith("/api/items/"):
             try:
                 item_id = int(path.rsplit("/", 1)[1])
@@ -3082,6 +3162,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         user = self.require_user()
         if not user:
+            return
+        if path.startswith('/api/bug-reports'):
+            self.error('Bug 记录只读', 405)
             return
         if path.startswith("/api/items/") and "/links/" in path:
             parts = path.strip("/").split("/")

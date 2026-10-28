@@ -44,6 +44,8 @@ python3 workspace_server.py
 
 打开 [localhost:5200](http://localhost:5200)，创建你的账号。
 
+使用中遇到问题，可从页面右下角「上报 Bug」提交截图和复现说明，再从用户菜单的「Bug 记录」只读查看。[了解上报流程](docs/bug-reports.md)。
+
 ## 部署与数据
 
 | 服务 | 默认端口 | 用途 |

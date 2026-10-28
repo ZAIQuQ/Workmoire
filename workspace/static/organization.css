@@ -234,3 +234,11 @@
 .about-notes .prose h3 { font-size: 13px; }
 .about-footer { border-top: 1px solid var(--line); margin-top: 22px; padding-top: 15px; color: var(--muted); font-size: 11px; }
 @media(max-width:600px){.about-card{padding:22px}.about-identity{margin:18px 0}.about-notes .prose{max-height:170px}.about-update{gap:8px}}
+
+.bug-report-trigger { position: fixed; right: 27px; bottom: 22px; z-index: 12; display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--muted); font-size: 11px; text-decoration: none !important; }
+.bug-report-trigger:hover { color: var(--ink); border-color: var(--border); background: var(--surface); }
+.bug-report-trigger .icon { width: 14px; height: 14px; }
+.editor-footer { padding-right: 125px; }
+.settings-menu .settings-link { display: block; padding: 10px; color: var(--body); font-size: 12px; border-radius: var(--radius-md); text-decoration: none; }
+.settings-menu .settings-link:hover { background: var(--hover); }
+@media(max-width:760px){.bug-report-trigger{right:12px;bottom:7px}.editor-footer{padding-right:112px}.editor-footer #editor-help{display:none}}

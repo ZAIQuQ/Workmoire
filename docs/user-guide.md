@@ -6,6 +6,18 @@ and document relationships. Creation has exactly two choices: **Blank document**
 and **Paper materials**. Blogs, plans, ideas and checklists use ordinary documents
 and tags, rather than separate creation types.
 
+## Bug reports
+
+Use the bottom-right **上报 Bug** link to open a separate page. Add a title,
+reproduction steps and optional screenshots. File selection, drag/drop and
+clipboard images are supported. The form uploads only when submitted; failed
+submissions retain their input and may be retried. The current editor stays open.
+
+Open **Bug 记录** from the account menu to read submitted reports. In this
+single-account installation, the signed-in workspace owner is the maintainer.
+Reports cannot be edited or deleted through the interface/API. See
+[storage, access and backup details](bug-reports.md).
+
 ## Writing
 
 Click in a table to reveal **每列等宽** (equal columns) and **固定宽度** (fixed

@@ -1,3 +1,4 @@
+import {guardCompositionShortcuts} from './composition-guard.js';
 import {DocumentTable,equalizeColumns,toggleTableWidth,selectedTable} from './document-table.js';
 import {DocumentFontStep,documentFontExtension,documentFontKey,validBodyFont} from './document-font.js';
 import {Editor, Extension} from '@tiptap/core';
@@ -165,6 +166,7 @@ export function mountRichEditor(host,options={}){
   onSelectionUpdate(){if(ready){codeBlocks.reveal(editor.state.selection);scheduleControls();}},
   onBlur(){clearTimeout(blurTimer);blurTimer=setTimeout(()=>{if(destroyed)return;if(!slash.contains(document.activeElement))hideSlash();if(!bubble.contains(document.activeElement))editor.view.dispatch(editor.state.tr.setMeta('bubbleMenu','hide'));},120);},
  });
+ cleanup.push(guardCompositionShortcuts(editor));
  function completeDocument(doc){return doc.lastChild?.type.name==='paragraph'?doc:doc.copy(doc.content.append(Fragment.from(editor.schema.nodes.paragraph.create())));}
  function parseDocument(markdown){return completeDocument(editor.schema.nodeFromJSON(editor.markdown.parse(markdown||'')));}
  if(editor.state.doc.lastChild?.type.name!=='paragraph')editor.view.dispatch(editor.state.tr.insert(editor.state.doc.content.size,editor.schema.nodes.paragraph.create()).setMeta('addToHistory',false));

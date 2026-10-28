@@ -2,6 +2,25 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.5.0] — 2026-10-29
+
+### 中文输入与 Bug 上报
+
+- 修复中文输入法连续退格后重复字母的问题：组合输入期间不再执行会产生空事务的退格快捷键，保留浏览器原生输入区间。
+- 使用真实浏览器组合输入验证 `q'we → q'w → q → 去`，覆盖段落、标题、列表、表格、代码块及清空候选文字。
+- 页面右下角新增「上报 Bug」，在新页面填写标题、复现说明并上传、拖入或粘贴截图，不打断当前文档。
+- 提交记录保存在私有后台，用户菜单的「Bug 记录」可只读查看；接口不提供修改或删除。
+- 记录和截图均要求登录，分享服务无法访问。上传有大小限制，失败可重试，重复请求不会生成重复记录。
+
+见[Bug 上报说明](docs/bug-reports.md)与[使用说明](docs/user-guide.md)。记录和截图随现有定时备份保存。
+
+### English
+
+Fix repeated letters when deleting from a Chinese IME composition by skipping
+shortcut handlers until composition finishes. Add a separate bug-report page
+with screenshots and reproduction steps, plus an authenticated read-only record
+viewer. Reports stay on the private server and are included in regular backups.
+
 ## [1.4.0] — 2026-10-29
 
 ### 表格宽度
@@ -99,3 +118,5 @@ Earlier development was published as untagged commits. See the
 [1.3.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.3.0
 
 [1.4.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.4.0
+
+[1.5.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.5.0

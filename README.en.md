@@ -44,6 +44,8 @@ python3 workspace_server.py
 
 Open [localhost:5200](http://localhost:5200) and create your account.
 
+Use **上报 Bug** at the bottom right to submit screenshots and reproduction steps. The account menu opens an authenticated, read-only report history. See [bug reporting](docs/bug-reports.md).
+
 ## Deployment and data
 
 | Service | Default port | Purpose |

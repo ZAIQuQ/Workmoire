@@ -1,0 +1,37 @@
+.bug-page { min-height: 100dvh; }
+.bug-page-header { max-width: 960px; padding: 24px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.bug-page-header nav { display: flex; gap: 20px; font-size: 12px; }
+.bug-page-header nav a { color: var(--muted); text-decoration: none; }
+.bug-page-header nav a[aria-current="page"] { color: var(--ink); font-weight: 500; }
+#bug-main { max-width: 912px; margin: 0 auto 36px; }
+.bug-card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: 32px; }
+.bug-card h1 { font-size: 24px; font-weight: 550; line-height: 1.5; overflow-wrap: anywhere; }
+.bug-note { color: var(--muted); font-size: 12px; line-height: 1.8; margin: 10px 0 20px; }
+.bug-form textarea { min-height: 210px; resize: vertical; line-height: 1.8; }
+.bug-drop { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 80px; border: 1px dashed var(--border); border-radius: var(--radius-lg); background: var(--surface); font-size: 13px; cursor: pointer; }
+.bug-drop.is-over { border-color: var(--accent); }
+.bug-image-help { margin: 9px 0 0; color: var(--muted); font-size: 11px; }
+.bug-previews { display: grid; grid-template-columns: repeat(auto-fill,minmax(140px,1fr)); gap: 12px; margin-top: 16px; }
+.bug-preview { position: relative; margin: 0; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+.bug-preview img { display: block; width: 100%; height: 112px; object-fit: contain; background: var(--surface); }
+.bug-preview figcaption { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 8px; font-size: 11px; }
+.bug-preview button { position: absolute; top: 5px; right: 5px; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; width: 25px; height: 25px; }
+.bug-preview button .icon { width: 14px; height: 14px; }
+.bug-submit-row { display: flex; justify-content: flex-end; gap: 12px; align-items: center; margin-top: 24px; }
+.bug-submit-row small { margin-right: auto; color: var(--muted); font-size: 11px; }
+.bug-list { display: grid; gap: 8px; margin-top: 22px; }
+.bug-record { display: flex; justify-content: space-between; align-items: center; gap: 16px; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px; text-decoration: none !important; color: var(--ink); }
+.bug-record:hover { background: var(--surface); }
+.bug-record strong { display: block; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.bug-record small, .bug-meta { display: block; color: var(--muted); font-size: 11px; line-height: 1.8; margin-top: 6px; }
+.bug-description { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.9; font-size: 14px; margin: 26px 0; }
+.bug-screenshots { display: grid; gap: 24px; }
+.bug-screenshots figure { margin: 0; }
+.bug-screenshots img { display: block; width: auto; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.bug-screenshots figcaption { margin-top: 7px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.bug-back { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; margin-bottom: 20px; }
+.bug-back .icon { width: 14px; height: 14px; }
+.bug-browser { margin-top: 26px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.bug-pagination { margin-top: 18px; }
+.bug-loading { padding: 32px; color: var(--muted); }
+@media(max-width:600px){.bug-page-header{padding:20px 16px}.bug-page-header .brand{font-size:17px}.bug-page-header nav{gap:14px}#bug-main{margin:0 12px 24px}.bug-card{padding:22px}.bug-form input,.bug-form textarea{font-size:16px}.bug-submit-row{flex-wrap:wrap}.bug-submit-row small{width:100%}}

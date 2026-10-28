@@ -7,17 +7,17 @@
   <title>Workmoire · 拾序</title>
   <link rel="icon" href="/static/favicon.svg?v=4" type="image/svg+xml">
   <link rel="stylesheet" href="/static/vendor/katex.min.css?v=20261027">
-  <link rel="stylesheet" href="/static/vendor/type.css?v=20261029-tables">
-  <link rel="stylesheet" href="/static/design-tokens.css?v=20261029-tables">
-  <link rel="stylesheet" href="/static/app.css?v=20261029-tables">
-  <link rel="stylesheet" href="/static/rich-editor.css?v=20261029-tables">
-  <link rel="stylesheet" href="/static/code-block.css?v=20261029-tables">
-  <link rel="stylesheet" href="/static/editor-toolbar.css?v=20261029-tables">
-  <link rel="stylesheet" href="/static/document-outline.css?v=20261029-tables">
-  <link rel="stylesheet" href="/static/organization.css?v=20261029-tables">
-  <script defer src="/static/vendor/interface.js?v=20261029-tables"></script>
-  <script defer src="/static/vendor/editor.js?v=20261029-tables"></script>
-  <script defer src="/static/app.js?v=20261029-tables"></script>
+  <link rel="stylesheet" href="/static/vendor/type.css?v=20261029-bugs">
+  <link rel="stylesheet" href="/static/design-tokens.css?v=20261029-bugs">
+  <link rel="stylesheet" href="/static/app.css?v=20261029-bugs">
+  <link rel="stylesheet" href="/static/rich-editor.css?v=20261029-bugs">
+  <link rel="stylesheet" href="/static/code-block.css?v=20261029-bugs">
+  <link rel="stylesheet" href="/static/editor-toolbar.css?v=20261029-bugs">
+  <link rel="stylesheet" href="/static/document-outline.css?v=20261029-bugs">
+  <link rel="stylesheet" href="/static/organization.css?v=20261029-bugs">
+  <script defer src="/static/vendor/interface.js?v=20261029-bugs"></script>
+  <script defer src="/static/vendor/editor.js?v=20261029-bugs"></script>
+  <script defer src="/static/app.js?v=20261029-bugs"></script>
 </head>
 <body>
   <section id="auth-view" class="auth-view is-hidden">
@@ -50,10 +50,11 @@
         <div id="settings-menu" class="settings-menu is-hidden">
           <button id="shortcuts-button">编辑快捷键</button><button data-settings-page="files">附件管理</button><button data-settings-page="trash">回收站</button><hr>
           <button id="export-data">导出文档（JSON）</button><button id="export-archive">下载完整归档</button><button id="import-data">导入 JSON</button><button id="import-archive">导入完整归档</button><hr>
-          <button id="about-button"><span data-icon="info"></span>关于 Workmoire</button><button id="change-password">修改密码</button><button id="logout">退出登录</button>
+          <a class="settings-link" href="/bugs" target="_blank" rel="noopener noreferrer">Bug 记录</a><button id="about-button"><span data-icon="info"></span>关于 Workmoire</button><button id="change-password">修改密码</button><button id="logout">退出登录</button>
         </div>
       </div>
     </aside>
+    <a id="bug-report-trigger" class="bug-report-trigger" href="/bugs/new" target="_blank" rel="noopener noreferrer" title="在新页面上报 Bug"><span data-icon="bug"></span>上报 Bug</a>
     <button id="sidebar-backdrop" class="sidebar-backdrop is-hidden" aria-label="收起导航" tabindex="-1"></button>
     <main class="main-content">
       <header class="topbar"><button id="navigation-toggle" class="icon-button desktop-navigation-toggle" aria-label="收起侧边栏" aria-expanded="true" aria-controls="workspace-sidebar"><span data-icon="panel"></span></button><button id="mobile-menu" class="icon-button mobile-only" aria-label="打开导航" aria-controls="workspace-sidebar" aria-expanded="false"><span data-icon="menu"></span></button><div class="breadcrumbs"><span class="quiet">我的空间</span><span>/</span><strong id="page-heading">全部文档</strong></div><button id="global-search-trigger" class="search-trigger"><span data-icon="search"></span><span>搜索文档与附件</span><kbd>⌘ K</kbd></button><span class="service-dot" id="service-status" title="服务在线"></span></header>

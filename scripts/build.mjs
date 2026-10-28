@@ -2,6 +2,7 @@ import {build} from "esbuild";
 import {gzipSync} from "node:zlib";
 import {cp,mkdir,readFile,writeFile,rm} from "node:fs/promises";
 await mkdir("workspace/static/vendor",{recursive:true});
+await build({entryPoints:["web/bugs.js"],bundle:true,minify:true,target:["es2022"],outfile:"workspace/static/vendor/bugs.js",legalComments:"eof"});
 await build({entryPoints:["web/interface-assets.js"],bundle:true,minify:true,target:["es2022"],outfile:"workspace/static/vendor/interface.js",legalComments:"eof"});
 await build({entryPoints:["web/editor-vendor.js"],bundle:true,minify:true,supported:{"template-literal":false},target:["es2022"],outfile:"workspace/static/vendor/editor.js",legalComments:"eof"});
 await build({entryPoints:["web/pdf-viewer.js"],bundle:true,minify:true,format:"esm",target:["es2022"],outfile:"workspace/static/vendor/pdf-reader.mjs",legalComments:"eof"});
@@ -36,7 +37,7 @@ for(const [path,entry] of Object.entries(lock.packages)){
 }
 await writeFile("workspace/static/vendor/THIRD_PARTY_LICENSES.txt",licenses.join("\n\n---\n\n"));
 // Precompress public text assets; the server negotiates gzip and detects stale copies.
-for(const name of ["editor-toolbar.css","document-outline.css","share.html","share.css","share-pdf-viewer.html","vendor/share-icons.js","vendor/share-reader.js","index.html","app.js","app.css","design-tokens.css","rich-editor.css","code-block.css","organization.css","pdf-viewer.html","pdf-viewer.css","vendor/editor.js","vendor/interface.js","vendor/pdf-reader.mjs","vendor/pdf-extractor.mjs","vendor/pdf.worker.min.mjs","vendor/type.css","vendor/pdf-viewer.css","vendor/katex.min.css"]){
+for(const name of ["bugs.html","bugs.css","vendor/bugs.js","editor-toolbar.css","document-outline.css","share.html","share.css","share-pdf-viewer.html","vendor/share-icons.js","vendor/share-reader.js","index.html","app.js","app.css","design-tokens.css","rich-editor.css","code-block.css","organization.css","pdf-viewer.html","pdf-viewer.css","vendor/editor.js","vendor/interface.js","vendor/pdf-reader.mjs","vendor/pdf-extractor.mjs","vendor/pdf.worker.min.mjs","vendor/type.css","vendor/pdf-viewer.css","vendor/katex.min.css"]){
   const raw=await readFile("workspace/static/"+name);
   await writeFile("workspace/static/"+name+".gz",gzipSync(raw,{level:9}));
 }

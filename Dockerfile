@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     WORKSPACE_DATA_DIR=/var/lib/personal-workspace/data
 
 WORKDIR /app
-COPY workspace_server.py paper_tools.py paper_intake.py rich_documents.py share_store.py app_release.py package.json CHANGELOG.md ./
+COPY bug_reports.py workspace_server.py paper_tools.py paper_intake.py rich_documents.py share_store.py app_release.py package.json CHANGELOG.md ./
 COPY workspace ./workspace
 RUN useradd --create-home --uid 10001 appuser \
     && mkdir -p /var/lib/personal-workspace/data \
