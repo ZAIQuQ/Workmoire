@@ -249,16 +249,16 @@ class ReadingMaterialTests(unittest.TestCase):
         with patch.object(paper_tools,'fetch_public') as fetch:
             self.assertEqual(paper_tools.reading_material({'url':'https://example.org/paper'})['scope'],'metadata');fetch.assert_not_called()
 
-    def test_paper_dossiers_use_the_deeper_budget_and_preserve_source_limitations(self):
+    def test_paper_dossiers_use_the_brief_template_and_preserve_source_limitations(self):
         paper={'title':'Synthetic paper','url':'https://example.org/paper','abstract':'Abstract'}
         material={'scope':'partial_text','url':'https://example.org/fulltext','text':'Bounded text','truncated':True}
         with patch.object(app,'lookup_papers',return_value=[paper]),patch.object(app,'reading_material',return_value=material),patch.object(app,'invoke_codex',return_value='## 研究问题\n\nSynthetic') as invoke:
             result=app.paper_draft('Synthetic reference')
         self.assertEqual(invoke.call_args.kwargs['reasoning_effort'],app.PAPER_REASONING_EFFORT)
-        self.assertEqual(app.PAPER_REASONING_EFFORT,'xhigh')
+        self.assertEqual(app.PAPER_REASONING_EFFORT,'medium')
         self.assertEqual(invoke.call_args.kwargs['model'],'gpt-6.1-sol')
-        self.assertEqual(invoke.call_args.kwargs['timeout'],240)
-        self.assertIn('partial_text',invoke.call_args.args[0]);self.assertIn('失败判据',invoke.call_args.args[0])
+        self.assertEqual(invoke.call_args.kwargs['timeout'],150)
+        self.assertIn('partial_text',invoke.call_args.args[0]);self.assertIn('一句话看懂',invoke.call_args.args[0]);self.assertIn('400–700',invoke.call_args.args[0])
         self.assertIn('部分公开 HTML 正文',result['content'])
         self.assertEqual(result['evidence']['scope'],'partial_text')
 

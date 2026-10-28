@@ -163,7 +163,8 @@ a manual PDF upload before proceeding.
 
 The selected file is previewed before use. It can be replaced at any point before
 insertion; replacing it invalidates the earlier extracted text and generated
-notes. Browser-side PDF.js extraction reads only that authenticated attachment,
+notes. Browser-side PDF.js extraction reads the supplied local file in parallel with
+upload, or the authenticated stored file for a URL download,
 up to 80 pages / 60,000 characters, with a bounded loading task. Optional Codex
 analysis uses those extracted words, never a substitute HTML article or another
 PDF. Textless/scanned PDFs can be archived and read without invented analysis.
@@ -173,11 +174,13 @@ the editor and save. Only the final selected file is associated with the saved
 document. Abandoned/replaced temporary imports move to recoverable attachment
 trash. See [paper intake behavior](paper-intake.md).
 
-Paper dossiers default to `gpt-6.1-sol` with `xhigh` reasoning and a 240-second model timeout.
+Paper briefs default to `gpt-6.1-sol` with `medium` reasoning and a 150-second model timeout.
 General document tasks default to `medium` with a 90-second timeout. Optional
 private settings can override the paper model and budget independently. The
-prompt requests mechanisms, evidence, limitations and concrete experiments,
-while keeping speculative research directions separate from supported facts.
+[brief template](../prompts/paper-brief.md) requests a one-sentence takeaway,
+motivation, the method/differentiator, and evidence/limitations in about 400–700
+Chinese characters. [Progress tracking](paper-progress.md) separates measured
+upload/extraction from AI estimates calibrated with recent task durations.
 
 Generated dossiers and assistant suggestions are previews. Importing a chosen
 PDF creates an unassociated attachment; inserting a dossier creates unsaved
@@ -211,8 +214,8 @@ Copy `.env.example` to a private `.env` and configure:
 - `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`: configure these in the same private
   service environment when the selected model provider requires an egress proxy.
 - `WORKSPACE_CODEX_MODEL` / `WORKSPACE_CODEX_REASONING_EFFORT`: optional general CLI overrides.
-- `WORKSPACE_PAPER_CODEX_MODEL` / `WORKSPACE_PAPER_REASONING_EFFORT`: independent paper overrides, defaulting to `gpt-6.1-sol` and `xhigh`.
-- `WORKSPACE_PAPER_ASSISTANT_TIMEOUT`: paper model timeout in seconds (default 240; bounded to 60–600).
+- `WORKSPACE_PAPER_CODEX_MODEL` / `WORKSPACE_PAPER_REASONING_EFFORT`: independent paper overrides, defaulting to `gpt-6.1-sol` and `medium`.
+- `WORKSPACE_PAPER_ASSISTANT_TIMEOUT`: paper model timeout in seconds (default 150; bounded to 60–600).
 - `WORKSPACE_PAPER_PROXY`: optional trusted HTTP CONNECT proxy for paper retrieval.
   The paper fetcher also recognizes `HTTPS_PROXY`; target DNS is validated and the
   tunnel uses a pinned public destination IP. Credentials in proxy URLs are unsupported.
@@ -255,7 +258,7 @@ compression for GET/HEAD and falls back to the original if a compressed copy is 
 
 When generation is enabled, check the actual running service configuration with
 `python3 scripts/check_assistant.py --service personal-workspace.service` and
-repeat with `--paper` to verify the deeper paper settings. This
+repeat with `--paper` to verify the paper settings. This
 uses synthetic input and does not print credentials or process personal documents.
 Timed-out assistant calls terminate the launcher and its child processes together.
 

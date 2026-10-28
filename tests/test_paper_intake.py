@@ -55,7 +55,7 @@ class PaperIntakeHttpTests(unittest.TestCase):
             with patch.object(app,'invoke_codex',return_value='## 核心问题\n\n从指定 PDF 提取。') as invoke:
                 status,body,_=self.request('/api/papers/draft','POST',{**payload,'title':'Chosen paper','author':'PDF Author','text':evidence,'pages_read':1,'page_count':1,'truncated':False})
                 self.assertEqual(status,200);draft=json.loads(body);self.assertEqual(draft['evidence']['file_id'],'a'*32);self.assertIn(evidence,invoke.call_args.args[0]);self.assertEqual(invoke.call_args.kwargs['reasoning_effort'],app.PAPER_REASONING_EFFORT)
-                self.assertIn('/files/'+'a'*32,draft['content']);self.assertNotIn('other-paper.pdf',draft['content'])
+                self.assertIn('/files/'+'a'*32,draft['content']);self.assertLess(draft['content'].index('## 核心问题'),draft['content'].index('## 原文 PDF'));self.assertIn('## 核心问题',draft['analysis']);self.assertNotIn('other-paper.pdf',draft['content'])
             download.assert_not_called();lookup.assert_not_called();html.assert_not_called()
         with app.open_db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM items').fetchone()[0],0)
 

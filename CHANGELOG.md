@@ -2,6 +2,27 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.6.0] — 2026-10-29
+
+### 论文速读与等待进度
+
+- 论文分析默认改为 `medium` 推理，保留 `gpt-6.1-sol`，使用独立速读模板输出约 400–700 字。
+- 摘要聚焦一句话结论、动机、核心方法与卖点、关键证据和边界，不再默认展开研究选题和复现计划；预览直接展示摘要，插入文档后摘要位于 PDF 前。
+- PDF 直接流式上传，按实际传输字节显示进度和速度估计；上传发送完成与服务器确认分开显示。
+- 上传与本地文字提取并行，避免为提取文字把刚上传的 PDF 再下载一次；提取进度按已完成页数显示。
+- AI 分析显示已用时间、预估进度与剩余时间区间，使用近期任务实测校准；超过常见耗时会明确提示，结果返回前不会显示 100%。
+- 现有文档附件上传也显示实际进度；所有分析仍需手动放入编辑器并保存。
+
+见[进度与估时说明](docs/paper-progress.md)和[使用说明](docs/user-guide.md)。
+
+### English
+
+Paper analysis now uses medium reasoning and a concise, versioned brief template.
+Direct uploads expose measured byte progress, while local PDF extraction runs in
+parallel without downloading the same file again. AI jobs show explicitly
+estimated progress and a remaining-time range calibrated from content-free timing
+samples. Only completed results reach 100%; overruns are shown honestly.
+
 ## [1.5.0] — 2026-10-29
 
 ### 中文输入与 Bug 上报
@@ -120,3 +141,5 @@ Earlier development was published as untagged commits. See the
 [1.4.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.4.0
 
 [1.5.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.5.0
+
+[1.6.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.6.0

@@ -145,3 +145,5 @@ changes belong in normal commit history.
 - Added per-table fixed-width defaults, proportional fixed-mode resizing, merged-cell-aware distribution and explicit accessible scrolling in free mode. Recorded rendering-only viewport changes, strict mode validation, native persistence/share checks and drag/observer cleanup in the release workflow.
 
 - Reproduced the Chinese IME deletion bug through Chromium's native composition API and traced it to empty shortcut transactions dispatched during composition. Added a shortcut guard and native IME regressions. Introduced private immutable Bug records with explicit screenshot upload, idempotent submission, scoped authenticated reads and backup/migration verification.
+
+- Replaced the long paper dossier prompt with a versioned concise brief and medium reasoning. Added direct measured uploads, parallel selected-file extraction and private transient analysis jobs with content-free timing calibration. Recorded honest progress/overrun behavior and public-input latency checks; other AI-template work stays deferred.

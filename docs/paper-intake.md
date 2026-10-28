@@ -28,7 +28,8 @@ never creates a document. Uploaded bytes pass a signature check and PDF.js parsi
 Public downloads use the existing pinned-address transport and size/deadline
 bounds. A failed public download never falls back to a different unconfirmed file.
 
-PDF.js reads the same authenticated file ID shown in the preview. Extraction is
+PDF.js reads the selected local File during upload, or the authenticated file ID
+for a downloaded paper. The preview always points at the final stored file. Extraction is
 bounded to 80 pages, 60,000 characters and a 45-second loading task; the worker is
 destroyed afterwards. The server verifies the selected attachment and accepts the
 browser-extracted text as supplied evidence. Analysis receives only this text
@@ -55,3 +56,9 @@ priority, PDF replacement, manual fallback and narrow screens. They compare save
 bytes and model-request text to the chosen fixture. Backend checks enforce file
 validation, authentication, selected-text analysis, no document writes during
 preparation/generation, and ordinary handling of legacy kinds.
+
+## Fast briefs and progress
+
+Paper summaries use the versioned brief template with medium reasoning. Upload
+bytes and extracted pages are measured; AI progress and remaining time are
+explicit estimates learned from recent durations. See [progress and timing](paper-progress.md).

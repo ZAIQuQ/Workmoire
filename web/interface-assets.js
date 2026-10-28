@@ -1,3 +1,5 @@
+import {progressPanel,uploadFile} from './operation-progress.js';
+window.WorkmoireProgress={panel:progressPanel,upload:uploadFile};
 import {mountEditorToolbar} from './editor-toolbar.js';
 window.WorkmoireToolbar={mount:mountEditorToolbar};
 import {createDocumentOutline} from './document-outline.js';

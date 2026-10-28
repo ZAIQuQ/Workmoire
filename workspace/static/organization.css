@@ -242,3 +242,21 @@
 .settings-menu .settings-link { display: block; padding: 10px; color: var(--body); font-size: 12px; border-radius: var(--radius-md); text-decoration: none; }
 .settings-menu .settings-link:hover { background: var(--hover); }
 @media(max-width:760px){.bug-report-trigger{right:12px;bottom:7px}.editor-footer{padding-right:112px}.editor-footer #editor-help{display:none}}
+
+.operation-progress { margin: 12px 0; padding: 11px 13px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.operation-progress[hidden] { display: none; }
+.operation-progress-head { display: flex; justify-content: space-between; gap: 14px; font-size: 12px; line-height: 1.6; color: var(--body); }
+.operation-progress-head > span:first-child { overflow-wrap: anywhere; }
+.operation-progress-head > span:last-child { flex: none; font-variant-numeric: tabular-nums; }
+.operation-progress progress { display: block; width: 100%; height: 5px; margin: 8px 0; accent-color: var(--accent); border: 0; border-radius: 5px; }
+.operation-progress progress::-webkit-progress-bar { background: var(--line); border-radius: 5px; }
+.operation-progress progress::-webkit-progress-value { background: var(--accent); border-radius: 5px; }
+.operation-progress progress::-moz-progress-bar { background: var(--accent); border-radius: 5px; }
+.operation-progress progress:indeterminate { opacity: .55; }
+.operation-progress-detail { color: var(--muted); font-size: 11px; line-height: 1.7; font-variant-numeric: tabular-nums; }
+.operation-progress.is-failed .operation-progress-head { color: var(--danger); }
+.asset-transfer-card { position: fixed; z-index: 45; left: 24px; bottom: 24px; width: min(360px, calc(100vw - 48px)); background: var(--paper); border-radius: var(--radius-md); box-shadow: var(--shadow); }
+.asset-transfer-card .operation-progress { margin: 0; background: var(--paper); }
+
+.paper-import-card > .paper-ai-progress { flex: none; }
+.paper-import-card > .paper-ai-progress .operation-progress { margin: 12px 0 0; }
