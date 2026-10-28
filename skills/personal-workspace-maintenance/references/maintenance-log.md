@@ -133,3 +133,5 @@ changes belong in normal commit history.
 ## 2026-10-29
 
 - Added explicit publication boundaries for a separate password-protected reader: saved snapshots, scoped attachment copies, independent OS identity and environment, opaque credentials, durable attempt limits and per-request revocation checks. Added synthetic browser/security/restore gates and deployment permission verification, including the fact that ports do not isolate cookie domains. Extended the actual backup job contract to preserve the publisher key and consistent publication media while excluding reader sessions; recorded rollback/restoration implications in the sharing guide.
+
+- Verified Linux setgid inheritance across distinct publisher/reader users: the publisher must be a member of the sharing group before chmod and file creation. Rehearse publication with actual OS identities; same-user unit/browser tests cannot prove the deployment permission boundary.

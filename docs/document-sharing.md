@@ -43,7 +43,11 @@ service user. The resulting database and media use **0640**; `publisher.key` and
 `publisher.lock` use **0600** and belong only to the publisher. Create `auth` with
 the reader user as owner and mode **0700**. The setgid publication directories
 ensure new snapshots remain readable by the reader despite the owner's umask.
-Never add the reader to the owner's private group.
+Add the owner service user to the `workmoire-share` supplementary group and
+restart its service so it can maintain the setgid directories. Never add the
+reader to the owner's private group. Verify the database and newly copied media
+actually inherit `workmoire-share`; chmod by an owner outside that group can
+clear the setgid bit on Linux.
 
 The example systemd unit makes the publication store read-only, allows writes
 only to `auth`, hides home directories/private environment files and the publisher
