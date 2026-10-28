@@ -10,7 +10,7 @@ Interface resources are served locally. Package versions are pinned in
 | Syntax highlighting | https://github.com/wooorm/lowlight and https://github.com/highlightjs/highlight.js | `lowlight` 3.3.0, `highlight.js` 11.12.0 | MIT / BSD-3-Clause. Incremental code-block highlighting. |
 | Interface icons | https://github.com/lucide-icons/lucide | `lucide` 1.62.0 | ISC, with MIT notices for Feather-derived icons. Named imports in `web/interface-assets.js` bundle only the icons in use. The favicon adapts `BookOpen`. |
 | Latin UI type | https://github.com/rsms/inter | `@fontsource-variable/inter` 5.3.0 | SIL Open Font License 1.1. Normal variable WOFF2 files from Fontsource. |
-| Chinese fallback type | https://github.com/notofonts/noto-cjk | `@fontsource-variable/noto-sans-sc` 5.3.1 | SIL Open Font License 1.1. Used when native Chinese fonts are unavailable; Unicode subsets load on demand. |
+| Chinese UI and document type | https://github.com/notofonts/noto-cjk | `@fontsource-variable/noto-sans-sc` 5.3.1 | SIL Open Font License 1.1. Preferred variable type for consistent Chinese glyphs and weights; Unicode subsets load on demand, with platform fonts as fallbacks. |
 | Code type | https://github.com/subframe7536/maple-font | Maple Mono NL v7.9, Regular and Medium WOFF2 | SIL Open Font License 1.1. Rounded monospaced code without operator ligatures. Files and original notice in `fonts/maple-mono/`. |
 
 `vendor/THIRD_PARTY_LICENSES.txt` contains the dependency license notices,
@@ -29,6 +29,6 @@ Retain `fonts/maple-mono/LICENSE.txt` when redistributing them. The code palette
 are project CSS; no commercial font files or personal-site artwork are bundled.
 
 The interface uses neutral white and gray surfaces, dark text, and one blue
-interaction accent. Chinese text prefers native platform fonts, followed by the
-bundled Noto fallback. There are no decorative hero illustrations. User-uploaded
+interaction accent. UI and document text prefer bundled Inter and variable Noto
+Sans SC, with platform sans-serif fallbacks. There are no decorative hero illustrations. User-uploaded
 images retain their intrinsic aspect ratio and remain authenticated.

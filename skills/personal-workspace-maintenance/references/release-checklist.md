@@ -52,6 +52,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 ## Rich documents and papers
 
 - Rebuild and ship locally vendored editor/math assets, icons, and fonts together; retain license notices and the dependency lockfile. For reused artwork, record the upstream commit and adaptations, verify local asset loading, and check intrinsic proportions and usable controls at phone, tablet, laptop, and desktop widths.
+- For typography or shared visual-token changes, inspect the actual Latin/Chinese glyph fonts and weight ranges in a browser; check both main UI and PDF controls, narrow layouts, focus indicators, and local font loading. Keep math/code faces and uploaded PDF typography appropriate to their content.
 - Verify inline media magic bytes, authentication, same-origin frame policy, and PDF byte ranges; HTML/SVG must remain downloads.
 - Verify title, DOI, and arXiv lookup using public metadata, and test private/redirect destinations using synthetic fixtures.
 - Verify generated paper text preserves the source and uncertainty notice, and creates no records before explicit insertion/save.

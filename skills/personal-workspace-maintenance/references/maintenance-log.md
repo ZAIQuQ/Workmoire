@@ -113,6 +113,8 @@ changes belong in normal commit history.
 
 ## 2026-10-28
 
+- Introduced shared visual tokens and consistent moderate rounding across the workspace and PDF controls, based on Notion, Feishu and Yuque references. Prioritized the existing variable Chinese font after a platform-font audit exposed inconsistent intermediate system weights; added actual glyph/font and responsive visual checks to the release guidance.
+
 - Simplified navigation and moved labels to a searchable library and contextual document picker. Added local metadata suggestions and previewed, bounded transactional renames/merges, with checks for stale versions, original revisions, draft preservation during filters/saves and mobile navigation. Recorded the workflow in the release checklist and navigation design note.
 
 - Set the paper generation default to gpt-6.1-sol with xhigh reasoning and a bounded 240-second timeout, independently from general document tasks.

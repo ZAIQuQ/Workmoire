@@ -51,8 +51,11 @@ Long expanded scripts scroll within the block. See the
 [code-block design research](docs/code-block-design.md) for references and choices.
 
 The interface uses white and gray surfaces, dark text, one blue interaction
-accent, and a consistent Lucide icon set. Inter is bundled locally; Chinese text
-prefers native platform fonts, with a locally bundled Noto Sans SC fallback.
+accent, and a consistent Lucide icon set. Locally bundled Inter and variable
+Noto Sans SC provide consistent Latin/Chinese type and intermediate weights;
+platform sans-serif fonts remain fallbacks. Shared visual tokens give controls,
+menus and panels a moderate corner-radius scale. The desktop editor sits on a
+white document surface, while phone editing uses the available width.
 Independent scrolling panes, a dismissible mobile drawer, and intrinsic image
 sizing support both writing and PDF reading. Resource provenance and licenses
 are documented in
@@ -75,6 +78,9 @@ library's edit action: preview the affected documents, then apply. Each affected
 document retains a history revision; stale previews are rejected, and each
 operation is limited to 100 active documents. Trash is excluded. See the
 [navigation and tag design research](docs/navigation-tags-design.md).
+
+The [product-style research](docs/product-style-design.md) records the Notion,
+Feishu and Yuque references, typography audit and visual verification.
 
 ## Papers and Codex
 

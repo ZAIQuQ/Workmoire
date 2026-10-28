@@ -23,7 +23,8 @@ The commercial Cartograph font was only observed on its author's website.
 
 - Locally served Maple Mono NL v7.9, regular and medium: about 135 KB combined.
   Chinese uses the existing platform/Noto fallback. No runtime third-party requests.
-- Desktop code uses 14px / 25.2px, 22px horizontal padding and 8px corners.
+- Desktop code uses 14px / 25.2px, 22px horizontal padding and 12px corners,
+  aligned with the shared product-style tokens.
   Phones use 13px / 23.4px and 16px padding. No decorative window controls.
 - Default light surface `#f7f8fa`, optional charcoal `#22262e`. Keywords use
   muted violet, callable names blue, strings green and numbers ochre. Comments
