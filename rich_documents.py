@@ -63,6 +63,10 @@ def normalized_rich_content(value: object, markdown: str | None = None) -> str:
         if not isinstance(raw, dict):
             raise ValueError('文档属性格式无效')
         attrs = {}
+        if kind == 'doc' and raw.get('bodyFont') is not None:
+            if raw['bodyFont'] not in ('sans', 'serif', 'mono'):
+                raise ValueError('正文字体无效')
+            attrs['bodyFont'] = raw['bodyFont']
         if kind in {'paragraph', 'heading'} and raw.get('textAlign') is not None:
             if not isinstance(raw['textAlign'], str) or raw['textAlign'] not in {'left', 'center', 'right', 'justify'}:
                 raise ValueError('段落对齐方式无效')

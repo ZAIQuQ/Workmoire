@@ -2,6 +2,27 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.3.0] — 2026-10-29
+
+### 正文字体与工具栏
+
+- 工具栏新增整篇正文字体选择：无衬线、衬线和等宽，默认字体保持不变。
+- 字体随文档保存、历史、草稿、JSON / 完整归档和分享快照保留；支持撤销、重做，切换时不重建内嵌 PDF。
+- 文字颜色直接放到工具栏，提供预设色板、自定义颜色与默认颜色恢复，仅作用于选中文字。
+- 高亮、行内代码、删除线、对齐、链接和清除格式直接可用；「更多」只保留上下标和列表缩进，菜单不重复常用操作。
+- 工具栏图标增加悬停和键盘焦点提示，并显示可用快捷键；窄屏保持工具可访问。
+- 新增本地打包的思源宋体作为可选正文样式；代码与公式保留原有字体。
+
+见[使用说明](docs/user-guide.md)。Markdown 导出保留文字；字体和富文本样式请使用 JSON 或完整归档保留。
+
+### English
+
+Choose one font for the entire document and retain it through saves, drafts,
+history, native exports and protected shares. Common formatting actions and a
+selection color palette now live directly in the toolbar, with hover/focus hints.
+The More menu contains only sub/superscript and list indentation. Font changes
+support undo/redo without recreating PDF views. All fonts are served locally.
+
 ## [1.2.0] — 2026-10-29
 
 ### 文档目录
@@ -55,3 +76,5 @@ Earlier development was published as untagged commits. See the
 [1.1.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.1.0
 
 [1.2.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.2.0
+
+[1.3.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.3.0

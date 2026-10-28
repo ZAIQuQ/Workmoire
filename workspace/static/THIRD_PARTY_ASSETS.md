@@ -12,10 +12,11 @@ Interface resources are served locally. Package versions are pinned in
 | Interface icons | https://github.com/lucide-icons/lucide | `lucide` 1.62.0 | ISC, with MIT notices for Feather-derived icons. Named imports in `web/interface-assets.js` bundle only the icons in use. The favicon adapts `BookOpen`. |
 | Latin UI type | https://github.com/rsms/inter | `@fontsource-variable/inter` 5.3.0 | SIL Open Font License 1.1. Normal variable WOFF2 files from Fontsource. |
 | Chinese UI and document type | https://github.com/notofonts/noto-cjk | `@fontsource-variable/noto-sans-sc` 5.3.1 | SIL Open Font License 1.1. Preferred variable type for consistent Chinese glyphs and weights; Unicode subsets load on demand, with platform fonts as fallbacks. |
+| Optional serif document type | https://github.com/notofonts/noto-cjk | `@fontsource-variable/noto-serif-sc` 5.3.1 | SIL Open Font License 1.1. Locally bundled variable WOFF2 subsets, loaded only when the document uses serif text. |
 | Code type | https://github.com/subframe7536/maple-font | Maple Mono NL v7.9, Regular and Medium WOFF2 | SIL Open Font License 1.1. Rounded monospaced code without operator ligatures. Files and original notice in `fonts/maple-mono/`. |
 
 `vendor/THIRD_PARTY_LICENSES.txt` contains the dependency license notices,
-including the editor runtime, its transitive packages, Lucide and both bundled fonts. Keep the notices and lockfile with
+including the editor runtime, its transitive packages, Lucide and the bundled fonts. Keep the notices and lockfile with
 redistributions. Rebuild with `npm ci` and `npm run build`.
 
 Maple Mono is vendored separately from npm. Its unmodified files come from the

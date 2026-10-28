@@ -1,3 +1,4 @@
+import {DocumentFontStep,documentFontExtension,documentFontKey,validBodyFont} from './document-font.js';
 import {Editor, Extension} from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import {Markdown} from '@tiptap/markdown';
@@ -105,12 +106,15 @@ export function mountRichEditor(host,options={}){
   'Mod-Alt-0':()=>editor.commands.setParagraph(),
   'Mod-f':()=>{showFind();return true;},
  };}});
+ const initialFont=validBodyFont(options.richContent?.document?.attrs?.bodyFont);
+ let baselineFont=options.baseline?validBodyFont(options.baseline.rich_content?.document?.attrs?.bodyFont):initialFont,lastFont=initialFont;
+ const bodyFont=()=>documentFontKey.getState(editor.state)||'sans';
  const initialNative=options.richContent?.version===1?options.richContent.document:null;
  editor=new Editor({
   element:contentHost,
   content:initialNative||options.content||'',contentType:initialNative?'json':'markdown',editable:options.editable!==false,enableContentCheck:true,
   extensions:[
-   StarterKit.configure({codeBlock:false,link:false}),SafeLink,
+   StarterKit.configure({codeBlock:false,link:false}),SafeLink,documentFontExtension(initialFont),
    Markdown.configure({marked:safeMarkdownParser(),markedOptions:{gfm:true,breaks:true},indentation:{style:'space',size:2}}),
    TableKit.configure({table:{resizable:true,cellMinWidth:80,allowTableNodeSelection:true}}),TaskList,TaskItem.configure({nested:true,HTMLAttributes:{'data-type':'taskItem'},a11y:{checkboxLabel:node=>'切换待办：'+(node.textContent||'空白任务')}}),
    TextAlign.configure({types:['heading','paragraph']}),TextStyle,Color,Highlight.configure({multicolor:true}),Subscript,Superscript,
@@ -126,7 +130,7 @@ export function mountRichEditor(host,options={}){
    },onElementDragStart:()=>editor.view.dispatch(closeHistory(editor.state.tr)),onElementDragEnd:()=>editor.view.dispatch(closeHistory(editor.state.tr)),nested:false,dragImageProperties:['color','background-color','font-size','font-family','padding'],onNodeChange:({node,pos})=>{blockTarget=node?{node,pos}:null;},computePositionConfig:{placement:'left-start',strategy:'absolute'}}),
   ],
   editorProps:{
-   attributes:{class:'rich-document prose','aria-label':'文档正文','aria-multiline':'true',role:'textbox',spellcheck:'false'},
+   attributes:state=>({'data-body-font':documentFontKey.getState(state)||'sans',class:'rich-document prose','aria-label':'文档正文','aria-multiline':'true',role:'textbox',spellcheck:'false'}),
    handleDOMEvents:{compositionstart(){hideSlash();return false;},compositionend(){clearTimeout(compositionTimer);compositionTimer=setTimeout(()=>{if(!destroyed)scheduleControls();},20);return false;}},
    handleKeyDown(view,event){
     if(event.isComposing||view.composing)return false;
@@ -155,7 +159,7 @@ export function mountRichEditor(host,options={}){
    },
    handleClick(view,pos,event){const anchor=event.target.closest('a[href]');if(anchor&&(!editor.isEditable||event.metaKey||event.ctrlKey)){const href=safeLink(anchor.getAttribute('href'));if(href){event.preventDefault();window.open(href,'_blank','noopener,noreferrer');return true;}}return false;},
   },
-  onTransaction({transaction}){for(const reservation of reservations)reservation.mark=reservation.mark.map(transaction.mapping);},
+  onTransaction({transaction}){for(const reservation of reservations)reservation.mark=reservation.mark.map(transaction.mapping);if(ready&&bodyFont()!==lastFont){lastFont=bodyFont();options.onChange?.();scheduleControls();}},
   onUpdate({transaction}){if(ready&&transaction.docChanged){diagnostics.documentUpdates++;options.onChange?.();scheduleControls();}},
   onSelectionUpdate(){if(ready){codeBlocks.reveal(editor.state.selection);scheduleControls();}},
   onBlur(){clearTimeout(blurTimer);blurTimer=setTimeout(()=>{if(destroyed)return;if(!slash.contains(document.activeElement))hideSlash();if(!bubble.contains(document.activeElement))editor.view.dispatch(editor.state.tr.setMeta('bubbleMenu','hide'));},120);},
@@ -249,17 +253,17 @@ export function mountRichEditor(host,options={}){
    default:if(['image','pdf','document-link','symbols'].includes(command)){options.command?.(command);return true;}return false;
   }
  }
- function isActive(command){const mapping={list:'bulletList','ordered-list':'orderedList',task:'taskList',quote:'blockquote',code:'codeBlock','inline-code':'code'};return editor.isActive(mapping[command]||command);}
+ function isActive(command){if(command.startsWith('align-')){const alignment=command.slice(6);return editor.isActive({textAlign:alignment})||(alignment==='left'&&!['center','right','justify'].some(value=>editor.isActive({textAlign:value})));}const mapping={list:'bulletList','ordered-list':'orderedList',task:'taskList',quote:'blockquote',code:'codeBlock','inline-code':'code'};return editor.isActive(mapping[command]||command);}
  function showFind(){findbar.hidden=false;findInput.focus();findInput.select();}
  const adapter={
   tiptap:editor,view:editor.view,diagnostics,
   getValue(){const doc=editor.state.doc;if(doc===cachedDoc)return markdownCache;if(doc.eq(baselineDoc)){markdownCache=baselineMarkdown;}else{markdownCache=editor.getMarkdown();diagnostics.markdownSerializations++;}cachedDoc=doc;return markdownCache;},
-  getNative:()=>({version:1,document:editor.getJSON()}),
+  getNative:()=>({version:1,document:{...editor.getJSON(),attrs:{bodyFont:bodyFont()}}}),
   getText:()=>editor.state.doc.textBetween(0,editor.state.doc.content.size,'\n'),
-  hasChanges:()=>!editor.state.doc.eq(baselineDoc),
+  hasChanges:()=>!editor.state.doc.eq(baselineDoc)||bodyFont()!==baselineFont,
   isEmpty:()=>editor.isEmpty,
   isComposing:()=>editor.view.composing,
-  markBaseline(item){baselineMarkdown=item.content||'';baselineDoc=item.rich_content?.version===1?completeDocument(editor.schema.nodeFromJSON(item.rich_content.document)):parseDocument(baselineMarkdown);if(editor.state.doc.eq(baselineDoc)){cachedDoc=editor.state.doc;markdownCache=baselineMarkdown;}},
+  markBaseline(item){baselineFont=validBodyFont(item.rich_content?.document?.attrs?.bodyFont);baselineMarkdown=item.content||'';baselineDoc=item.rich_content?.version===1?completeDocument(editor.schema.nodeFromJSON(item.rich_content.document)):parseDocument(baselineMarkdown);if(editor.state.doc.eq(baselineDoc)){cachedDoc=editor.state.doc;markdownCache=baselineMarkdown;}},
   setValue(value){editor.commands.setContent(parseDocument(String(value||'')).toJSON());},
   insertMarkdown(value){editor.chain().focus().insertContent(String(value),{contentType:'markdown'}).run();},
   appendMarkdown(value){editor.chain().focus().insertContentAt(editor.state.doc.content.size,String(value),{contentType:'markdown'}).run();},
@@ -277,7 +281,9 @@ export function mountRichEditor(host,options={}){
   active:isActive,command:run,
   heading:()=>editor.isActive('heading')?editor.getAttributes('heading').level:0,
   setHeading:level=>level?editor.chain().focus().setHeading({level:Number(level)}).run():editor.chain().focus().setParagraph().run(),
-  setColor:color=>color?editor.chain().focus().setColor(color).run():editor.chain().focus().unsetColor().run(),
+  bodyFont,
+  setBodyFont(value){if(!editor.isEditable||!['sans','serif','mono'].includes(value)||bodyFont()===value)return;editor.view.dispatch(closeHistory(editor.state.tr).step(new DocumentFontStep(value,bodyFont())));editor.view.dispatch(closeHistory(editor.state.tr));},
+  setColor(color,{focus=true}={}){const chain=editor.chain();if(focus)chain.focus();return color?chain.setColor(color).run():chain.unsetColor().run();},
   focus:()=>editor.commands.focus(),undo:()=>editor.commands.undo(),redo:()=>editor.commands.redo(),
   showFind,measure:()=>{},
   destroy(){destroyed=true;cancelAnimationFrame(updateFrame);clearTimeout(blurTimer);clearTimeout(compositionTimer);cleanup.forEach(fn=>fn());reservations.clear();editor.destroy();owned.slice().forEach(el=>{if(el instanceof HTMLDialogElement&&el.open)el.close();el.remove();});host.replaceChildren();},

@@ -10,7 +10,7 @@ Self-hosted academic notes and paper reading. Write rich documents, read PDFs in
 
 ## What it does
 
-- **Write** with rich text, math, tables, images, checklists, and foldable code blocks. The `/` menu accepts Chinese, pinyin initials, and English queries. A right-hand outline lets you jump between headings and tracks your reading position.
+- **Write** with rich text, math, tables, images, checklists, and foldable code blocks. Choose a document-wide font and use selection colors and common formatting directly from the toolbar. The `/` menu accepts Chinese, pinyin initials, and English queries. A right-hand outline lets you jump between headings and tracks your reading position.
 - **Read papers** by uploading a PDF, providing a link, or both. Your uploaded file always wins. Embed the PDF reader directly in a document.
 - **Organize** with colored catalogue tags, pin-side tag management, and document links. Create either a blank document or paper materials.
 - **Share** a read-only snapshot with a strong password and a 1-day, 7-day, 30-day, or permanent lifetime. Reset the password or revoke access at any time.
@@ -61,6 +61,8 @@ WORKSPACE_DATA_DIR=/path/to/private-data ./backup.sh /path/to/private-backups
 See the [user guide](docs/user-guide.md), [paper intake guide](docs/paper-intake.md), and [security policy](SECURITY.md) for configuration and behavior.
 
 ## Development
+
+Use Node.js 22.13+ or a newer LTS for builds and browser tests.
 
 ```bash
 npm ci

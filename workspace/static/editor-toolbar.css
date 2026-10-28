@@ -1,0 +1,37 @@
+/* Common actions stay visible; the More menu contains only less frequent tools. */
+.editor-toolbar { display: flex; flex-direction: column; align-items: stretch; gap: 3px; padding: 6px 16px; }
+.toolbar-row { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; min-width: 0; }
+.toolbar-row > button { display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 30px; height: 30px; padding: 5px; border-radius: var(--radius-sm); color: var(--body); }
+.toolbar-row > button:hover { background: var(--hover); color: var(--ink); }
+.toolbar-row > button.is-active { color: var(--accent); background: var(--accent-soft); }
+.toolbar-row .toolbar-divider { margin: 0 4px; }
+.body-font-control { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; padding: 0 5px; border-radius: var(--radius-sm); }
+.body-font-control:focus-within { background: var(--surface); }
+.editor-toolbar .body-font-control select { width: 75px; max-width: 100%; }
+.editor-toolbar #heading-tool { width: 70px; margin: 0 4px; }
+.editor-toolbar .insert-menu[open] { z-index: 20; }
+.text-color-menu summary { min-height: 30px; padding: 4px 7px; gap: 3px; }
+.text-color-glyph { display: inline-block; font: 600 16px/19px var(--ui-font); padding: 0 1px 2px; border-bottom: 3px solid var(--selection-color, var(--ink)); }
+.editor-toolbar .color-options { width: 230px; padding: 12px; }
+.color-heading { color: var(--muted); font-size: 11px; padding: 0 4px 7px; }
+.color-options #reset-text-color { font-size: 12px; padding: 7px; border: 1px solid transparent; }
+.color-options #reset-text-color[aria-pressed="true"] { background: var(--surface); }
+.color-swatches { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 10px 0; }
+.color-swatches button { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); }
+.color-swatches button span { color: var(--swatch); font-weight: 600; font-size: 16px; }
+.color-swatches button:hover { background: var(--surface); }
+.color-swatches button[aria-pressed="true"] { border-color: var(--swatch); box-shadow: inset 0 0 0 1px var(--swatch); }
+.custom-text-color { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding: 10px 4px 0; color: var(--body); font-size: 12px; }
+.custom-text-color input { width: 35px; height: 28px; padding: 2px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--paper); cursor: pointer; }
+.editor-tooltip { position: fixed; z-index: 1000; pointer-events: none; max-width: min(290px, calc(100vw - 16px)); padding: 7px 10px; border-radius: var(--radius-sm); background: var(--action); color: #fff; font: 12px/1.5 var(--ui-font); box-shadow: 0 2px 8px #11182714; }
+.editor-tooltip[hidden] { display: none; }
+@media(max-width:760px){
+ .editor-toolbar { padding: 5px 7px; gap: 1px; flex-direction: row; align-items: center; flex-wrap: wrap; }
+ .toolbar-row { display: contents; }
+ .toolbar-row > button { min-width: 28px; height: 29px; }
+ .toolbar-row .toolbar-divider { margin: 0 2px; }
+ .body-font-control { padding: 0 3px; gap: 3px; }
+ .editor-toolbar .body-font-control select { width: 66px; }
+ .editor-toolbar #heading-tool { width: 58px; margin: 0 2px; }
+ .toolbar-row .toolbar-space { min-width: 4px; }
+}

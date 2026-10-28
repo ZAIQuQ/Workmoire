@@ -70,6 +70,7 @@ export function createDocumentOutline({editor,body,rail,toggle}){
  editor.tiptap.on('update',update);cleanup.push(()=>editor.tiptap.off('update',update));
  const layout=new ResizeObserver(resize);layout.observe(body);
  const content=new ResizeObserver(scheduleGeometry);content.observe(doc);content.observe(scroll);
+ const appearance=new MutationObserver(scheduleGeometry);appearance.observe(doc,{attributes:true,attributeFilter:['data-body-font']});
  refresh();resize();
- return {refresh,destroy(){destroyed=true;clearTimeout(refreshTimer);cancelAnimationFrame(geometryFrame);cancelAnimationFrame(scrollFrame);layout.disconnect();content.disconnect();cleanup.forEach(fn=>fn());entries=[];positions=[];}};
+ return {refresh,destroy(){destroyed=true;clearTimeout(refreshTimer);cancelAnimationFrame(geometryFrame);cancelAnimationFrame(scrollFrame);layout.disconnect();content.disconnect();appearance.disconnect();cleanup.forEach(fn=>fn());entries=[];positions=[];}};
 }

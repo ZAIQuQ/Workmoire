@@ -15,7 +15,7 @@ await cp("node_modules/katex/dist/fonts","workspace/static/vendor/fonts",{recurs
 let typeCSS="";
 await rm("workspace/static/vendor/type",{recursive:true,force:true});
 await mkdir("workspace/static/vendor/type",{recursive:true});
-for(const family of ["inter","noto-sans-sc"]){
+for(const family of ["inter","noto-sans-sc","noto-serif-sc"]){
   const root="node_modules/@fontsource-variable/"+family;
   const css=await readFile(root+"/index.css","utf8");
   const files=[...css.matchAll(/url\(\.\/files\/([^)]*)\)/g)].map(match=>match[1]);
@@ -36,7 +36,7 @@ for(const [path,entry] of Object.entries(lock.packages)){
 }
 await writeFile("workspace/static/vendor/THIRD_PARTY_LICENSES.txt",licenses.join("\n\n---\n\n"));
 // Precompress public text assets; the server negotiates gzip and detects stale copies.
-for(const name of ["document-outline.css","share.html","share.css","share-pdf-viewer.html","vendor/share-icons.js","vendor/share-reader.js","index.html","app.js","app.css","design-tokens.css","rich-editor.css","code-block.css","organization.css","pdf-viewer.html","pdf-viewer.css","vendor/editor.js","vendor/interface.js","vendor/pdf-reader.mjs","vendor/pdf-extractor.mjs","vendor/pdf.worker.min.mjs","vendor/type.css","vendor/pdf-viewer.css","vendor/katex.min.css"]){
+for(const name of ["editor-toolbar.css","document-outline.css","share.html","share.css","share-pdf-viewer.html","vendor/share-icons.js","vendor/share-reader.js","index.html","app.js","app.css","design-tokens.css","rich-editor.css","code-block.css","organization.css","pdf-viewer.html","pdf-viewer.css","vendor/editor.js","vendor/interface.js","vendor/pdf-reader.mjs","vendor/pdf-extractor.mjs","vendor/pdf.worker.min.mjs","vendor/type.css","vendor/pdf-viewer.css","vendor/katex.min.css"]){
   const raw=await readFile("workspace/static/"+name);
   await writeFile("workspace/static/"+name+".gz",gzipSync(raw,{level:9}));
 }

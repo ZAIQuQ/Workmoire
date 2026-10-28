@@ -35,8 +35,9 @@ class SharingTests(unittest.TestCase):
         try:response=(client or self.guest).open(request,timeout=5)
         except urllib.error.HTTPError as error:response=error
         with response:return response.status,response.read(),dict(response.headers)
-    def create(self,title='Shared synthetic note',text='Only this saved text is shared',nodes=None):
+    def create(self,title='Shared synthetic note',text='Only this saved text is shared',nodes=None,body_font=None):
         doc={'version':1,'document':{'type':'doc','content':nodes or [{'type':'paragraph','content':[{'type':'text','text':text}]}]}}
+        if body_font:doc['document']['attrs']={'bodyFont':body_font}
         status,body,_=self.request('/api/items','POST',{'kind':'note','title':title,'content':text,'rich_content':doc});self.assertEqual(status,201)
         return json.loads(body)['item']
     def publish(self,item,days=7):
@@ -47,7 +48,7 @@ class SharingTests(unittest.TestCase):
         status,body,_=self.request('/api/items/'+str(item['id'])+'/share/settings','POST',{'share_id':share['id'],'revision':share['revision'],'action':action,**extra});self.assertEqual(status,200,body);return json.loads(body)['share']
 
     def test_unpredictable_credentials_durations_and_saved_snapshot(self):
-        item=self.create()
+        item=self.create(body_font='serif')
         for days in [1,7,30,0]:
             share=self.publish(item,days);token=share['path'].split('/')[-1]
             self.assertRegex(token,r'^[A-Za-z0-9_-]{43}$');self.assertNotEqual(token,str(item['id']))
@@ -61,7 +62,7 @@ class SharingTests(unittest.TestCase):
         self.assertEqual(self.public_request(share['path']+'/document')[0],401)
         status,body,_=self.public_request(share['path']);self.assertEqual(status,200);self.assertNotIn(item['title'].encode(),body)
         self.assertEqual(self.unlock(share)[0],200)
-        status,body,_=self.public_request(share['path']+'/document');self.assertEqual(status,200);self.assertIn(item['content'],body.decode());self.assertNotIn('owner_item_id',body.decode())
+        status,body,_=self.public_request(share['path']+'/document');self.assertEqual(status,200);self.assertIn(item['content'],body.decode());self.assertNotIn('owner_item_id',body.decode());self.assertEqual(json.loads(body)['rich_content']['document']['attrs']['bodyFont'],'serif')
         self.request('/api/items/'+str(item['id']),'PUT',{**item,'content':'New private text','rich_content':None,'base_updated_at':item['updated_at']})
         self.assertNotIn('New private text',self.public_request(share['path']+'/document')[1].decode())
         self.assertEqual(self.request('/api/items/'+str(item['id'])+'/share','POST',{'days':2,'base_updated_at':item['updated_at']})[0],409)

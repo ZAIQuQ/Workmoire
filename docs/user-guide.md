@@ -8,6 +8,21 @@ and tags, rather than separate creation types.
 
 ## Writing
 
+Choose **字体** in the toolbar to use sans, serif or monospaced text throughout
+one document. The default sans face is unchanged. Serif uses locally bundled
+Noto Serif SC; mono uses Maple Mono with the existing Chinese fallback. The
+choice applies in editing, reading and shared snapshots and supports undo/redo.
+It is stored with the native document, including local drafts, saved history and
+JSON/full archives; Markdown export does not carry document fonts. Code, formula
+faces and interface typography retain their own styles.
+
+Select text, then use the toolbar's **A** color button for a preset or custom
+color. **默认颜色** removes only the selected text's explicit color. Bold,
+italic, underline, strike, inline code, highlighting, lists, quotes, alignment,
+links and clearing text formatting are directly available. **更多** contains
+only subscript, superscript and list indentation. Hover or keyboard-focus a
+control to see its function and any shortcut.
+
 The document body has an independent outline on its right in editing, reading,
 and focus modes. Headings 1–6 appear with their hierarchy; selecting an entry
 scrolls only the document, while the current section follows scrolling. Heading

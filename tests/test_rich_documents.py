@@ -51,6 +51,26 @@ class RichDocumentTests(unittest.TestCase):
         self.assertNotIn('rich_content', listed)
         self.assertNotIn('content', listed)
 
+    def test_whole_document_font_survives_history_and_json_import(self):
+        rich=native();rich['document']['attrs']={'bodyFont':'serif'}
+        first=self.create(rich=rich)
+        changed=copy.deepcopy(first);changed['rich_content']['document']['attrs']['bodyFont']='mono';changed['base_updated_at']=first['updated_at']
+        status,body,_=self.request('/api/items/'+str(first['id']),'PUT',changed)
+        self.assertEqual(status,200);self.assertEqual(json.loads(body)['item']['rich_content']['document']['attrs']['bodyFont'],'mono')
+        revision=json.loads(self.request('/api/items/'+str(first['id'])+'/revisions')[1])['revisions'][0]
+        restored=json.loads(self.request('/api/items/'+str(first['id'])+'/revisions/'+str(revision['id'])+'/restore','POST',{})[1])['item']
+        self.assertEqual(restored['rich_content']['document']['attrs']['bodyFont'],'serif')
+        exported=json.loads(self.request('/api/export')[1])
+        self.assertEqual(exported['items'][0]['rich_content']['document']['attrs']['bodyFont'],'serif')
+        status,body,_=self.request('/api/import','POST',exported);self.assertEqual(status,201)
+        with app.open_db() as db:
+            rows=db.execute('SELECT rich_content FROM items ORDER BY id').fetchall()
+        self.assertEqual(len(rows),2)
+        self.assertTrue(all(json.loads(row[0])['document']['attrs']['bodyFont']=='serif' for row in rows))
+        for font in ['untrusted-font; background:url(https://example.org)',False,{},[]]:
+            invalid=native();invalid['document']['attrs']={'bodyFont':font}
+            with self.assertRaises(ValueError):normalized_rich_content(invalid)
+
     def test_legacy_clients_preserve_formatting_on_metadata_edits_and_clear_stale_native_body(self):
         first = self.create()
         update = {k:v for k,v in first.items() if k != 'rich_content'}

@@ -139,3 +139,5 @@ changes belong in normal commit history.
 - Reconnected the existing GitHub history with deployed development, restored repository CI/legal/container files and prior regression coverage, and recorded standing authorization for post-deployment pushes/releases. Added version metadata, bounded public release checks, bilingual README maintenance, and an exact-deployment publication helper that rejects divergence and avoids force-push.
 
 - Made the document outline a dedicated navigation view beside the body, with live headings, scroll tracking, content-reflow handling and responsive disclosure. Added selection/save/PDF preservation and lifecycle cleanup to the browser release checks.
+
+- Added validated document-font metadata and a view-preserving font history step: changing ProseMirror root attributes recreates node views, so font history stays separate internally while native saves retain the document setting. Added font/share/export checks, selection-color and tooltip coverage, and updated the supported CI Node runtime.
