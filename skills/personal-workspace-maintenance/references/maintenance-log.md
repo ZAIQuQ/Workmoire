@@ -113,6 +113,8 @@ changes belong in normal commit history.
 
 ## 2026-10-28
 
+- Moved label maintenance into catalogue rows beside pin, added stable bookmark colors, and introduced a revision-checked label-only save that preserves body drafts. Made the paper label a protected built-in, including zero-count and legacy-read behavior; recorded row-control, draft-rebase, palette and backend protection checks.
+
 - Introduced shared visual tokens and consistent moderate rounding across the workspace and PDF controls, based on Notion, Feishu and Yuque references. Prioritized the existing variable Chinese font after a platform-font audit exposed inconsistent intermediate system weights; added actual glyph/font and responsive visual checks to the release guidance.
 
 - Simplified navigation and moved labels to a searchable library and contextual document picker. Added local metadata suggestions and previewed, bounded transactional renames/merges, with checks for stale versions, original revisions, draft preservation during filters/saves and mobile navigation. Recorded the workflow in the release checklist and navigation design note.

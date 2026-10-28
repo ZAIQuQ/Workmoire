@@ -63,14 +63,25 @@ are documented in
 
 The sidebar keeps three main destinations and one tag-management entry. Its
 desktop collapse control remembers your preference without remounting the
-editor. Document rows show a title, a short preview and relevant task status.
+editor. Document rows show a title, a short preview, colored bookmarks and
+relevant task status. The bookmark control sits immediately left of pin. Each
+row shows two tags and an overflow count; clicking a tag filters the catalogue.
+The same normalized label always receives the same color across rows, pickers
+and the tag library. Labels remain readable without relying on color alone.
 
-Edit tags below the document title: search existing names, choose with the arrow
-keys and Enter, create a label, or remove a selected chip. Suggestions rank title
-matches, labels used with the last selected tag, and usage frequency, using local
-metadata. Tag edits stay unsaved until normal save; duplicate names ignore case
-and full-width variants. Up to three chips remain visible, with overflow in the
-picker. Reading mode does not edit labels.
+Manage a document's tags from its catalogue row, without opening the document.
+The picker supports search, keyboard selection, creation, removal and contextual
+suggestions. Explicitly saving labels on an existing document updates only its
+tags, with a version check and history revision. Unsaved body text remains local;
+matching local drafts advance to the new metadata revision. A new document has
+a draft row, and its tag changes stay local until normal document save. The
+current document remains accessible even if it is outside the filtered page.
+
+`论文` is a built-in label and exists even with zero matching documents. It cannot
+be renamed or merged away. Paper dossiers automatically include it and cannot
+remove it; ordinary notes may add or remove their association with it. Existing
+paper records are classified on read without a bulk database rewrite. The
+built-in paper label does not consume a paper's twelve custom-label slots.
 
 The list's tag filter and searchable, paginated tag library include an untagged
 view. Filtering preserves the open draft. Rename or merge a tag through the

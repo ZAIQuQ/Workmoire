@@ -429,10 +429,34 @@ def safe_tags(value: object) -> str:
     return ",".join(parts[:12])
 
 
+PAPER_TAG = "论文"
+
+
+def effective_tags(value: str, kind: str) -> str:
+    """Expose the paper classification without rewriting legacy records on read."""
+    if kind == 'paper':
+        return ','.join([PAPER_TAG, *(tag for tag in value.split(',') if tag and tag != PAPER_TAG)])
+    return value
+
+
+def document_tags(value: object, kind: str) -> str:
+    if kind == 'paper':
+        custom = ','.join(tag_name(tag) for tag in str(value or '').replace('，', ',').split(',') if tag_name(tag) != PAPER_TAG)
+        return effective_tags(safe_tags(custom), kind)
+    return safe_tags(value)
+
+
+def tag_summary(row: sqlite3.Row) -> dict:
+    tags = effective_tags(row['tags'], row['kind'])
+    return {'id': row['id'], 'kind': row['kind'], 'tags': tags, 'tags_list': tags.split(',') if tags else [], 'updated_at': row['updated_at']}
+
+
 def tag_rename_plan(con: sqlite3.Connection, source: object, target: object) -> tuple[dict, list]:
     if not isinstance(source, str) or not isinstance(target, str):
         raise ValueError("请输入标签名称")
     target = tag_name(target)
+    if source == PAPER_TAG:
+        raise ValueError('“论文”是内置标签，不能重命名或合并移除')
     if any(not name or len(name) > 32 or "," in name or "，" in name for name in [source, target]):
         raise ValueError("标签名称需要 1 到 32 个字符，不能包含逗号")
     if source == target:
@@ -445,7 +469,7 @@ def tag_rename_plan(con: sqlite3.Connection, source: object, target: object) -> 
     destination = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND instr(',' || tags || ',', ',' || ? || ',') > 0", (target,)).fetchone()[0]
     versions = [(row['id'], row['updated_at'], row['tags']) for row in rows]
     token = hashlib.sha256(json.dumps([source, target, destination, versions], ensure_ascii=False).encode()).hexdigest()
-    return {'source': source, 'target': target, 'count': len(rows), 'merge': bool(destination), 'preview_token': token,
+    return {'source': source, 'target': target, 'count': len(rows), 'merge': bool(destination) or target == PAPER_TAG, 'preview_token': token,
             'items': [{'id': row['id'], 'title': row['title']} for row in rows[:5]]}, rows
 
 
@@ -610,7 +634,8 @@ def inline_file_type(target: Path) -> str | None:
 def as_item(row: sqlite3.Row) -> dict:
     result = dict(row)
     result["rich_content"] = read_rich_content(result.get("rich_content", ""), result.get("content", ""))
-    result["tags_list"] = [x for x in result.get("tags", "").split(",") if x]
+    result["tags"] = effective_tags(result.get("tags", ""), result.get("kind", ""))
+    result["tags_list"] = [x for x in result["tags"].split(",") if x]
     return result
 
 
@@ -624,7 +649,8 @@ def as_item_summary(row: sqlite3.Row) -> dict:
     leaving the complete body to the authenticated item-detail endpoint.
     """
     result = {key: row[key] for key in row.keys() if key not in {"content", "rich_content"}}
-    result["tags_list"] = [x for x in result.get("tags", "").split(",") if x]
+    result["tags"] = effective_tags(result.get("tags", ""), result.get("kind", ""))
+    result["tags_list"] = [x for x in result["tags"].split(",") if x]
     content = str(row["content"] or "") if "content" in row.keys() else ""
     native = read_rich_content(row["rich_content"], content) if "rich_content" in row.keys() else None
     if native:
@@ -1362,18 +1388,19 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             context = params.get("context", [""])[0][:32]
             title = params.get("title", [""])[0][:200]
             sql = """WITH RECURSIVE split(tag,rest,related) AS (
-                SELECT '', tags || ',', CASE WHEN ?!='' AND instr(',' || tags || ',', ',' || ? || ',') > 0 THEN 1 ELSE 0 END
+                SELECT '', CASE WHEN kind='paper' AND instr(',' || tags || ',', ',论文,')=0 THEN '论文,' ELSE '' END || tags || ',', CASE WHEN ?!='' AND (instr(',' || tags || ',', ',' || ? || ',') > 0 OR (kind='paper' AND ?='论文')) THEN 1 ELSE 0 END
                 FROM items WHERE deleted_at='' AND (?='' OR kind=?)
                 UNION ALL SELECT substr(rest,1,instr(rest,',')-1), substr(rest,instr(rest,',')+1),related FROM split WHERE rest!=''
-            ), counts AS (SELECT tag,COUNT(*) AS count,SUM(related) AS related FROM split
-                WHERE tag!='' AND instr(lower(tag),lower(?))>0 GROUP BY tag) """
+            ), tag_rows AS (SELECT tag,related,1 AS used FROM split WHERE tag!='' UNION ALL SELECT '论文',0,0),
+            counts AS (SELECT tag,SUM(used) AS count,SUM(related) AS related FROM tag_rows
+                WHERE instr(lower(tag),lower(?))>0 GROUP BY tag) """
             con = open_db()
             try:
                 con.execute("BEGIN")
-                values = (context, context, kind, kind, query)
+                values = (context, context, context, kind, kind, query)
                 total = con.execute(sql + "SELECT COUNT(*) FROM counts", values).fetchone()[0]
-                rows = con.execute(sql + "SELECT tag,count,related,CASE WHEN instr(lower(?),lower(tag))>0 THEN 1 ELSE 0 END AS title_match FROM counts ORDER BY title_match DESC,related DESC,count DESC,tag ASC LIMIT ? OFFSET ?", values + (title, limit, offset)).fetchall()
-                untagged = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND tags='' AND (?='' OR kind=?)", (kind, kind)).fetchone()[0]
+                rows = con.execute(sql + "SELECT tag,count,related,tag='论文' AS built_in,CASE WHEN instr(lower(?),lower(tag))>0 THEN 1 ELSE 0 END AS title_match FROM counts ORDER BY title_match DESC,related DESC,built_in DESC,count DESC,tag ASC LIMIT ? OFFSET ?", values + (title, limit, offset)).fetchall()
+                untagged = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND tags='' AND kind!='paper' AND (?='' OR kind=?)", (kind, kind)).fetchone()[0]
             finally:
                 con.close()
             self.json_response({"tags": [dict(row) for row in rows], "total": total, "untagged": untagged, "next_offset": offset + len(rows) if offset + len(rows) < total else None})
@@ -1616,10 +1643,10 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 clauses.append("status=?")
                 values.append(status)
             if tag:
-                clauses.append("instr(',' || tags || ',', ',' || ? || ',') > 0")
+                clauses.append("(kind='paper' OR instr(',' || tags || ',', ',' || ? || ',') > 0)" if tag == PAPER_TAG else "instr(',' || tags || ',', ',' || ? || ',') > 0")
                 values.append(tag)
             if params.get("untagged", [""])[0] == "1":
-                clauses.append("tags=''")
+                clauses.append("tags='' AND kind!='paper'")
             if entry_date:
                 clauses.append("entry_date=?")
                 values.append(entry_date)
@@ -2481,6 +2508,37 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 if upload_path is not None:
                     upload_path.unlink(missing_ok=True)
             return
+        if re.fullmatch(r"/api/items/[1-9][0-9]*/tags", path):
+            if not self.require_user():
+                return
+            try:
+                item_id = int(path.split('/')[3])
+                data = parse_json(self)
+                if not isinstance(data.get('tags'), str) or len(data['tags']) > 1000:
+                    raise ValueError('标签格式无效')
+                base = data.get('base_updated_at')
+                if not isinstance(base, str) or not base:
+                    raise ValueError('缺少文档版本，请刷新后重试')
+                with closing(open_db()) as con, con:
+                    con.execute('BEGIN IMMEDIATE')
+                    row = con.execute("SELECT * FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
+                    if not row:
+                        self.error('文档不存在', 404)
+                        return
+                    if base != row['updated_at']:
+                        self.json_response({'error': '文档已在其他窗口更新，请重新打开文档后维护标签', 'item': tag_summary(row)}, 409)
+                        return
+                    tags = document_tags(data['tags'], row['kind'])
+                    if tags != effective_tags(row['tags'], row['kind']):
+                        record_revision(con, row)
+                        con.execute('UPDATE items SET tags=?,updated_at=? WHERE id=?', (tags, utc_now(), item_id))
+                        log_activity(con, 'update', 'item', item_id, row['title'])
+                        row = con.execute('SELECT * FROM items WHERE id=?', (item_id,)).fetchone()
+                    result = tag_summary(row)
+                self.json_response({'item': result})
+            except Exception as exc:
+                self.request_error(exc)
+            return
         if path in {"/api/tags/preview", "/api/tags/rename"}:
             if not self.require_user():
                 return
@@ -2750,7 +2808,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             "summary": str(data.get("summary", "")).strip()[:500],
             "content": content,
             "rich_content": normalized_rich_content(data.get("rich_content"), content),
-            "tags": safe_tags(data.get("tags", "")),
+            "tags": document_tags(data.get("tags", ""), kind),
             "status": status,
             "priority": priority,
             "due_date": due_date,
