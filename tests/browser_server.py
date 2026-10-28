@@ -2,10 +2,12 @@
 import base64
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import workspace_server as app
+from share_server import ShareHTTPServer
 
 
 def pdf_fixture():
@@ -24,6 +26,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='workmoire-browser-') as scratch:
         app.DATA_DIR=Path(scratch);app.FILES_DIR=Path(scratch)/'files';app.DB_PATH=Path(scratch)/'workspace.db'
         app.SESSION_SECRET='synthetic-browser-session-secret';app.SETUP_TOKEN='';app.CODEX_BIN='/usr/bin/true';app.COOKIE_SECURE=False
+        app.SHARE_DATA_DIR=str(Path(scratch)/'sharing');app.SHARE_PUBLIC_URL='http://127.0.0.1:8766';app.SHARE_PORT=8766
         app.init_db()
         fixture_paper={'title':'Synthetic paper for browser verification','authors':['Example Researcher'],'year':'2026','venue':'Example Journal','doi':'10.0000/synthetic','url':'https://example.org/paper','pdf_url':'','abstract':'A synthetic study of how to connect academic notes.','reference':'doi:10.0000/synthetic','provider':'Synthetic metadata'}
         app.lookup_papers=lambda reference:[fixture_paper]
@@ -74,8 +77,10 @@ def attention(q, k, v):
             pdf=pdf_fixture();name='b'*32+'.pdf';(app.FILES_DIR/name).write_bytes(pdf)
             con.execute('INSERT INTO files(id,name,stored_name,size,content_type,item_id,created_at) VALUES(?,?,?,?,?,2,?)',('b'*32,'synthetic-paper.pdf',name,len(pdf),'application/pdf',stamp))
         server=app.WorkspaceHTTPServer(('127.0.0.1',8765),app.WorkspaceHandler)
+        sharing=ShareHTTPServer(('127.0.0.1',8766),Path(app.SHARE_DATA_DIR),app.STATIC_DIR,Path(scratch)/'sharing/auth')
+        threading.Thread(target=sharing.serve_forever,daemon=True).start()
         print('Synthetic browser server ready',flush=True)
         try:server.serve_forever()
-        finally:server.server_close()
+        finally:server.server_close();sharing.shutdown();sharing.server_close()
 
 if __name__=='__main__':main()

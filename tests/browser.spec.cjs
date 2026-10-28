@@ -282,3 +282,42 @@ test('cancelled paper imports go to recoverable trash and invalid uploads create
 test('failed paper analysis clears an older preview and still permits archiving the selected PDF',async({page})=>{
  await login(page);await paperEntry(page);const dialog=page.locator('.paper-import-dialog');await dialog.locator('#paper-pdf-input').setInputFiles({name:'analysis.pdf',mimeType:'application/pdf',buffer:chosenPDF('ANALYSIS_RETRY')});await dialog.locator('#paper-prepare').click();await expect(dialog.locator('#paper-generate')).toBeEnabled();await dialog.locator('#paper-generate').click();await expect(dialog.locator('.paper-analysis-result')).toBeVisible();await page.route('**/api/papers/draft',async route=>{if(route.request().postDataJSON().generate)await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'整理暂时超时，请重试'})});else await route.continue();});await dialog.locator('#paper-generate').click();await expect(dialog.locator('.paper-import-error')).toContainText('超时');await expect(dialog.locator('.paper-analysis-result')).toBeHidden();await dialog.locator('#paper-use').click();await expect(page.locator('.rich-document')).toContainText('阅读笔记');await expect(page.locator('.rich-document')).not.toContainText('如何把阅读与独立思考联系起来');await expect(page.locator('.native-pdf iframe')).toHaveCount(1);await save(page);
 });
+
+async function createShare(page,title='浏览器测试：分享的研究笔记'){
+ if(page.viewportSize().width<800)await page.getByRole('button',{name:'打开导航'}).click();
+ await blank(page,title);await setContent(page,'## 验证内容\n\n只有这个保存版本会公开。公式 $x^2$。\n\n```python\nprint("shared snapshot")\n```\n\n- [ ] 只读待办\n\n@[pdf](/files/'+('b'.repeat(32))+'?inline=1)');
+ await page.locator('#asset-input').setInputFiles({name:'share-image.png',mimeType:'image/png',buffer:pixel});await expect(page.locator('.rich-document img')).toHaveCount(1);
+ await page.locator('#share-document').click();await expect(page.getByRole('dialog',{name:'分享文档'})).toBeVisible();await expect(page.locator('#share-duration option')).toHaveText(['1 天','7 天','30 天','永久']);await expect(page.locator('#share-create')).toContainText('保存并');
+ await page.locator('#share-create').click();await expect(page.locator('#share-link')).toHaveValue(/^http:\/\/127\.0\.0\.1:8766\/s\/[A-Za-z0-9_-]{43}$/);await expect(page.locator('#share-create')).toBeEnabled();
+ return {url:await page.locator('#share-link').inputValue(),password:await page.locator('#share-owner-password').inputValue(),id:await page.evaluate(()=>state.current.id)};
+}
+async function unlockShare(guest,share){await guest.goto(share.url);await guest.locator('#share-password').fill(share.password);await guest.locator('#share-unlock').click();await expect(guest.locator('#share-article')).toBeVisible();}
+
+test('sharing saves a protected snapshot and renders read-only rich blocks, images and PDF',async({page,browser})=>{
+ await login(page);const share=await createShare(page);const context=await browser.newContext(),guest=await context.newPage(),errors=[];guest.on('pageerror',e=>errors.push(e.message));
+ try{
+  await guest.goto(share.url);await expect(guest.locator('#share-gate')).toBeVisible();await expect(guest.locator('#share-article')).toBeHidden();expect(await guest.content()).not.toContain('只有这个保存版本会公开');expect((await context.request.get(share.url+'/document')).status()).toBe(401);
+  await guest.locator('#share-password').fill('synthetic-wrong-password');await guest.locator('#share-unlock').click();await expect(guest.locator('#share-message')).toContainText('密码不正确');
+  await unlockShare(guest,share);await expect(guest.locator('.rich-document')).toHaveAttribute('contenteditable','false');await expect(guest.locator('.katex')).toHaveCount(1);await expect(guest.locator('li[data-type="taskItem"] input')).toBeDisabled();await expect.poll(()=>guest.locator('.rich-document img').evaluate(el=>el.naturalWidth)).toBe(1);
+  const block=guest.locator('.native-code-block');await expect(block.locator('.hljs-built_in')).toBeVisible();await block.locator('.code-fold').click();await expect(block.locator('pre')).toBeHidden();await block.locator('.code-fold').click();await expect(block.locator('pre')).toBeVisible();
+  await expect(guest.frameLocator('.native-pdf iframe').locator('.page canvas').first()).toBeVisible();await expect(guest.frameLocator('.native-pdf iframe').locator('.textLayer')).toContainText('Workmoire');
+  expect((await context.request.get('http://127.0.0.1:8766/api/items')).status()).toBe(404);expect((await context.request.get('http://127.0.0.1:8766/static/app.js')).status()).toBe(404);
+  await page.locator('.share-close').click();await setContent(page,'后续的私有修改');await save(page);await guest.reload();await expect(guest.locator('.rich-document')).toContainText('只有这个保存版本会公开');await expect(guest.locator('.rich-document')).not.toContainText('后续的私有修改');
+  await guest.screenshot({path:'artifacts/rich/share-reader-desktop.png',fullPage:true});expect(errors).toEqual([]);
+ }finally{await context.close();}
+});
+
+test('sharing password reset, expiry settings and revocation invalidate reader access',async({page,browser})=>{
+ await login(page);const share=await createShare(page,'浏览器测试：分享权限');const context=await browser.newContext(),guest=await context.newPage();
+ try{
+  await page.locator('#share-duration').selectOption('0');await expect(page.locator('#share-expiry')).toHaveText('永久有效，可随时停止分享');await unlockShare(guest,share);
+  const file=(await guest.locator('.rich-document img').getAttribute('src'));await page.locator('#share-reset-password').click();await expect(page.locator('.share-dialog-status')).toContainText('原密码和访问会话已失效');const replacement=await page.locator('#share-owner-password').inputValue();expect(replacement).not.toBe(share.password);
+  expect((await context.request.get(share.url+'/document')).status()).toBe(401);expect((await context.request.get('http://127.0.0.1:8766'+file)).status()).toBe(401);
+  await unlockShare(guest,{...share,password:replacement});await page.locator('#share-revoke').click();await expect(page.locator('.share-dialog-status')).toContainText('分享已停止');await guest.reload();await expect(guest.locator('#share-article')).toBeHidden();await expect(guest.locator('#share-message')).toContainText('已停止');expect((await context.request.get('http://127.0.0.1:8766'+file)).status()).toBe(404);
+ }finally{await context.close();}
+});
+
+test('sharing controls and reader remain usable at phone widths',async({page,browser})=>{
+ await login(page);await page.setViewportSize({width:390,height:844});const share=await createShare(page,'浏览器测试：手机分享');await expect(page.locator('#share-create')).toBeInViewport();await expect(page.locator('#share-copy-all')).toBeInViewport();expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);await page.screenshot({path:'artifacts/rich/share-dialog-mobile.png'});
+ const context=await browser.newContext({viewport:{width:390,height:844}}),guest=await context.newPage();try{await unlockShare(guest,share);await expect(guest.frameLocator('.native-pdf iframe').locator('.page canvas').first()).toBeVisible();expect(await guest.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);await guest.screenshot({path:'artifacts/rich/share-reader-mobile.png',fullPage:true});}finally{await context.close();}
+});

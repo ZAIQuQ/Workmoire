@@ -8,7 +8,7 @@ const status=$("#pdf-status");
 try{
   const parameter=new URLSearchParams(location.search).get("file")||"";
   const source=new URL(parameter,location.origin);
-  if(source.origin!==location.origin||!/^\/files\/[a-f0-9]{32}$/.test(source.pathname))throw new Error("PDF 地址无效，请重新插入附件");
+  if(source.origin!==location.origin||!(/^\/files\/[a-f0-9]{32}$/.test(source.pathname)||/^\/s\/[A-Za-z0-9_-]{43}\/files\/[a-f0-9]{32}$/.test(source.pathname)))throw new Error("PDF 地址无效，请重新插入附件");
   source.search="?inline=1";
   const eventBus=new EventBus();
   const linkService=new PDFLinkService({eventBus,externalLinkTarget:2,externalLinkRel:"noopener noreferrer"});

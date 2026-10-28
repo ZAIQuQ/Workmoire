@@ -10,3 +10,5 @@ artifacts/
 .test-*
 test-results/
 playwright-report/
+
+share-data/

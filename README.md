@@ -225,3 +225,12 @@ account credentials.
 MIT. Bundled editor/rendering libraries, icons, and fonts retain their respective
 notices in `workspace/static/vendor/THIRD_PARTY_LICENSES.txt`. Pinned resource
 sources are listed in `workspace/static/THIRD_PARTY_ASSETS.md`.
+
+## Document sharing
+
+Use **分享** at the upper right of a document to generate a password-protected,
+read-only snapshot on the independent sharing service (default port 5201).
+Choose 1, 7, 30 days or permanent; every link gets a strong generated password
+and an unpredictable URL identifier. Reset passwords, replace links or stop
+sharing from the same dialog. Later private edits are not published automatically.
+See [sharing setup, access controls and backup/restore](docs/document-sharing.md).

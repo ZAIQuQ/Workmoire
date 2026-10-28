@@ -188,3 +188,14 @@
 .paper-upload-zone input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .paper-upload-zone:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .paper-upload-zone:has(input:disabled) { opacity: .65; cursor: default; }
+
+/* Share settings stay in the private workspace; public readers use their own page. */
+.share-settings-dialog .dialog-card { width: 560px; }
+.share-field-row { display: flex; align-items: center; gap: 6px; }
+.share-field-row input { min-width: 0; flex: 1; font-family: var(--mono-font); font-size: 12px; }
+.share-field-row .button { flex: none; }
+.share-settings-dialog .field small { color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.7; }
+.share-dialog-status { color: var(--body); font-size: 12px; line-height: 1.8; min-height: 22px; }
+.share-dialog-actions { display: flex; align-items: center; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+.share-dialog-actions > .quiet-button { margin-right: auto; font-size: 12px; }
+@media(max-width:600px){.share-settings-dialog .dialog-card{padding:22px}.share-dialog-actions .button{flex:1}.share-dialog-actions > .quiet-button{flex-basis:100%}.share-field-row{flex-wrap:wrap}.share-field-row input{flex-basis:100%}#share-document{padding:5px 7px}#share-document .icon{display:none}}

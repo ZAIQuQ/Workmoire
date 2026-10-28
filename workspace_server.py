@@ -40,6 +40,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from paper_tools import dossier_header, fetch_public, lookup_papers, reading_material
 from rich_documents import normalized_rich_content, read_rich_content, remap_references
 from paper_intake import download_paper, paper_source, selected_pdf_header
+from share_store import SharePublisher
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "workspace" / "static"
@@ -93,6 +94,10 @@ try:
     ASSISTANT_TIMEOUT = min(max(int(os.environ.get("WORKSPACE_ASSISTANT_TIMEOUT", "90")), 5), 120)
 except ValueError:
     ASSISTANT_TIMEOUT = 90
+
+SHARE_DATA_DIR = os.environ.get('WORKSPACE_SHARE_DATA_DIR', '').strip()
+SHARE_PUBLIC_URL = os.environ.get('WORKSPACE_SHARE_PUBLIC_URL', '').strip().rstrip('/')
+SHARE_PORT = int(os.environ.get('WORKSPACE_SHARE_PORT', '5201'))
 
 SESSION_TTL = 60 * 60 * 24 * 14
 MAX_JSON = 4 * 1024 * 1024
@@ -359,6 +364,19 @@ def init_db() -> None:
             con.execute("UPDATE %s SET entry_date=? WHERE id=?" % table, (recovered, row["id"]))
     con.commit()
     con.close()
+    if SHARE_DATA_DIR:
+        SharePublisher(Path(SHARE_DATA_DIR)).initialize()
+
+
+def share_publisher():
+    if not SHARE_DATA_DIR:
+        raise ValueError('分享服务尚未配置')
+    return SharePublisher(Path(SHARE_DATA_DIR))
+
+
+def revoke_item_shares(item_ids):
+    if SHARE_DATA_DIR:
+        SharePublisher(Path(SHARE_DATA_DIR)).revoke_items(item_ids)
 
 
 def password_hash(password: str, salt: bytes | None = None) -> str:
@@ -1435,6 +1453,20 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 con.close()
             self.json_response({"items": [dict(row) for row in rows], "selected": dict(selected) if selected else None, "total": total, "next_offset": offset + len(rows) if offset + len(rows) < total else None})
             return
+        share_match = re.fullmatch(r'/api/items/([1-9][0-9]*)/share', path)
+        if share_match:
+            if not self.require_user():
+                return
+            try:
+                item_id = int(share_match[1])
+                with closing(open_db()) as con:
+                    if not con.execute("SELECT 1 FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone():
+                        self.error('文档不存在', 404)
+                        return
+                self.json_response({'share':share_publisher().latest(item_id),'public_base_url':SHARE_PUBLIC_URL,'port':SHARE_PORT})
+            except Exception as exc:
+                self.request_error(exc, '分享暂时不可用', 503)
+            return
         if path == "/api/tags":
             if not self.require_user():
                 return
@@ -2211,6 +2243,54 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 restored = con.execute("SELECT id,name,size,content_type,created_at FROM files WHERE id=?", (file_id,)).fetchone()
             self.json_response({"file": dict(restored)})
             return
+        share_match = re.fullmatch(r'/api/items/([1-9][0-9]*)/share(?:/(settings))?', path)
+        if share_match:
+            if not self.require_user():
+                return
+            try:
+                origin = self.headers.get('Origin', '')
+                if origin and (urlparse(origin).netloc != self.headers.get('Host', '') or urlparse(origin).scheme not in {'http','https'}):
+                    self.error('请求来源无效', 403)
+                    return
+                if self.headers.get('Content-Type', '').split(';')[0].strip() != 'application/json':
+                    self.error('请求格式无效', 415)
+                    return
+                payload = parse_json_bounded(self, 4096)
+                item_id = int(share_match[1]); publisher = share_publisher()
+                with closing(open_db()) as con:
+                    con.execute('BEGIN')
+                    item = con.execute("SELECT * FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
+                    if not item:
+                        self.error('文档不存在', 404)
+                        return
+                    if share_match[2]:
+                        result = publisher.change(item_id, str(payload.get('share_id','')), payload.get('revision'), str(payload.get('action','')), payload.get('days'))
+                    else:
+                        if payload.get('base_updated_at') != item['updated_at']:
+                            self.error('文档已变化，请先保存或重新打开后再分享', 409)
+                            return
+                        native = read_rich_content(item['rich_content'], item['content'])
+                        if not native:
+                            raise ValueError('请先在编辑器保存文档，再生成分享链接')
+                        ids = set()
+                        def references(node):
+                            if node.get('type')=='codeBlock': return
+                            attrs = node.get('attrs', {})
+                            candidates = [attrs.get('src','')] + [mark.get('attrs',{}).get('href','') for mark in node.get('marks',[]) if mark.get('type')=='link']
+                            for candidate in candidates:
+                                parsed = urlparse(str(candidate))
+                                if parsed.netloc and parsed.netloc != urlparse(origin or 'http://'+self.headers.get('Host','')).netloc: continue
+                                match = re.fullmatch(r'/files/([a-f0-9]{32})', parsed.path)
+                                if match: ids.add(match[1])
+                            for child in node.get('content', []): references(child)
+                        references(native['document'])
+                        if len(ids)>256: raise ValueError('单个分享最多包含 256 个附件')
+                        files = {row['id']:dict(row) for file_id in ids for row in con.execute("SELECT * FROM files WHERE id=? AND deleted_at=''", (file_id,))}
+                        result = publisher.publish(dict(item), files, FILES_DIR, payload.get('days',7), origin or 'http://'+self.headers.get('Host',''))
+                self.json_response({'share':result,'public_base_url':SHARE_PUBLIC_URL,'port':SHARE_PORT})
+            except Exception as exc:
+                self.request_error(exc, '分享暂时不可用，请稍后重试', 503)
+            return
         if path == "/api/papers/prepare":
             if not self.require_user():
                 return
@@ -2701,6 +2781,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                             log_activity(con, "update", "item", row["id"], row["title"])
                             updated_ids.append(row["id"])
                     else:
+                        revoke_item_shares(item_ids)
                         remember_trash_relationships(con, item_ids, stamp)
                         con.execute(
                             "UPDATE items SET deleted_at=?,updated_at=?,parent_id=NULL WHERE id IN (%s)" % placeholders,
@@ -3040,6 +3121,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 if not row:
                     self.error("回收站中不存在这条内容", 404)
                     return
+                revoke_item_shares([item_id])
                 deleted = con.execute("DELETE FROM items WHERE id=? AND deleted_at!=''", (item_id,)).rowcount
                 if deleted != 1:
                     self.error("回收站中的内容状态已变化，请刷新后重试", 409)
@@ -3074,6 +3156,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 row = con.execute("SELECT title FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone()
                 if row:
                     stamp = utc_now()
+                    revoke_item_shares([item_id])
                     remember_trash_relationships(con, [item_id], stamp)
                     con.execute("UPDATE items SET deleted_at=?, updated_at=?, parent_id=NULL WHERE id=?", (stamp, stamp, item_id))
                     con.execute("UPDATE items SET parent_id=NULL,updated_at=? WHERE parent_id=? AND deleted_at=''", (stamp, item_id))

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 base="$(cd "$(dirname "$0")" && pwd)"
 data="${WORKSPACE_DATA_DIR:-$base/data}"
 out="${1:-$base/backups}"
@@ -21,8 +22,9 @@ stamp="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$out"
 db_snapshot="$out/workspace-$stamp.db"
 files_snapshot="$out/files-$stamp.tgz"
+shares_snapshot="$out/shares-$stamp.tgz"
 cleanup_failed() {
-  rm -f "$db_snapshot" "$files_snapshot"
+  rm -f "$db_snapshot" "$files_snapshot" "$shares_snapshot"
 }
 trap cleanup_failed ERR
 if command -v sqlite3 >/dev/null 2>&1; then
@@ -59,12 +61,23 @@ else
   tar -czf "$files_snapshot" --files-from /dev/null
 fi
 tar -tzf "$files_snapshot" >/dev/null
+if [ -n "${WORKSPACE_SHARE_DATA_DIR:-}" ]; then
+  python3 - "$base" "$WORKSPACE_SHARE_DATA_DIR" "$shares_snapshot" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from share_store import backup_publications
+backup_publications(Path(sys.argv[2]), Path(sys.argv[3]))
+PY
+fi
 trap - ERR
 
-# Prune only the two files produced by this script, and only after both new
+# Prune only files produced by this script, and only after all new
 # snapshots have been written successfully. mtime is intentionally used here:
 # it also makes retention predictable when an operator restores old backups.
 find "$out" -maxdepth 1 -type f -name 'workspace-*.db' -mtime "+$retention_days" -delete
 find "$out" -maxdepth 1 -type f -name 'files-*.tgz' -mtime "+$retention_days" -delete
+find "$out" -maxdepth 1 -type f -name 'shares-*.tgz' -mtime "+$retention_days" -delete
 
 printf '%s\n' "$db_snapshot" "$files_snapshot"
+if [ -f "$shares_snapshot" ]; then printf '%s\n' "$shares_snapshot"; fi

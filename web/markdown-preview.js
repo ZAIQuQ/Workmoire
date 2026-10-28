@@ -17,7 +17,7 @@ const escape = value => String(value).replace(/[&<>"']/g, ch=>({"&":"&amp;","<":
 export function safeMedia(value) {
   try {
     const url = new URL(value, location.origin);
-    if (url.origin === location.origin) return /^\/files\/[a-f0-9]{32}$/.test(url.pathname) ? url.pathname+url.search : null;
+    if (url.origin === location.origin) return (/^\/files\/[a-f0-9]{32}$/.test(url.pathname)||/^\/s\/[A-Za-z0-9_-]{43}\/files\/[a-f0-9]{32}$/.test(url.pathname)) ? url.pathname+url.search : null;
     return url.protocol === "https:" && !url.username && !url.password ? url.href : null;
   } catch { return null; }
 }

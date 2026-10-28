@@ -129,3 +129,7 @@ changes belong in normal commit history.
 - Added deterministic slash-command aliases for Chinese, pinyin and English, including the requested ddm/yy/cite/todo/db shortcuts. Verified compound queries, exact-match ordering, cancelled queries and Chinese composition through browser input.
 - Recorded per-service AI skill/template standardization in TODO.md for user-guided refinement after overall design convergence.
 - Added lossless code-folding boundaries and checks: authored state persists through native history/import, reading/search/theme overrides stay outside document history, and caret/search/copy retain complete source. Recorded personal-site typography research and verified licensed local Maple Mono assets, contrast and responsive scrolling.
+
+## 2026-10-29
+
+- Added explicit publication boundaries for a separate password-protected reader: saved snapshots, scoped attachment copies, independent OS identity and environment, opaque credentials, durable attempt limits and per-request revocation checks. Added synthetic browser/security/restore gates and deployment permission verification, including the fact that ports do not isolate cookie domains. Extended the actual backup job contract to preserve the publisher key and consistent publication media while excluding reader sessions; recorded rollback/restoration implications in the sharing guide.

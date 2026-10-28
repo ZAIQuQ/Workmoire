@@ -1,0 +1,19 @@
+.share-page { min-height: 100dvh; background: var(--canvas); }
+.share-brand { display: flex; align-items: center; gap: 9px; max-width: 960px; margin: 0 auto; padding: 24px; font-size: 15px; font-weight: 550; }
+.share-brand > span:last-child { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 4px; }
+.share-gate { width: 380px; max-width: calc(100vw - 32px); margin: 8vh auto 40px; padding: 30px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-xl); }
+.share-lock { display: inline-grid; place-items: center; width: 38px; height: 38px; background: var(--surface); border-radius: var(--radius-md); margin-bottom: 16px; }
+.share-gate h1 { font-size: 21px; font-weight: 550; }
+.share-gate p { font-size: 13px; line-height: 1.8; color: var(--muted); }
+.share-gate input { font-family: var(--mono-font); }
+.share-message { min-height: 1.8em; margin: 12px 0 0; }
+.share-article { max-width: 960px; margin: 0 auto 40px; border: 1px solid var(--line); border-radius: var(--radius-xl); background: var(--paper); overflow: hidden; }
+.share-article > header { padding: 38px 46px 0; }
+.share-article h1 { font-size: 28px; font-weight: 550; line-height: 1.5; overflow-wrap: anywhere; }
+#shared-version { color: var(--muted); font-size: 12px; }
+.share-page .rich-editor-scroll { flex: none; overflow: visible; }
+.share-page .rich-editor-content { max-width: none; padding-bottom: 48px; }
+.share-page .rich-document { cursor: default; min-height: 0; }
+.share-page .rich-block-handle, .share-page .rich-bubble-menu, .share-page .native-node-delete { display: none !important; }
+.share-page .rich-editor-shell { display: block; }
+@media(max-width:600px){.share-brand{padding:18px 20px}.share-article{margin:0;border-radius:0;border:0}.share-article>header{padding:28px 24px 0}.share-article h1{font-size:24px}.share-page .rich-editor-content{padding:20px 24px 40px}.share-gate{padding:24px}}

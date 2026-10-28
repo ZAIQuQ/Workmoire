@@ -1,0 +1,35 @@
+[Unit]
+Description=Workmoire password-protected document sharing
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=workmoire-share
+Group=workmoire-share
+WorkingDirectory=/opt/workmoire-share
+EnvironmentFile=/etc/workmoire-share.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 /opt/workmoire-share/share_server.py
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/var/lib/workmoire-share
+ReadWritePaths=/var/lib/workmoire-share/auth
+InaccessiblePaths=-/etc/workmoire.env -/etc/personal-workspace.env /var/lib/workmoire-share/publisher.key
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+LockPersonality=true
+RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+MemoryMax=512M
+TasksMax=96
+
+[Install]
+WantedBy=multi-user.target
