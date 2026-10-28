@@ -1,0 +1,102 @@
+/* Navigation carries destinations; document labels are chosen in context. */
+:root { --sidebar-width: 190px; }
+.sidebar { padding: 22px 12px 14px; }
+.sidebar .brand { font-size: 20px; gap: 9px; }
+.sidebar .brand-mark { width: 28px; height: 29px; }
+.new-document { margin: 26px 0 20px; font-size: 12px; }
+.new-document kbd { display: none; }
+.main-nav { gap: 3px; }
+.nav-item { font-size: 12px; padding: 10px; }
+.sidebar-library { display: flex; align-items: center; gap: 10px; padding: 11px 10px; margin-top: 20px; color: var(--muted); text-align: left; font-size: 12px; border-radius: 4px; }
+.sidebar-library .icon { width: 17px; height: 17px; }
+.sidebar-library:hover { background: var(--hover); color: var(--ink); }
+.account-button { padding-top: 14px; }
+.document-list-panel { padding-top: 23px; }
+.list-heading { padding-bottom: 16px; }
+.list-heading h1 { font-size: 17px; }
+.list-controls { padding: 12px 6px 8px; }
+.list-filter-row { display: flex; align-items: center; gap: 5px; margin: 0 2px 9px; }
+.list-filter-button { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: calc(100% - 30px); padding: 5px 7px; border-radius: 4px; color: var(--muted); font-size: 11px; }
+.list-filter-button span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.list-filter-button .icon { width: 13px; height: 13px; flex: none; }
+.list-filter-button:hover { background: var(--surface); }
+.list-filter-button.is-active { background: var(--accent-soft); color: var(--accent); }
+.list-filter-row > .icon-button { width: 24px; height: 24px; }
+.list-filter-row > .icon-button .icon { width: 13px; height: 13px; }
+.document-open { padding: 14px 12px 13px 25px; }
+.document-row-title { display: flex; align-items: flex-start; gap: 7px; }
+.document-row-title > .icon { flex: none; width: 15px; height: 15px; margin-top: 4px; color: var(--muted); }
+.document-row-title strong { min-width: 0; color: var(--ink); font-size: 13px; font-weight: 500; line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.document-row-summary { display: flex; align-items: baseline; gap: 10px; margin-top: 5px; }
+.document-row-summary p { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.8; }
+.document-row-summary time { flex: none; font-size: 10px; color: var(--muted); }
+.document-row-meta { margin-top: 5px; font-size: 10px; min-height: 0; }
+.row-checkbox { top: 20px; left: 6px; }
+.pin-button { bottom: auto; top: 12px; right: 3px; background: var(--paper); }
+.document-row:has(.is-pinned) .document-row-title { padding-right: 15px; }
+.document-tags { display: flex; align-items: center; gap: 6px; position: relative; margin-top: 12px; flex-wrap: wrap; font-size: 11px; }
+.document-tag-chips { display: flex; gap: 5px; flex-wrap: wrap; min-width: 0; }
+.document-tag, .tag-add { padding: 3px 7px; border-radius: 4px; font-size: 11px; line-height: 1.7; color: var(--muted); }
+.document-tag { max-width: 160px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; background: var(--surface); border: 1px solid var(--line); }
+.tag-add { display: inline-flex; gap: 4px; align-items: center; }
+.tag-add .icon { width: 12px; height: 12px; }
+.document-tag:hover, .tag-add:hover { color: var(--ink); background: var(--hover); }
+.tag-picker { position: absolute; z-index: 45; top: calc(100% + 7px); left: 0; width: min(330px, calc(100vw - 64px)); padding: 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--paper); box-shadow: var(--shadow); max-height: min(420px, 50vh); overflow-y: auto; }
+.tag-picker > input { width: 100%; font-size: 12px; padding: 8px 9px; border: 1px solid var(--border); border-radius: 4px; }
+.tag-picker-selected { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 3px 6px; }
+.selected-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 5px 2px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--body); font-size: 11px; max-width: 100%; }
+.selected-tag > span { overflow-wrap: anywhere; }
+.tag-remove { display: grid; place-items: center; padding: 2px; flex: none; color: var(--muted); }
+.tag-remove .icon { width: 12px; height: 12px; }
+.tag-remove:hover { color: var(--ink); }
+.tag-picker-caption { color: var(--muted); padding: 9px 6px 5px; font-size: 10px; }
+.tag-option { display: flex; gap: 8px; align-items: center; width: 100%; padding: 8px 7px; border-radius: 4px; text-align: left; font-size: 12px; }
+.tag-option .icon { width: 14px; height: 14px; color: var(--muted); flex: none; }
+.tag-option > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.tag-option small { flex: none; color: var(--muted); font-size: 10px; }
+.tag-option:hover, .tag-option[aria-selected="true"] { background: var(--surface); }
+.tag-picker-status { color: var(--muted); font-size: 11px; padding: 4px 6px; }
+.tag-library-dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow: auto; }
+.tag-library, .tag-rename-form { width: 100%; padding: 24px; }
+.tag-library .dialog-head { margin-bottom: 18px; }
+.tag-library-search { display: flex; align-items: center; gap: 8px; padding: 9px 11px; background: var(--surface); border: 1px solid var(--line); border-radius: 5px; }
+.tag-library-search .icon { width: 16px; height: 16px; color: var(--muted); }
+.tag-library-search input { width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; box-shadow: none; outline: none; font-size: 13px; }
+.tag-library-shortcuts { display: flex; gap: 8px; padding: 14px 0; flex-wrap: wrap; }
+.tag-library-shortcut { padding: 5px 9px; font-size: 11px; border: 1px solid var(--line); border-radius: 4px; color: var(--body); }
+.tag-library-shortcut:hover { background: var(--surface); }
+.tag-library-caption { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; padding: 7px 45px 7px 9px; border-bottom: 1px solid var(--line); }
+.tag-library-rows { max-height: 390px; overflow-y: auto; scrollbar-width: thin; }
+.tag-library-row { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); padding: 3px 4px; }
+.tag-library-pick { display: flex; flex: 1; min-width: 0; align-items: center; gap: 10px; text-align: left; padding: 10px 4px; font-size: 13px; }
+.tag-library-pick span { overflow-wrap: anywhere; }
+.tag-library-pick .icon { flex: none; width: 15px; height: 15px; color: var(--muted); }
+.tag-library-row:hover { background: var(--surface); }
+.tag-use-count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tag-library-edit { padding: 7px; color: var(--muted); border-radius: 4px; }
+.tag-library-edit .icon { width: 14px; height: 14px; }
+.tag-library-edit:hover { background: var(--hover); color: var(--ink); }
+.tag-library-pages { display: grid; place-items: center; padding-top: 10px; font-size: 12px; }
+.tag-library-status { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.tag-rename-back { font-size: 12px; }
+.tag-rename-form h3 { margin: 22px 0 12px; font-size: 18px; font-weight: 600; }
+.tag-rename-source { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.tag-rename-form input { width: 100%; }
+.tag-rename-preview { font-size: 12px; color: var(--body); line-height: 1.8; overflow-wrap: anywhere; min-height: 100px; }
+.tag-rename-preview ul { margin: 10px 0; padding-left: 20px; }
+.tag-rename-preview li { overflow-wrap: anywhere; }
+.tag-library-dialog [hidden], .document-tags[hidden], .tag-picker [hidden], .tag-picker[hidden], .tag-add[hidden] { display: none !important; }
+@media (min-width: 761px) {
+  .navigation-collapsed .app-shell { grid-template-columns: 0 minmax(0, 1fr); }
+  .navigation-collapsed .sidebar { display: none; }
+}
+@media (max-width: 760px) {
+  :root { --sidebar-width: 220px; }
+  .desktop-navigation-toggle { display: none; }
+  .sidebar { padding: 24px 14px 16px; }
+  .sidebar .brand { font-size: 20px; }
+  .document-tag { max-width: 110px; }
+  .tag-picker { width: min(330px, calc(100vw - 64px)); }
+  .tag-library, .tag-rename-form { padding: 18px; }
+  .tag-library-rows { max-height: 45dvh; }
+}

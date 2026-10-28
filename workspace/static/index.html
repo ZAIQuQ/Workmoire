@@ -8,12 +8,13 @@
   <link rel="icon" href="/static/favicon.svg?v=4" type="image/svg+xml">
   <link rel="stylesheet" href="/static/vendor/katex.min.css?v=20261027">
   <link rel="stylesheet" href="/static/vendor/type.css?v=20261027-neutral">
-  <link rel="stylesheet" href="/static/app.css?v=20261028-code">
-  <link rel="stylesheet" href="/static/rich-editor.css?v=20261028-code">
-  <link rel="stylesheet" href="/static/code-block.css?v=20261028-code">
-  <script defer src="/static/vendor/interface.js?v=20261028-code"></script>
-  <script defer src="/static/vendor/editor.js?v=20261028-code"></script>
-  <script defer src="/static/app.js?v=20261028-code"></script>
+  <link rel="stylesheet" href="/static/app.css?v=20261028-tags">
+  <link rel="stylesheet" href="/static/rich-editor.css?v=20261028-tags">
+  <link rel="stylesheet" href="/static/code-block.css?v=20261028-tags">
+  <link rel="stylesheet" href="/static/organization.css?v=20261028-tags">
+  <script defer src="/static/vendor/interface.js?v=20261028-tags"></script>
+  <script defer src="/static/vendor/editor.js?v=20261028-tags"></script>
+  <script defer src="/static/app.js?v=20261028-tags"></script>
 </head>
 <body>
   <section id="auth-view" class="auth-view is-hidden">
@@ -33,19 +34,18 @@
 
   <div id="app-view" class="app-shell is-hidden">
     <aside id="workspace-sidebar" class="sidebar">
-      <a class="brand" href="#" id="brand-home"><span class="brand-mark" data-icon="book"></span><span>workmoire<small>拾序 · 学术笔记</small></span></a>
+      <a class="brand" href="#" id="brand-home"><span class="brand-mark" data-icon="book"></span><span>workmoire</span></a>
       <button id="new-document" class="button primary new-document"><span><span data-icon="plus"></span>新建文档</span><kbd>⌘ ⇧ N</kbd></button>
       <nav class="main-nav" aria-label="工作空间">
-        <button class="nav-item is-active" data-page="documents"><span data-icon="document"></span><span>全部文档</span><small id="document-count"></small></button>
-        <button class="nav-item" data-page="papers"><span data-icon="book"></span><span>论文资料</span><small id="paper-count"></small></button>
+        <button class="nav-item is-active" data-page="documents"><span data-icon="document"></span><span>全部文档</span></button>
+        <button class="nav-item" data-page="papers"><span data-icon="book"></span><span>论文资料</span></button>
         <button class="nav-item" data-page="relations"><span data-icon="relations"></span><span>文档关系</span></button>
       </nav>
-      <div class="sidebar-section"><span class="sidebar-label">标签</span><div id="sidebar-tags" class="sidebar-tags"><span class="quiet sidebar-empty">在“文档信息”中添加标签，点击标签可筛选文档。</span></div></div>
+      <button id="tag-library-button" class="sidebar-library"><span data-icon="tag"></span><span>标签管理</span></button>
       <div class="sidebar-bottom">
-        <button id="shortcuts-button" class="quiet-button"><span data-icon="keyboard"></span>编辑快捷键</button>
         <button id="settings-button" class="account-button" aria-expanded="false"><span id="account-avatar" class="avatar">U</span><span id="account-name">我的空间</span><span class="account-dots" data-icon="more"></span></button>
         <div id="settings-menu" class="settings-menu is-hidden">
-          <button data-settings-page="files">附件管理</button><button data-settings-page="trash">回收站</button><hr>
+          <button id="shortcuts-button">编辑快捷键</button><button data-settings-page="files">附件管理</button><button data-settings-page="trash">回收站</button><hr>
           <button id="export-data">导出文档（JSON）</button><button id="export-archive">下载完整归档</button><button id="import-data">导入 JSON</button><button id="import-archive">导入完整归档</button><hr>
           <button id="change-password">修改密码</button><button id="logout">退出登录</button>
         </div>
@@ -53,7 +53,7 @@
     </aside>
     <button id="sidebar-backdrop" class="sidebar-backdrop is-hidden" aria-label="收起导航" tabindex="-1"></button>
     <main class="main-content">
-      <header class="topbar"><button id="mobile-menu" class="icon-button mobile-only" aria-label="打开导航" aria-controls="workspace-sidebar" aria-expanded="false"><span data-icon="menu"></span></button><div class="breadcrumbs"><span class="quiet">我的空间</span><span>/</span><strong id="page-heading">全部文档</strong></div><button id="global-search-trigger" class="search-trigger"><span data-icon="search"></span><span>搜索文档与附件</span><kbd>⌘ K</kbd></button><span class="service-dot" id="service-status" title="服务在线"></span></header>
+      <header class="topbar"><button id="navigation-toggle" class="icon-button desktop-navigation-toggle" aria-label="收起侧边栏" aria-expanded="true" aria-controls="workspace-sidebar"><span data-icon="panel"></span></button><button id="mobile-menu" class="icon-button mobile-only" aria-label="打开导航" aria-controls="workspace-sidebar" aria-expanded="false"><span data-icon="menu"></span></button><div class="breadcrumbs"><span class="quiet">我的空间</span><span>/</span><strong id="page-heading">全部文档</strong></div><button id="global-search-trigger" class="search-trigger"><span data-icon="search"></span><span>搜索文档与附件</span><kbd>⌘ K</kbd></button><span class="service-dot" id="service-status" title="服务在线"></span></header>
       <div id="page-content" class="page-content"></div>
     </main>
   </div>

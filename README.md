@@ -58,6 +58,24 @@ sizing support both writing and PDF reading. Resource provenance and licenses
 are documented in
 [`workspace/static/THIRD_PARTY_ASSETS.md`](workspace/static/THIRD_PARTY_ASSETS.md).
 
+The sidebar keeps three main destinations and one tag-management entry. Its
+desktop collapse control remembers your preference without remounting the
+editor. Document rows show a title, a short preview and relevant task status.
+
+Edit tags below the document title: search existing names, choose with the arrow
+keys and Enter, create a label, or remove a selected chip. Suggestions rank title
+matches, labels used with the last selected tag, and usage frequency, using local
+metadata. Tag edits stay unsaved until normal save; duplicate names ignore case
+and full-width variants. Up to three chips remain visible, with overflow in the
+picker. Reading mode does not edit labels.
+
+The list's tag filter and searchable, paginated tag library include an untagged
+view. Filtering preserves the open draft. Rename or merge a tag through the
+library's edit action: preview the affected documents, then apply. Each affected
+document retains a history revision; stale previews are rejected, and each
+operation is limited to 100 active documents. Trash is excluded. See the
+[navigation and tag design research](docs/navigation-tags-design.md).
+
 ## Papers and Codex
 
 Enter a title, DOI, arXiv link, or a publisher abstract-page link. Title lookup

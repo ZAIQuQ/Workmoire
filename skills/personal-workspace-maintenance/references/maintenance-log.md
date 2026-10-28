@@ -113,6 +113,8 @@ changes belong in normal commit history.
 
 ## 2026-10-28
 
+- Simplified navigation and moved labels to a searchable library and contextual document picker. Added local metadata suggestions and previewed, bounded transactional renames/merges, with checks for stale versions, original revisions, draft preservation during filters/saves and mobile navigation. Recorded the workflow in the release checklist and navigation design note.
+
 - Set the paper generation default to gpt-6.1-sol with xhigh reasoning and a bounded 240-second timeout, independently from general document tasks.
 - Added deterministic slash-command aliases for Chinese, pinyin and English, including the requested ddm/yy/cite/todo/db shortcuts. Verified compound queries, exact-match ordering, cancelled queries and Chinese composition through browser input.
 - Recorded per-service AI skill/template standardization in TODO.md for user-guided refinement after overall design convergence.

@@ -1,3 +1,5 @@
+import {mountTagPicker,openTagLibrary} from './tag-controls.js';
+window.WorkmoireTags={mount:mountTagPicker,open:openTagLibrary};
 import {
   createElement, FileText, BookOpen, Network, Search, Keyboard, Menu, Upload,
   Underline, Strikethrough, Highlighter, ListOrdered, AlignLeft, AlignCenter, AlignRight,

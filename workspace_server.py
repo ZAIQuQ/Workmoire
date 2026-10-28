@@ -28,6 +28,7 @@ import tempfile
 import threading
 import time
 import uuid
+import unicodedata
 import zipfile
 from contextlib import closing
 from datetime import date, datetime, timezone
@@ -413,13 +414,39 @@ def decode_session(token: str | None) -> str | None:
         return None
 
 
+def tag_name(value: object) -> str:
+    return " ".join(unicodedata.normalize("NFKC", str(value or "")).strip().lstrip("#").split())
+
+
 def safe_tags(value: object) -> str:
     parts: list[str] = []
+    seen: set[str] = set()
     for raw in str(value or "").replace("，", ",").split(","):
-        tag = " ".join(raw.strip().split())
-        if tag and tag not in parts:
-            parts.append(tag[:32])
+        tag = tag_name(raw)[:32]
+        if tag and tag.lower() not in seen:
+            parts.append(tag)
+            seen.add(tag.lower())
     return ",".join(parts[:12])
+
+
+def tag_rename_plan(con: sqlite3.Connection, source: object, target: object) -> tuple[dict, list]:
+    if not isinstance(source, str) or not isinstance(target, str):
+        raise ValueError("请输入标签名称")
+    target = tag_name(target)
+    if any(not name or len(name) > 32 or "," in name or "，" in name for name in [source, target]):
+        raise ValueError("标签名称需要 1 到 32 个字符，不能包含逗号")
+    if source == target:
+        raise ValueError("请输入新的标签名称")
+    rows = con.execute("SELECT id,title,tags,updated_at FROM items WHERE deleted_at='' AND instr(',' || tags || ',', ',' || ? || ',') > 0 ORDER BY id LIMIT 101", (source,)).fetchall()
+    if not rows:
+        raise ValueError("这个标签已不存在，请刷新列表")
+    if len(rows) > 100:
+        raise ValueError("一次最多修改 100 份文档的标签，请先缩小整理范围")
+    destination = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND instr(',' || tags || ',', ',' || ? || ',') > 0", (target,)).fetchone()[0]
+    versions = [(row['id'], row['updated_at'], row['tags']) for row in rows]
+    token = hashlib.sha256(json.dumps([source, target, destination, versions], ensure_ascii=False).encode()).hexdigest()
+    return {'source': source, 'target': target, 'count': len(rows), 'merge': bool(destination), 'preview_token': token,
+            'items': [{'id': row['id'], 'title': row['title']} for row in rows[:5]]}, rows
 
 
 def optional_entry_date(value: object) -> str:
@@ -1332,20 +1359,24 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             query = params.get("q", [""])[0].strip()[:120]
             # Aggregate tag metadata inside SQLite; no item bodies or entire
             # item archive need to be materialized in the client or server.
-            sql = """WITH RECURSIVE split(tag,rest) AS (
-                SELECT '', tags || ',' FROM items WHERE deleted_at='' AND (?='' OR kind=?)
-                UNION ALL SELECT substr(rest,1,instr(rest,',')-1), substr(rest,instr(rest,',')+1)
-                FROM split WHERE rest!=''
-            ), counts AS (SELECT tag,COUNT(*) AS count FROM split WHERE tag!='' AND instr(lower(tag),lower(?))>0 GROUP BY tag) """
+            context = params.get("context", [""])[0][:32]
+            title = params.get("title", [""])[0][:200]
+            sql = """WITH RECURSIVE split(tag,rest,related) AS (
+                SELECT '', tags || ',', CASE WHEN ?!='' AND instr(',' || tags || ',', ',' || ? || ',') > 0 THEN 1 ELSE 0 END
+                FROM items WHERE deleted_at='' AND (?='' OR kind=?)
+                UNION ALL SELECT substr(rest,1,instr(rest,',')-1), substr(rest,instr(rest,',')+1),related FROM split WHERE rest!=''
+            ), counts AS (SELECT tag,COUNT(*) AS count,SUM(related) AS related FROM split
+                WHERE tag!='' AND instr(lower(tag),lower(?))>0 GROUP BY tag) """
             con = open_db()
             try:
                 con.execute("BEGIN")
-                values = (kind, kind, query)
+                values = (context, context, kind, kind, query)
                 total = con.execute(sql + "SELECT COUNT(*) FROM counts", values).fetchone()[0]
-                rows = con.execute(sql + "SELECT tag,count FROM counts ORDER BY count DESC,tag ASC LIMIT ? OFFSET ?", values + (limit, offset)).fetchall()
+                rows = con.execute(sql + "SELECT tag,count,related,CASE WHEN instr(lower(?),lower(tag))>0 THEN 1 ELSE 0 END AS title_match FROM counts ORDER BY title_match DESC,related DESC,count DESC,tag ASC LIMIT ? OFFSET ?", values + (title, limit, offset)).fetchall()
+                untagged = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND tags='' AND (?='' OR kind=?)", (kind, kind)).fetchone()[0]
             finally:
                 con.close()
-            self.json_response({"tags": [dict(row) for row in rows], "total": total, "next_offset": offset + len(rows) if offset + len(rows) < total else None})
+            self.json_response({"tags": [dict(row) for row in rows], "total": total, "untagged": untagged, "next_offset": offset + len(rows) if offset + len(rows) < total else None})
             return
         if path == "/api/calendar":
             if not self.require_user():
@@ -1587,6 +1618,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if tag:
                 clauses.append("instr(',' || tags || ',', ',' || ? || ',') > 0")
                 values.append(tag)
+            if params.get("untagged", [""])[0] == "1":
+                clauses.append("tags=''")
             if entry_date:
                 clauses.append("entry_date=?")
                 values.append(entry_date)
@@ -2447,6 +2480,36 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     shutil.rmtree(staging_dir, ignore_errors=True)
                 if upload_path is not None:
                     upload_path.unlink(missing_ok=True)
+            return
+        if path in {"/api/tags/preview", "/api/tags/rename"}:
+            if not self.require_user():
+                return
+            try:
+                data = parse_json(self)
+                with closing(open_db()) as con, con:
+                    con.execute("BEGIN IMMEDIATE" if path.endswith("/rename") else "BEGIN")
+                    plan, rows = tag_rename_plan(con, data.get("source"), data.get("target"))
+                    if path.endswith("/rename"):
+                        token = data.get("preview_token")
+                        if not isinstance(token, str) or not hmac.compare_digest(token, plan['preview_token']):
+                            self.error("受影响的文档已变化，请重新预览后再应用", 409)
+                            return
+                        stamp = utc_now()
+                        for row in rows:
+                            row = con.execute("SELECT * FROM items WHERE id=?", (row['id'],)).fetchone()
+                            tags = []
+                            for tag in row['tags'].split(','):
+                                if tag == plan['source'] or tag.lower() == plan['target'].lower():
+                                    tag = plan['target']
+                                if tag and tag not in tags:
+                                    tags.append(tag)
+                            tags = ','.join(tags)
+                            record_revision(con, row)
+                            con.execute("UPDATE items SET tags=?,updated_at=? WHERE id=?", (tags, stamp, row['id']))
+                            log_activity(con, "update", "item", row['id'], row['title'])
+                self.json_response({"ok": True, **plan})
+            except Exception as exc:
+                self.request_error(exc)
             return
         if path == "/api/items/bulk":
             user = self.require_user()
