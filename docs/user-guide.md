@@ -8,6 +8,21 @@ and tags, rather than separate creation types.
 
 ## Writing
 
+Click in a table to reveal **每列等宽** (equal columns) and **固定宽度** (fixed
+width) in the table toolbar. Fixed width is on by default, including for older
+tables without a mode setting: the table fits the body, text wraps inside cells,
+and dragging a column boundary redistributes space between adjacent columns.
+The table adapts to viewport changes without editing the document. Existing
+stored widths are retained as proportions until you explicitly change them.
+
+Turn off fixed width to allow wider columns. When the table exceeds the body,
+a visible scrollbar below it supports dragging and keyboard navigation. The
+page itself stays within the viewport. Equal columns respects merged cells and
+row spans; in free-width mode it distributes the current table width. Layout
+changes use normal undo, save, history and native export/share boundaries.
+Press Escape during a column drag to cancel. Markdown export keeps the table
+text; use JSON/full archives to preserve widths and the fixed/free mode.
+
 Choose **字体** in the toolbar to use sans, serif or monospaced text throughout
 one document. The default sans face is unchanged. Serif uses locally bundled
 Noto Serif SC; mono uses Maple Mono with the existing Chinese fallback. The

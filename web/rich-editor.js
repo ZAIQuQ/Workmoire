@@ -1,3 +1,4 @@
+import {DocumentTable,equalizeColumns,toggleTableWidth,selectedTable} from './document-table.js';
 import {DocumentFontStep,documentFontExtension,documentFontKey,validBodyFont} from './document-font.js';
 import {Editor, Extension} from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -116,7 +117,7 @@ export function mountRichEditor(host,options={}){
   extensions:[
    StarterKit.configure({codeBlock:false,link:false}),SafeLink,documentFontExtension(initialFont),
    Markdown.configure({marked:safeMarkdownParser(),markedOptions:{gfm:true,breaks:true},indentation:{style:'space',size:2}}),
-   TableKit.configure({table:{resizable:true,cellMinWidth:80,allowTableNodeSelection:true}}),TaskList,TaskItem.configure({nested:true,HTMLAttributes:{'data-type':'taskItem'},a11y:{checkboxLabel:node=>'切换待办：'+(node.textContent||'空白任务')}}),
+   TableKit.configure({table:false}),DocumentTable,TaskList,TaskItem.configure({nested:true,HTMLAttributes:{'data-type':'taskItem'},a11y:{checkboxLabel:node=>'切换待办：'+(node.textContent||'空白任务')}}),
    TextAlign.configure({types:['heading','paragraph']}),TextStyle,Color,Highlight.configure({multicolor:true}),Subscript,Superscript,
    Placeholder.configure({placeholder:({node})=>node.type.name==='heading'?'标题':'输入 / 插入内容',showOnlyCurrent:true,includeChildren:false}),
    ...researchNodes(callbacks),codeBlocks.extension,SearchExtension,NativeKeys,
@@ -247,6 +248,7 @@ export function mountRichEditor(host,options={}){
    case 'align-left':case 'align-center':case 'align-right':return chain().setTextAlign(command.slice(6)).run();
    case 'subscript':return chain().toggleSubscript().run();case 'superscript':return chain().toggleSuperscript().run();
    case 'indent':return chain().sinkListItem(editor.isActive('taskItem')?'taskItem':'listItem').run();case 'outdent':return chain().liftListItem(editor.isActive('taskItem')?'taskItem':'listItem').run();
+   case 'equal-columns':return equalizeColumns(editor);case 'table-fixed-width':return toggleTableWidth(editor);
    case 'row-before':return chain().addRowBefore().run();case 'row-after':return chain().addRowAfter().run();case 'column-before':return chain().addColumnBefore().run();case 'column-after':return chain().addColumnAfter().run();
    case 'delete-row':return chain().deleteRow().run();case 'delete-column':return chain().deleteColumn().run();case 'delete-table':return chain().deleteTable().run();case 'table-header':return chain().toggleHeaderRow().run();case 'merge-cells':return chain().mergeCells().run();case 'split-cell':return chain().splitCell().run();
    case 'find':showFind();return true;
@@ -281,6 +283,7 @@ export function mountRichEditor(host,options={}){
   active:isActive,command:run,
   heading:()=>editor.isActive('heading')?editor.getAttributes('heading').level:0,
   setHeading:level=>level?editor.chain().focus().setHeading({level:Number(level)}).run():editor.chain().focus().setParagraph().run(),
+  tableFixedWidth:()=>selectedTable(editor)?.node.attrs.fixedWidth!==false,
   bodyFont,
   setBodyFont(value){if(!editor.isEditable||!['sans','serif','mono'].includes(value)||bodyFont()===value)return;editor.view.dispatch(closeHistory(editor.state.tr).step(new DocumentFontStep(value,bodyFont())));editor.view.dispatch(closeHistory(editor.state.tr));},
   setColor(color,{focus=true}={}){const chain=editor.chain();if(focus)chain.focus();return color?chain.setColor(color).run():chain.unsetColor().run();},

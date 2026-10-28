@@ -2,6 +2,25 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.4.0] — 2026-10-29
+
+### 表格宽度
+
+- 表格工具栏新增「每列等宽」，支持普通表格与合并单元格。
+- 默认开启「固定宽度」：表格适应正文宽度，长内容换行，拖动列边界只调整相邻列比例。
+- 关闭固定宽度后允许向外扩展列宽，超宽表格下方显示可拖动、可键盘操作的横向滚动条。
+- 开关、等宽和拖动操作支持撤销/重做，设置随保存、历史、JSON / 完整归档与分享快照保留。
+- 窗口变窄时固定表格自动适应，无需修改文档；滚动表格不会导致整个页面横向溢出。
+
+见[使用说明](docs/user-guide.md)。未设置宽度模式的旧表格默认采用固定宽度，原有列宽记录保留。
+
+### English
+
+Tables fit the document width by default. Distribute columns evenly or adjust
+adjacent column proportions without expanding the table. Turn off fixed width
+to widen columns and use the visible horizontal scrollbar. Merged cells,
+undo/redo, narrow screens, native exports and read-only shares retain the layout.
+
 ## [1.3.0] — 2026-10-29
 
 ### 正文字体与工具栏
@@ -78,3 +97,5 @@ Earlier development was published as untagged commits. See the
 [1.2.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.2.0
 
 [1.3.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.3.0
+
+[1.4.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.4.0

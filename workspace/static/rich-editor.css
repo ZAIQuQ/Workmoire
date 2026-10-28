@@ -27,7 +27,7 @@
 .rich-document hr { margin: 1.5em 0; border-top: 1px solid var(--border); cursor: default; }
 .rich-document .ProseMirror-selectednode { outline: 2px solid var(--accent); outline-offset: 2px; }
 .rich-document .ProseMirror-gapcursor { height: 1em; }
-.rich-document .tableWrapper { overflow-x: auto; margin: 1.2em 0; }
+.rich-document .tableWrapper { overflow: visible; margin: 1.2em 0; max-width: 100%; width: 100%; container-type: inline-size; scrollbar-width: thin; scrollbar-color: var(--border) var(--surface); }
 .rich-document table { display: table; border-collapse: collapse; table-layout: fixed; width: 100%; margin: 0; overflow: visible; font-size: 14px; }
 .rich-document th, .rich-document td { position: relative; border: 1px solid var(--border); min-width: 80px; padding: 9px 12px; vertical-align: top; height: 42px; }
 .rich-document th { background: var(--surface); font-weight: 600; text-align: left; }
@@ -134,3 +134,28 @@
 /* One font for the whole native document; code and math retain their own faces. */
 .rich-document[data-body-font="serif"] { font-family: "Noto Serif SC Variable", "Noto Serif CJK SC", Georgia, serif; }
 .rich-document[data-body-font="mono"] { font-family: "Maple Mono", "Noto Sans SC Variable", monospace; }
+
+/* Tables fit the body by default; only an explicit free-width table scrolls. */
+.rich-document .table-scroll-area { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.rich-document .table-scroll-area::-webkit-scrollbar { display: none; }
+.rich-document .tableWrapper[data-fixed-width="true"] > .table-scroll-area { overflow-x: clip; }
+.rich-document .tableWrapper[data-fixed-width="true"] > .table-scroll-area > table { width: 100% !important; min-width: 0 !important; max-width: 100%; }
+.rich-document .tableWrapper[data-fixed-width="true"] > .table-scroll-area > table > tbody > tr > th,
+.rich-document .tableWrapper[data-fixed-width="true"] > .table-scroll-area > table > tbody > tr > td { min-width: 0; overflow-wrap: anywhere; padding-inline: clamp(0px, calc(10cqw / var(--table-columns, 3)), 12px); }
+.rich-document .tableWrapper[data-fixed-width="true"] .native-inline-math { max-width: 100%; overflow-x: auto; }
+.rich-editor-shell[data-editable="false"] .column-resize-handle { display: none; }
+.table-toolbar button[data-command="table-fixed-width"] { display: inline-flex; align-items: center; gap: 6px; }
+.table-width-check { display: inline-grid; place-items: center; width: 14px; height: 14px; border: 1px solid var(--border); border-radius: 4px; }
+.table-width-check .icon { width: 11px; height: 11px; visibility: hidden; }
+.table-toolbar [aria-checked="true"] .table-width-check { border-color: var(--accent); background: var(--accent); color: #fff; }
+.table-toolbar [aria-checked="true"] .table-width-check .icon { visibility: visible; }
+.table-toolbar .table-tools-separator { width: 1px; height: 17px; padding: 0; background: var(--border); margin: 0 4px; flex: none; }
+
+.table-horizontal-scroll { display: block; width: 100%; height: 14px; margin: 5px 0 0; padding: 0; border: 0; box-shadow: none; appearance: none; background: transparent; cursor: pointer; }
+.table-horizontal-scroll[hidden] { display: none; }
+.table-horizontal-scroll::-webkit-slider-runnable-track { height: 8px; border-radius: 6px; background: var(--surface); }
+.table-horizontal-scroll::-webkit-slider-thumb { appearance: none; width: var(--scroll-thumb-width, 48px); height: 8px; border: 0; border-radius: 6px; background: #a8b0bd; }
+.table-horizontal-scroll::-moz-range-track { height: 8px; border-radius: 6px; background: var(--surface); }
+.table-horizontal-scroll::-moz-range-thumb { width: var(--scroll-thumb-width, 48px); height: 8px; border: 0; border-radius: 6px; background: #a8b0bd; }
+.table-horizontal-scroll:hover::-webkit-slider-thumb { background: #7c8797; }
+.table-horizontal-scroll:hover::-moz-range-thumb { background: #7c8797; }

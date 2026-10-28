@@ -83,6 +83,10 @@ def normalized_rich_content(value: object, markdown: str | None = None) -> str:
             if type(raw.get('collapsed', False)) is not bool:
                 raise ValueError('代码折叠状态无效')
             attrs['collapsed'] = raw.get('collapsed', False)
+        if kind == 'table' and 'fixedWidth' in raw:
+            if type(raw['fixedWidth']) is not bool:
+                raise ValueError('表格固定宽度设置无效')
+            attrs['fixedWidth'] = raw['fixedWidth']
         if kind == 'orderedList':
             start = raw.get('start', 1)
             if type(start) is not int or not 1 <= start <= 100000:

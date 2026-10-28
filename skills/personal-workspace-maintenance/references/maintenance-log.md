@@ -141,3 +141,5 @@ changes belong in normal commit history.
 - Made the document outline a dedicated navigation view beside the body, with live headings, scroll tracking, content-reflow handling and responsive disclosure. Added selection/save/PDF preservation and lifecycle cleanup to the browser release checks.
 
 - Added validated document-font metadata and a view-preserving font history step: changing ProseMirror root attributes recreates node views, so font history stays separate internally while native saves retain the document setting. Added font/share/export checks, selection-color and tooltip coverage, and updated the supported CI Node runtime.
+
+- Added per-table fixed-width defaults, proportional fixed-mode resizing, merged-cell-aware distribution and explicit accessible scrolling in free mode. Recorded rendering-only viewport changes, strict mode validation, native persistence/share checks and drag/observer cleanup in the release workflow.

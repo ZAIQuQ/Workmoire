@@ -71,6 +71,26 @@ class RichDocumentTests(unittest.TestCase):
             invalid=native();invalid['document']['attrs']={'bodyFont':font}
             with self.assertRaises(ValueError):normalized_rich_content(invalid)
 
+    def test_table_width_mode_survives_history_and_archives_with_strict_boolean_validation(self):
+        rich=native();rich['document']['content'][2]['attrs']={'fixedWidth':False}
+        first=self.create(rich=rich);table=first['rich_content']['document']['content'][2]
+        self.assertIs(table['attrs']['fixedWidth'],False)
+        update=copy.deepcopy(first);update['rich_content']['document']['content'][2]['attrs']['fixedWidth']=True;update['base_updated_at']=first['updated_at']
+        self.assertEqual(self.request('/api/items/'+str(first['id']),'PUT',update)[0],200)
+        revision=json.loads(self.request('/api/items/'+str(first['id'])+'/revisions')[1])['revisions'][0]
+        restored=json.loads(self.request('/api/items/'+str(first['id'])+'/revisions/'+str(revision['id'])+'/restore','POST',{})[1])['item']
+        self.assertEqual(restored['rich_content'],first['rich_content'])
+        with zipfile.ZipFile(io.BytesIO(self.request('/api/export-archive')[1])) as archive:
+            manifest=json.loads(archive.read('manifest.json'))
+        self.assertIs(manifest['items'][0]['rich_content']['document']['content'][2]['attrs']['fixedWidth'],False)
+        self.assertEqual(self.request('/api/import','POST',json.loads(self.request('/api/export')[1]))[0],201)
+        with app.open_db() as db:
+            rows=db.execute('SELECT rich_content FROM items').fetchall()
+        self.assertEqual(len(rows),2);self.assertTrue(all(json.loads(row[0])['document']['content'][2]['attrs']['fixedWidth'] is False for row in rows))
+        for flag in ['false',0,1,None,[]]:
+            invalid=native();invalid['document']['content'][2]['attrs']={'fixedWidth':flag}
+            with self.assertRaises(ValueError):normalized_rich_content(invalid)
+
     def test_legacy_clients_preserve_formatting_on_metadata_edits_and_clear_stale_native_body(self):
         first = self.create()
         update = {k:v for k,v in first.items() if k != 'rich_content'}
