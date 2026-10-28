@@ -39,6 +39,8 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 - Keep search ranking deterministic and privacy-preserving: rank metadata matches ahead of body-only matches without exposing deleted content or adding an external indexing service.
 - Open search and activity results through an authenticated item lookup rather than assuming the current client list contains the result; navigation must remain correct when list views are bounded or filtered.
 
+- Keep current-version metadata tied to the deployed package/revision. GitHub update checks must be authenticated, bounded and cached, send no private data, and distinguish no release from network failure. Preserve editor drafts when opening About.
+
 ## Document and paper workflow
 
 - Keep the main interface centered on documents, papers, and a simple relationship view. Expose exactly two creation choices: blank document and paper materials. Blogs, plans, ideas and checklists belong to ordinary notes/tags. Preserve legacy records and drafts; do not delete user content when removing specialized creation flows.
@@ -68,7 +70,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 4. Run the project's checks before deployment: make compile (including `bash -n backup.sh`), make test, node --check workspace/static/app.js, the isolated browser suite, and an HTTP smoke test covering health, first-run session state, authentication, content CRUD, file upload, and assistant-disabled behavior when those paths changed.
 5. Run a public-repository scan before staging and again before pushing. Check for IP addresses, personal email addresses, private paths, credentials, private keys, tokens, cookies, database files, uploads, logs, and non-placeholder production settings. Review the staged file list manually.
 6. Deploy only source files and static assets to the configured application directory. Do not copy .env, data/, backups, or a whole working directory. Restart the systemd service only after the new files are in place, then verify systemctl is-active, /healthz, /api/session, the listening port, and recent journal output. If backups are enabled, verify the timer, one completed snapshot, SQLite integrity, archive readability, and retention behavior without exposing backup contents.
-7. Commit with a focused message that describes the user-facing behavior. Push only to the intended GitHub repository and branch. If the remote is absent or the authenticated account is unclear, stop before creating a new remote or publishing.
+7. The owner has given standing authorization to synchronize substantial completed changes to `ZAIQuQ/Workmoire`, branch `main`, after tests and deployment verification. Update the semantic version, changelog and both README languages; commit, deploy the exact revision, push without force, create its version tag/Release and inspect GitHub CI. Do not ask for push permission again. Keep the deployed and released revisions aligned and follow `docs/releases.md`. If a remote is missing, verify the established repository and source history before reconnecting it. If authentication is unavailable, complete reviewable source/deployment work and report the specific login blocker; never claim an unpublished local commit was synchronized.
 8. Report what changed, what was tested, the public repository state, the deployment state, and any remaining setup such as a cloud security-group rule or HTTPS.
 
 ## Updating this skill

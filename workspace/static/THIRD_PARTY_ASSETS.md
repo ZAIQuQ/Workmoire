@@ -33,3 +33,8 @@ The interface uses neutral white and gray surfaces, dark text, and one blue
 interaction accent. UI and document text prefer bundled Inter and variable Noto
 Sans SC, with platform sans-serif fallbacks. There are no decorative hero illustrations. User-uploaded
 images retain their intrinsic aspect ratio and remain authenticated.
+
+## GitHub project icon
+
+- Source: [Primer Octicons mark-github](https://github.com/primer/octicons/blob/9a274e212ee25c400ff666ce25a57866b7eacc25/icons/mark-github-16.svg).
+- License: MIT; retained in `github-icon.LICENSE`. Used unchanged in the About dialog.

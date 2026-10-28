@@ -1,236 +1,78 @@
 # Workmoire · 拾序
 
-A quiet, single-user space for academic notes, paper reading, and connected ideas.
-The interface has three primary destinations: all documents, paper references,
-and document relationships. Creation has exactly two choices: **Blank document**
-and **Paper materials**. Blogs, plans, ideas and checklists use ordinary documents
-and tags, rather than separate creation types.
+**中文** · [English](README.en.md)
 
-## Writing
+自托管的学术笔记与论文阅读工具。用富文本文档记录思路、阅读 PDF，并通过标签和文档链接组织资料。
 
-- Tiptap/ProseMirror block editor with direct rich-text input, a selection toolbar,
-  slash insertion menu, draggable blocks, and separate undo steps for block actions.
-  Bold, italic, underline, strike, color, highlight, alignment, nested lists and
-  checklists use native editor transactions.
-- Editable tables with row/column operations and resizable columns; inline/display
-  LaTeX formulas with live editing; syntax-highlighted code blocks with a language
-  picker; resizable images; and a persistent embedded PDF.js reader.
-- Paste formatted HTML or Markdown, paste/drop images, search across styled text,
-  navigate the outline, and switch between editing, reading and focus modes.
-  The editor updates changed blocks only. Markdown serialization is deferred to
-  saves, idle drafts, explicit assistant requests and export.
-- Uploads remain authenticated; only byte-verified PDFs and raster images render
-  inline. HTML and SVG uploads remain downloads. Public PDF imports require an
-  explicit action. PDF text selection, search, pages and zoom remain available
-  while writing around the same reader node.
-- Native documents are stored as versioned JSON alongside a Markdown mirror.
-  Existing Markdown documents open without rewriting stored content. Native
-  formatting, table widths and media attributes survive drafts, saved history,
-  JSON/ZIP export and import. A checksum prevents an older server's Markdown edit
-  from accidentally resurfacing stale native content.
-- Local drafts, conflict detection, recoverable trash and explicit saves remain
-  part of the workflow. A failed local draft write is reported and prevents
-  navigation until the document is saved. Imports remap both document references
-  and attachment references when allocating new IDs.
+[快速开始](#快速开始) · [使用说明](docs/user-guide.md) · [更新日志](CHANGELOG.md) · [版本发布](https://github.com/ZAIQuQ/Workmoire/releases)
 
-Slash commands accept Chinese labels, pinyin initials/full pinyin, and English
-aliases. Examples: `/ddm` or `/dmk` for a code block; `/yy`, `/cite` or `/quote`
-for a blockquote; `/todo` or `/db` for a checklist; `/bg` for a table; `/gs` for
-a formula; `/tp` for an image; and `/bt1`–`/bt3` for headings. Queries can combine
-terms such as `/code block`, `/yy cite` or `/待办 checkbox`. Exact labels and
-aliases rank first; matching ignores case and normalizes full-width input.
-Choose with the arrow keys and Enter, or click a result. Unmatched/cancelled
-queries remain ordinary document text.
+![Workmoire：文档目录、彩色标签与富文本编辑器](docs/images/workmoire.png)
 
-Code blocks use locally bundled Maple Mono NL with distinct light/dark palettes.
-Use the chevron to fold a block; its language, line count and first nonempty line
-remain visible. Editing-mode folds save with the document and support undo;
-reading-mode folds are temporary. The sun/moon button remembers the code theme
-in this browser. Search reveals folded matches, and copying or Markdown export
-always includes the full source. Native JSON/ZIP exports retain folding.
-Long expanded scripts scroll within the block. See the
-[code-block design research](docs/code-block-design.md) for references and choices.
+## 能做什么
 
-The interface uses white and gray surfaces, dark text, one blue interaction
-accent, and a consistent Lucide icon set. Locally bundled Inter and variable
-Noto Sans SC provide consistent Latin/Chinese type and intermediate weights;
-platform sans-serif fonts remain fallbacks. Shared visual tokens give controls,
-menus and panels a moderate corner-radius scale. The desktop editor sits on a
-white document surface, while phone editing uses the available width.
-Independent scrolling panes, a dismissible mobile drawer, and intrinsic image
-sizing support both writing and PDF reading. Resource provenance and licenses
-are documented in
-[`workspace/static/THIRD_PARTY_ASSETS.md`](workspace/static/THIRD_PARTY_ASSETS.md).
+- **写文档**：富文本、公式、表格、图片、待办和可折叠代码块。输入 `/` 插入内容，支持中文、拼音首字母和英文检索。
+- **读论文**：上传 PDF、提供链接，或同时提供两者；始终优先使用你上传的文件。PDF 可直接嵌入文档阅读。
+- **组织资料**：文档目录展示彩色标签，置顶旁即可维护；文档链接连接相关思路。新建只有「空白文档」和「论文资料」。
+- **分享文档**：生成带复杂密码的只读快照，选择 1 天、7 天、30 天或永久有效，随时改密或撤销。
+- **保留修改**：本机草稿、保存冲突检测、版本历史、回收站，以及 JSON / 完整归档导入导出。
 
-The sidebar keeps three main destinations and one tag-management entry. Its
-desktop collapse control remembers your preference without remounting the
-editor. Document rows show a title, a short preview, colored bookmarks and
-relevant task status. The bookmark control sits immediately left of pin. Each
-row shows two tags and an overflow count; clicking a tag filters the catalogue.
-The same normalized label always receives the same color across rows, pickers
-and the tag library. Labels remain readable without relying on color alone.
+Codex 整理与阅读笔记生成是**可选功能**，默认关闭；启用后，选中的材料会交给本机 CLI 及其配置的模型服务。生成结果需要确认、插入和保存。
 
-Manage a document's tags from the bookmark control beside pin, without opening
-the document. Its **Document tags** tab has an explicit **New tag** form; creating
-and adding a tag saves the association immediately. Enter also works directly
-in the search field while suggestions are loading. Existing labels can be
-selected, or removed from this document with their × control. These actions
-update only tags, with a version check and history revision; unsaved body text
-remains local. Matching local drafts advance to the new metadata revision. New
-documents keep tags local until document save. The current document remains
-accessible even if it is outside the filtered page.
+## 快速开始
 
-The same entry's **Manage tags** tab supports renaming, merging and deleting
-shared labels. Deletion previews the affected documents and removes only the
-label association from active documents; it preserves document content and
-history. Removing a tag from one document and deleting it across documents are
-separate, explicitly named actions. Existing-body drafts survive these changes.
+需要 **Python 3.10–3.12**。运行服务只用 Python 标准库；编辑器、字体和 PDF 阅读器已随仓库打包，无需 Node.js 或 CDN。
 
-`论文` is the only built-in classification. It exists at zero usage, cannot be
-deleted or renamed, and stays attached to paper materials. Blogs and other topics
-are ordinary editable/removable tags. Older specialized records remain readable
-as ordinary documents; explicit new writes/imports normalize non-paper kinds to
-notes without erasing existing content or history.
+```bash
+git clone https://github.com/ZAIQuQ/Workmoire.git
+cd Workmoire
+cp .env.example .env
+chmod 600 .env
+```
 
-The list's tag filter and searchable, paginated tag library include an untagged
-view. Filtering preserves the open draft. Rename, merge or delete a tag through
-the same management controls: preview the affected documents, then apply. Each
-affected document retains a history revision; stale previews are rejected, and
-each operation is limited to 100 active documents. Trash is excluded. See the
-[navigation and tag design research](docs/navigation-tags-design.md).
+编辑 `.env`：
 
-The [product-style research](docs/product-style-design.md) records the Notion,
-Feishu and Yuque references, typography audit and visual verification.
+- 本机使用时设置 `WORKSPACE_HOST=127.0.0.1`。
+- 设置 `WORKSPACE_DATA_DIR`，将数据放在源码目录之外。
+- 将 `WORKSPACE_SESSION_SECRET` 换成长随机值。对外开放首次注册时，还必须设置独立的 `WORKSPACE_SETUP_TOKEN`。
 
-## Papers and Codex
+随机值可以用 `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'` 生成。初始化令牌只用于创建首个账号，之后使用账号密码登录。
 
-Choose **New document → Paper materials**. Upload a PDF, supply a public HTTPS
-paper/PDF link, or provide both. Uploaded files always take precedence: no other
-PDF or web text is retrieved for them. A URL without a file triggers a bounded
-metadata/PDF lookup and download. Failed downloads show source links and require
-a manual PDF upload before proceeding.
+```bash
+python3 workspace_server.py
+```
 
-The selected file is previewed before use. It can be replaced at any point before
-insertion; replacing it invalidates the earlier extracted text and generated
-notes. Browser-side PDF.js extraction reads only that authenticated attachment,
-up to 80 pages / 60,000 characters, with a bounded loading task. Optional Codex
-analysis uses those extracted words, never a substitute HTML article or another
-PDF. Textless/scanned PDFs can be archived and read without invented analysis.
+打开 [localhost:5200](http://localhost:5200)，创建你的账号。
 
-Confirm the title/author and optionally generate reading notes, then insert into
-the editor and save. Only the final selected file is associated with the saved
-document. Abandoned/replaced temporary imports move to recoverable attachment
-trash. See [paper intake behavior](docs/paper-intake.md).
+## 部署与数据
 
-Paper dossiers default to `gpt-6.1-sol` with `xhigh` reasoning and a 240-second model timeout.
-General document tasks default to `medium` with a 90-second timeout. Optional
-private settings can override the paper model and budget independently. The
-prompt requests mechanisms, evidence, limitations and concrete experiments,
-while keeping speculative research directions separate from supported facts.
+| 服务 | 默认端口 | 用途 |
+| --- | --- | --- |
+| 主站 | `5200` | 登录、编辑、资料管理 |
+| 分享服务（单独启用） | `5201` | 密码保护的只读快照 |
 
-Generated dossiers and assistant suggestions are previews. Importing a chosen
-PDF creates an unassociated attachment; inserting a dossier creates unsaved
-editor state. Normal save persists the document and links its selected PDF.
-Lookup and analysis endpoints do not create document records. Publisher access
-restrictions are not bypassed; manual upload is the fallback.
+分享服务使用独立系统账号和数据目录，不能读取整个私有文档库。配置见[文档分享部署指南](docs/document-sharing.md)；主站和备份定时任务提供 [systemd 示例](deploy/systemd/)。主站也可使用 `docker compose up -d --build`，数据保存在命名卷中；Docker 默认不启用分享和 Codex。
 
-Codex runs in an empty temporary directory with explicit `--ephemeral` and
-`--sandbox read-only` flags. Only the selected document or chosen public paper
-material is supplied. The CLI may contact its configured model provider. Prompts,
-responses, credentials, and personal documents are not written into source or logs.
+生产访问请配置 HTTPS，并备份数据库、附件和分享密钥。分享的是生成时的已保存版本，后续编辑不会自动公开；已下载的内容无法收回。
 
-AI skill/template standardization and later user-guided refinement are tracked in
-[`TODO.md`](TODO.md), after the overall interface and workflow design settles.
+```bash
+WORKSPACE_DATA_DIR=/path/to/private-data ./backup.sh /path/to/private-backups
+```
 
-## Run
+完整配置、数据恢复和编辑说明见[使用指南](docs/user-guide.md)、[论文导入](docs/paper-intake.md)和[安全说明](SECURITY.md)。
 
-Runtime: Python 3.10–3.12 and its standard library. Browser assets and fonts are
-vendored locally; the deployed application does not need Node.js or a CDN.
+## 开发
 
-Copy `.env.example` to a private `.env` and configure:
-
-- `WORKSPACE_DATA_DIR`: directory for the SQLite database and uploads, outside the source checkout.
-- `WORKSPACE_SESSION_SECRET`: a long random secret.
-- `WORKSPACE_HOST` / `WORKSPACE_PORT`: bind address and port (default port 5200).
-- `WORKSPACE_SETUP_TOKEN`: a private random token required for first-run creation on a public listener.
-- `WORKSPACE_COOKIE_SECURE`: enable when serving through HTTPS.
-- `WORKSPACE_CODEX_BIN`: an optional installed Codex executable; leave empty to disable generation.
-- `CODEX_HOME`: set this explicitly in the private service environment when Codex uses
-  a custom configuration directory; the service does not inherit your interactive shell.
-- `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`: configure these in the same private
-  service environment when the selected model provider requires an egress proxy.
-- `WORKSPACE_CODEX_MODEL` / `WORKSPACE_CODEX_REASONING_EFFORT`: optional general CLI overrides.
-- `WORKSPACE_PAPER_CODEX_MODEL` / `WORKSPACE_PAPER_REASONING_EFFORT`: independent paper overrides, defaulting to `gpt-6.1-sol` and `xhigh`.
-- `WORKSPACE_PAPER_ASSISTANT_TIMEOUT`: paper model timeout in seconds (default 240; bounded to 60–600).
-- `WORKSPACE_PAPER_PROXY`: optional trusted HTTP CONNECT proxy for paper retrieval.
-  The paper fetcher also recognizes `HTTPS_PROXY`; target DNS is validated and the
-  tunnel uses a pinned public destination IP. Credentials in proxy URLs are unsupported.
-
-Run `python3 workspace_server.py` and open `http://127.0.0.1:5200`.
-The first-run form creates the only account. Passwords are chosen in the browser,
-are salted and hashed, and are never included in configuration or source. Existing
-accounts, cookies, documents, and backups are compatible with the document-focused UI.
-
-Use the example service in `deploy/systemd/` for systemd. Keep its environment
-file private, back up data before deploying, copy only source/static assets, and
-verify `/healthz` and `/api/session` after a restart.
-
-## Development and checks
-
-The source checkout is separate from the live application's data. Install the
-locked frontend dependencies and build the vendored assets:
-
-```sh
+```bash
 npm ci
 npm run build
 make compile
 make test
-npx playwright install chromium
+npx playwright install --with-deps chromium
 npm run test:browser
 ```
 
-Browser tests start their own loopback server with disposable synthetic data.
-They cover login, editor tools, math/code/tables, draft recovery and conflicts,
-image/PDF attachment handling, paper drafting without automatic persistence,
-native formatting and migration, table editing/resizing, block movement, Chinese
-composition, draft/storage failures, concurrent saves, media proportions, and
-responsive editing/PDF layout. A synthetic document with over 900 blocks checks
-that typing avoids full-document Markdown serialization and retains PDF nodes. Screenshots are written under ignored `artifacts/`.
+测试使用独立的临时数据。较大改动完成后，按[发布流程](docs/releases.md)更新版本与日志，验证部署，再同步 GitHub。
 
-Rebuild `workspace/static/vendor/` after changing `web/` or library versions.
-Keep `package-lock.json` and the bundled runtime dependency notices together.
-The build also emits gzip copies of public text assets. The server negotiates
-compression for GET/HEAD and falls back to the original if a compressed copy is stale.
+## 许可证
 
-When generation is enabled, check the actual running service configuration with
-`python3 scripts/check_assistant.py --service personal-workspace.service` and
-repeat with `--paper` to verify the deeper paper settings. This
-uses synthetic input and does not print credentials or process personal documents.
-Timed-out assistant calls terminate the launcher and its child processes together.
-
-`skills/personal-workspace-maintenance/SKILL.md` is the canonical maintenance
-workflow. Run `make skill-sync` after changing it.
-
-## Backups
-
-`WORKSPACE_DATA_DIR=/path/to/private-data ./backup.sh /path/to/private-backups`
-creates a SQLite-consistent snapshot and an archive of uploaded files. Both are
-validated before retention pruning; the default retention is 14 days. Backup and
-systemd timer examples are in `deploy/systemd/`. JSON exports omit credentials
-and attachment binaries; complete archives include attachment bytes but never
-account credentials.
-
-## License
-
-MIT. Bundled editor/rendering libraries, icons, and fonts retain their respective
-notices in `workspace/static/vendor/THIRD_PARTY_LICENSES.txt`. Pinned resource
-sources are listed in `workspace/static/THIRD_PARTY_ASSETS.md`.
-
-## Document sharing
-
-Use **分享** at the upper right of a document to generate a password-protected,
-read-only snapshot on the independent sharing service (default port 5201).
-Choose 1, 7, 30 days or permanent; every link gets a strong generated password
-and an unpredictable URL identifier. Reset passwords, replace links or stop
-sharing from the same dialog. Later private edits are not published automatically.
-See [sharing setup, access controls and backup/restore](docs/document-sharing.md).
+[MIT](LICENSE)。本地打包的依赖、图标和字体保留各自的[许可证与来源](workspace/static/THIRD_PARTY_ASSETS.md)。

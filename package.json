@@ -1,7 +1,7 @@
 {
   "name": "workmoire",
-  "version": "1.0.0",
-  "description": "A quiet academic notebook with paper dossiers and connected documents",
+  "version": "1.1.0",
+  "description": "Self-hosted academic notes, PDF reading, and connected documents",
   "scripts": {
     "build": "node scripts/build.mjs",
     "test:browser": "playwright test",
@@ -45,5 +45,9 @@
     "@playwright/test": "1.64.1",
     "esbuild": "0.28.2"
   },
-  "private": true
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZAIQuQ/Workmoire.git"
+  }
 }

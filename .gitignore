@@ -12,3 +12,14 @@ test-results/
 playwright-report/
 
 share-data/
+
+*.sqlite
+*.sqlite3
+.env.*
+!.env.example
+*.log
+.pytest_cache/
+.mypy_cache/
+.vscode/
+.idea/
+.DS_Store

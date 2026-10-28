@@ -49,7 +49,8 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 ## GitHub
 
 - Use a private-safe commit and a focused message.
-- Push only after the remote owner and repository are known.
+- Use the standing authorization to synchronize verified deployments to `ZAIQuQ/Workmoire/main`; update version/changelog and both README languages, push the commit and immutable version tag, create its Release, and inspect CI. Do not treat local commits as publication.
+- Verify the deployed `REVISION`, package version and release tag agree. If authorization is configured but credentials are missing, prepare all source/deployment work and request a browser login without collecting tokens in chat.
 - Never put credentials in the remote URL or commit history.
 - If a repository secret was exposed, rotate it before continuing.
 

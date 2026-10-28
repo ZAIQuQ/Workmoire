@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import workspace_server as app
+import app_release
 from share_server import ShareHTTPServer
 
 
@@ -27,6 +28,7 @@ def main():
         app.DATA_DIR=Path(scratch);app.FILES_DIR=Path(scratch)/'files';app.DB_PATH=Path(scratch)/'workspace.db'
         app.SESSION_SECRET='synthetic-browser-session-secret';app.SETUP_TOKEN='';app.CODEX_BIN='/usr/bin/true';app.COOKIE_SECURE=False
         app.SHARE_DATA_DIR=str(Path(scratch)/'sharing');app.SHARE_PUBLIC_URL='http://127.0.0.1:8766';app.SHARE_PORT=8766
+        app_release.fetch_latest=lambda:{"tag_name":"v1.1.0","body":"Synthetic release notes"}
         app.init_db()
         fixture_paper={'title':'Synthetic paper for browser verification','authors':['Example Researcher'],'year':'2026','venue':'Example Journal','doi':'10.0000/synthetic','url':'https://example.org/paper','pdf_url':'','abstract':'A synthetic study of how to connect academic notes.','reference':'doi:10.0000/synthetic','provider':'Synthetic metadata'}
         app.lookup_papers=lambda reference:[fixture_paper]

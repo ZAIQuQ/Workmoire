@@ -41,6 +41,7 @@ from paper_tools import dossier_header, fetch_public, lookup_papers, reading_mat
 from rich_documents import normalized_rich_content, read_rich_content, remap_references
 from paper_intake import download_paper, paper_source, selected_pdf_header
 from share_store import SharePublisher
+from app_release import release_info
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "workspace" / "static"
@@ -1317,6 +1318,11 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             con.close()
             user = self.current_user()
             self.json_response({"setup": user_row is None, "setup_token_required": setup_token_required_for(self.server), "authenticated": bool(user), "username": user})
+            return
+        if path == "/api/version":
+            if not self.require_user():
+                return
+            self.json_response(release_info(check=parse_qs(parsed.query).get("check") == ["1"]))
             return
         if path == "/api/assistant/status":
             if not self.require_user():
