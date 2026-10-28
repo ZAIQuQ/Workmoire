@@ -113,6 +113,8 @@ changes belong in normal commit history.
 
 ## 2026-10-28
 
+- Added blog dossiers with protected Chinese classification, attributed short summaries, restricted-source/manual-text fallback and a versioned base prompt. Added a tested atomic CHECK-constraint expansion with private-copy record/reference/sequence verification, plus a synthetic exact-service blog-summary check.
+
 - Unified creation and shared rename/delete in the pin-side label entry. Replaced the hidden two-step creation flow with a named form and immediate association saves; added operation-specific deletion previews and before/after metadata for preserving body drafts across successive tag changes.
 
 - Moved label maintenance into catalogue rows beside pin, added stable bookmark colors, and introduced a revision-checked label-only save that preserves body drafts. Made the paper label a protected built-in, including zero-count and legacy-read behavior; recorded row-control, draft-rebase, palette and backend protection checks.

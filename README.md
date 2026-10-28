@@ -85,11 +85,12 @@ label association from active documents; it preserves document content and
 history. Removing a tag from one document and deleting it across documents are
 separate, explicitly named actions. Existing-body drafts survive these changes.
 
-`论文` is a built-in label and exists even with zero matching documents. It cannot
-be renamed or merged away. Paper dossiers automatically include it and cannot
-remove it; ordinary notes may add or remove their association with it. Existing
-paper records are classified on read without a bulk database rewrite. The
-built-in paper label does not consume a paper's twelve custom-label slots.
+`论文` and `博客` are built-in labels and exist even with zero matching documents.
+They cannot be deleted, renamed or merged away. Paper/blog dossiers automatically
+include their corresponding label and cannot remove it; ordinary notes may add
+or remove their association. Existing records are classified on read without
+a bulk rewrite. A document's required label does not consume its twelve custom
+label slots.
 
 The list's tag filter and searchable, paginated tag library include an untagged
 view. Filtering preserves the open draft. Rename, merge or delete a tag through
@@ -118,9 +119,28 @@ private settings can override the paper model and budget independently. The
 prompt requests mechanisms, evidence, limitations and concrete experiments,
 while keeping speculative research directions separate from supported facts.
 
+For blogs, choose **New document → Blog dossier**, paste a public HTTPS article
+link and read it. The service extracts title, author, source site, publication
+date when available, and article text from semantic HTML or structured article
+metadata. Confirm/correct the metadata, generate a brief Chinese summary, then
+insert and save the document. Blog documents use the protected `博客` bookmark
+and remain in the existing document library.
+
+Blog summaries use the general assistant budget and a versioned base template
+at `prompts/blog-summary.md`. The summary normally consists of a short overview
+and 3–5 points. At most 30,000 source characters are supplied to Codex; partial
+or pasted evidence is identified in the archive. No source page is copied into
+the repository or saved as a file automatically.
+
+If a source returns an access restriction or has no extractable body, the UI
+shows that state and permits a confirmed title plus pasted body. Metadata alone
+does not produce an invented summary. Users may instead create a source-only
+archive and add notes later. Reading/generation remain previews until explicit
+insertion and normal document save. See [blog import behavior](docs/blog-import.md).
+
 Generated dossiers and assistant suggestions are previews. Inserting them into the
 editor does not save them; use the normal save action to persist a document. Paper
-lookup and drafting endpoints do not write documents or attachments. PDF downloads
+and blog lookup/drafting endpoints do not write documents or attachments. PDF downloads
 happen only through an explicit import action; publisher access restrictions are
 not bypassed. A source can lack metadata, disallow embedding, or be unavailable;
 use its DOI/title or upload a locally obtained PDF in those cases.

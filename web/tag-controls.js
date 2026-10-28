@@ -1,4 +1,4 @@
-import {PAPER_TAG,tagName as nameOf,tagKey as key,tagColor,documentTags} from './tag-colors.js';
+import {builtinTag,isBuiltin,tagName as nameOf,tagKey as key,tagColor,documentTags} from './tag-colors.js';
 export {tagColor,documentTags} from './tag-colors.js';
 const icon=name=>window.WorkmoireIcons.render(name);
 const button=(text,cls)=>{const el=document.createElement('button');el.type='button';el.className=cls;el.textContent=text;return el;};
@@ -23,7 +23,7 @@ function mountTagManager(host,{request,post,onSelect,onExecute,onBusy=()=>{},onL
    for(const item of rows){
     const row=document.createElement('div');row.className='tag-library-row';const pick=button('','tag-library-pick');pick.innerHTML=icon('bookmark');pick.append(badge(item.tag));pick.title=embedded?'添加到当前文档':'筛选这个标签';pick.onclick=()=>onSelect(item.tag);
     const count=document.createElement('span');count.className='tag-use-count';count.textContent=item.count;row.append(pick,count);
-    if(item.built_in||item.tag===PAPER_TAG){const lock=document.createElement('span');lock.className='tag-library-lock';lock.innerHTML=icon('lock');lock.title='内置标签不能删除或重命名';const note=document.createElement('span');note.className='tag-system-badge';note.textContent='内置';row.append(note,lock);}
+    if(item.built_in||isBuiltin(item.tag)){const lock=document.createElement('span');lock.className='tag-library-lock';lock.innerHTML=icon('lock');lock.title='内置标签不能删除或重命名';const note=document.createElement('span');note.className='tag-system-badge';note.textContent='内置';row.append(note,lock);}
     else{const rename=button('改名','tag-library-edit'),remove=button('删除','tag-library-delete');rename.setAttribute('aria-label','改名标签 '+item.tag);remove.setAttribute('aria-label','删除标签 '+item.tag);rename.onclick=()=>editTag(item,'rename');remove.onclick=()=>editTag(item,'delete');row.append(rename,remove);}
     root.append(row);
    }
@@ -32,7 +32,7 @@ function mountTagManager(host,{request,post,onSelect,onExecute,onBusy=()=>{},onL
  }
  function back(){actionVersion++;clearTimeout(actionTimer);actionHost.replaceChildren();actionHost.hidden=true;catalog.hidden=false;input.focus();onLayout();}
  function editTag(item,action){
-  if(busy||item.built_in||item.tag===PAPER_TAG)return;
+  if(busy||item.built_in||isBuiltin(item.tag))return;
   catalog.hidden=true;actionHost.hidden=false;actionHost.replaceChildren();
   const form=document.createElement('form');form.className='tag-rename-form';
   form.innerHTML='<button type="button" class="quiet-button tag-rename-back">'+icon('back')+'返回标签列表</button><h3></h3><p class="tag-rename-source"></p><div class="tag-target-field"></div><div class="tag-rename-preview" role="status"></div><div class="dialog-actions"><button type="submit" class="button primary" disabled>加载预览…</button></div>';
@@ -81,7 +81,7 @@ export function openDocumentTagPicker({anchor,item,request,post,onApply,onExecut
  function renderSelected(){
   selected.replaceChildren();selectedTitle.hidden=!current.length;
   for(const tag of current){const chip=badge(tag);chip.classList.add('selected-tag');const text=document.createElement('span');text.textContent=tag;chip.replaceChildren(text);
-   if(item.kind==='paper'&&tag===PAPER_TAG){const lock=document.createElement('span');lock.className='tag-lock';lock.innerHTML=icon('lock');lock.title='论文档案的内置标签，不能移除';lock.setAttribute('aria-label',lock.title);chip.append(lock);}
+   if(tag===builtinTag(item.kind)){const lock=document.createElement('span');lock.className='tag-lock';lock.innerHTML=icon('lock');lock.title=tag+'档案的内置标签，不能移除';lock.setAttribute('aria-label',lock.title);chip.append(lock);}
    else{const remove=button('','tag-remove');remove.innerHTML=icon('close');remove.title='从此文档移除';remove.setAttribute('aria-label','从此文档移除标签 '+tag);remove.onclick=()=>change(current.filter(t=>t!==tag),'已从此文档移除');chip.append(remove);}selected.append(chip);
   }
   selected.hidden=!current.length;position();
@@ -97,7 +97,7 @@ export function openDocumentTagPicker({anchor,item,request,post,onApply,onExecut
   // Explicit creation/Enter works even while debounced suggestions are pending.
   version++;setBusy(true);status.textContent='正在添加标签…';let next=[...current];
   try{for(const name of names){const result=await request('/api/tags?'+new URLSearchParams({limit:'100',q:name}));const tag=result.tags.find(option=>key(option.tag)===key(name))?.tag||name;if(!next.some(value=>key(value)===key(tag)))next.push(tag);}
-   if(next.filter(tag=>item.kind!=='paper'||tag!==PAPER_TAG).length>12)throw new Error('每份文档最多 12 个自定义标签');
+   if(next.filter(tag=>tag!==builtinTag(item.kind)).length>12)throw new Error('每份文档最多 12 个自定义标签');
   }catch(error){setBusy(false);status.textContent=error.message;return false;}
   setBusy(false);if(next.join(',')===current.join(',')){status.textContent='此文档已添加这个标签';return true;}
   const ok=await change(documentTags(next.join(','),item.kind),'已添加并保存');if(ok){input.value='';form.hidden=true;renderSelected();load();input.focus();}return ok;

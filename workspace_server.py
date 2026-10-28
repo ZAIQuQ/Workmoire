@@ -38,6 +38,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from paper_tools import dossier_header, fetch_public, lookup_papers, reading_material
+from schema_migrations import allow_blog_documents
+from blog_tools import blog_header, lookup_blog, provided_blog, MIN_BLOG_TEXT
 from rich_documents import normalized_rich_content, read_rich_content, remap_references
 
 ROOT = Path(__file__).resolve().parent
@@ -108,7 +110,7 @@ MAX_ARCHIVE_UPLOAD = 256 * 1024 * 1024
 MAX_ARCHIVE_MANIFEST = 32 * 1024 * 1024
 MAX_ARCHIVE_MEMBERS = 10000
 MAX_ARCHIVE_UNCOMPRESSED = 256 * 1024 * 1024
-KINDS = {"note", "project", "paper", "log"}
+KINDS = {"note", "project", "paper", "blog", "log"}
 STATUSES = {"inbox", "active", "done", "paused"}
 ACTIVITY_LABELS = {
     "create": "创建内容",
@@ -221,7 +223,7 @@ def init_db() -> None:
         );
         CREATE TABLE IF NOT EXISTS items(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          kind TEXT NOT NULL CHECK(kind IN ('note','project','paper','log')),
+          kind TEXT NOT NULL CHECK(kind IN ('note','project','paper','log','blog')),
           title TEXT NOT NULL,
           summary TEXT NOT NULL DEFAULT '',
           content TEXT NOT NULL DEFAULT '',
@@ -357,6 +359,7 @@ def init_db() -> None:
                 continue
             con.execute("UPDATE %s SET entry_date=? WHERE id=?" % table, (recovered, row["id"]))
     con.commit()
+    allow_blog_documents(con)
     con.close()
 
 
@@ -430,18 +433,22 @@ def safe_tags(value: object) -> str:
 
 
 PAPER_TAG = "论文"
+BLOG_TAG = "博客"
+BUILTIN_TAGS = {'paper': PAPER_TAG, 'blog': BLOG_TAG}
 
 
 def effective_tags(value: str, kind: str) -> str:
-    """Expose the paper classification without rewriting legacy records on read."""
-    if kind == 'paper':
-        return ','.join([PAPER_TAG, *(tag for tag in value.split(',') if tag and tag != PAPER_TAG)])
+    """Expose built-in classification without rewriting legacy records on read."""
+    builtin = BUILTIN_TAGS.get(kind)
+    if builtin:
+        return ','.join([builtin, *(tag for tag in value.split(',') if tag and tag != builtin)])
     return value
 
 
 def document_tags(value: object, kind: str) -> str:
-    if kind == 'paper':
-        custom = ','.join(tag_name(tag) for tag in str(value or '').replace('，', ',').split(',') if tag_name(tag) != PAPER_TAG)
+    builtin = BUILTIN_TAGS.get(kind)
+    if builtin:
+        custom = ','.join(tag_name(tag) for tag in str(value or '').replace('，', ',').split(',') if tag_name(tag) != builtin)
         return effective_tags(safe_tags(custom), kind)
     return safe_tags(value)
 
@@ -456,8 +463,8 @@ def tag_change_plan(con: sqlite3.Connection, source: object, target: object = No
         raise ValueError('标签操作无效')
     if not isinstance(source, str) or (action == 'rename' and not isinstance(target, str)):
         raise ValueError('请输入标签名称')
-    if source == PAPER_TAG:
-        raise ValueError('“论文”是内置标签，不能删除、重命名或合并移除')
+    if source in BUILTIN_TAGS.values():
+        raise ValueError('“%s”是内置标签，不能删除、重命名或合并移除' % source)
     target = tag_name(target) if action == 'rename' else ''
     names = [source, target] if action == 'rename' else [source]
     if any(not name or len(name) > 32 or ',' in name or '，' in name for name in names):
@@ -472,7 +479,7 @@ def tag_change_plan(con: sqlite3.Connection, source: object, target: object = No
     destination = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND instr(',' || tags || ',', ',' || ? || ',') > 0", (target,)).fetchone()[0] if action == 'rename' else 0
     versions = [(row['id'], row['updated_at'], row['tags']) for row in rows]
     token = hashlib.sha256(json.dumps([action, source, target, destination, versions], ensure_ascii=False).encode()).hexdigest()
-    return {'action': action, 'source': source, 'target': target, 'count': len(rows), 'merge': action == 'rename' and (bool(destination) or target == PAPER_TAG), 'preview_token': token,
+    return {'action': action, 'source': source, 'target': target, 'count': len(rows), 'merge': action == 'rename' and (bool(destination) or target in BUILTIN_TAGS.values()), 'preview_token': token,
             'items': [{'id': row['id'], 'title': row['title']} for row in rows[:5]]}, rows
 
 
@@ -615,6 +622,36 @@ def paper_draft(reference: str) -> dict:
     notes = invoke_codex(prompt, timeout=PAPER_ASSISTANT_TIMEOUT, reasoning_effort=PAPER_REASONING_EFFORT, model=PAPER_CODEX_MODEL)
     evidence = {key: material[key] for key in ("scope", "url", "truncated")}
     return {"title": paper["title"], "content": dossier_header(paper, material) + "\n" + notes, "paper": paper, "evidence": evidence}
+
+
+def blog_draft(data: dict) -> dict:
+    summarize = data.get('summarize', True)
+    if type(summarize) is not bool:
+        raise ValueError('博客整理方式无效')
+    supplied = data.get('text', '')
+    if not isinstance(supplied, str):
+        raise ValueError('请以文字形式提供博客正文')
+    if supplied.strip() or not summarize:
+        article = provided_blog(data)
+    else:
+        article = lookup_blog(data.get('reference', ''))
+        # The user may correct extracted attribution before generating a draft.
+        overrides = provided_blog({**data, 'reference': article['url']})
+        for field in ['title', 'author', 'site', 'published_at']:
+            if str(data.get(field, '')).strip():
+                article[field] = overrides[field]
+    if not article['title']:
+        raise ValueError('请填写博客标题')
+    if not summarize:
+        article['scope'] = 'metadata'
+        return {'title': article['title'], 'content': blog_header(article) + '\n## 阅读笔记\n\n', 'summary': '', 'article': {k:v for k,v in article.items() if k != 'text'}}
+    if len(article['text']) < MIN_BLOG_TEXT:
+        raise ValueError(article.get('message') or '正文不足，请粘贴至少 80 个字符的博客正文后生成摘要')
+    prompt = (Path(__file__).parent/'prompts/blog-summary.md').read_text(encoding='utf-8')
+    notes = invoke_codex(prompt + '\n\n--- 文章材料 ---\n' + json.dumps(article, ensure_ascii=False))
+    preview = next((line.strip() for line in notes.splitlines() if line.strip() and not line.lstrip().startswith(('#', '-', '*', '`', '>'))), '')[:500]
+    return {'title': article['title'], 'content': blog_header(article) + '\n' + notes + '\n\n## 我的笔记\n\n',
+            'summary': preview, 'notes': notes, 'article': {k:v for k,v in article.items() if k != 'text'}}
 
 
 
@@ -1390,20 +1427,23 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             # item archive need to be materialized in the client or server.
             context = params.get("context", [""])[0][:32]
             title = params.get("title", [""])[0][:200]
-            sql = """WITH RECURSIVE split(tag,rest,related) AS (
-                SELECT '', CASE WHEN kind='paper' AND instr(',' || tags || ',', ',论文,')=0 THEN '论文,' ELSE '' END || tags || ',', CASE WHEN ?!='' AND (instr(',' || tags || ',', ',' || ? || ',') > 0 OR (kind='paper' AND ?='论文')) THEN 1 ELSE 0 END
+            sql = """WITH RECURSIVE typed AS (
+                SELECT tags,kind,CASE kind WHEN 'paper' THEN '论文' WHEN 'blog' THEN '博客' ELSE '' END AS type_tag
                 FROM items WHERE deleted_at='' AND (?='' OR kind=?)
+            ), split(tag,rest,related) AS (
+                SELECT '', CASE WHEN type_tag!='' AND instr(',' || tags || ',', ',' || type_tag || ',')=0 THEN type_tag || ',' ELSE '' END || tags || ',',
+                       CASE WHEN ?!='' AND (instr(',' || tags || ',', ',' || ? || ',') > 0 OR type_tag=?) THEN 1 ELSE 0 END FROM typed
                 UNION ALL SELECT substr(rest,1,instr(rest,',')-1), substr(rest,instr(rest,',')+1),related FROM split WHERE rest!=''
-            ), tag_rows AS (SELECT tag,related,1 AS used FROM split WHERE tag!='' UNION ALL SELECT '论文',0,0),
+            ), tag_rows AS (SELECT tag,related,1 AS used FROM split WHERE tag!='' UNION ALL SELECT '论文',0,0 UNION ALL SELECT '博客',0,0),
             counts AS (SELECT tag,SUM(used) AS count,SUM(related) AS related FROM tag_rows
                 WHERE instr(lower(tag),lower(?))>0 GROUP BY tag) """
             con = open_db()
             try:
                 con.execute("BEGIN")
-                values = (context, context, context, kind, kind, query)
+                values = (kind, kind, context, context, context, query)
                 total = con.execute(sql + "SELECT COUNT(*) FROM counts", values).fetchone()[0]
-                rows = con.execute(sql + "SELECT tag,count,related,tag='论文' AS built_in,lower(tag)=lower(?) AS exact_match,CASE WHEN instr(lower(?),lower(tag))>0 THEN 1 ELSE 0 END AS title_match FROM counts ORDER BY exact_match DESC,title_match DESC,related DESC,built_in DESC,count DESC,tag ASC LIMIT ? OFFSET ?", values + (query, title, limit, offset)).fetchall()
-                untagged = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND tags='' AND kind!='paper' AND (?='' OR kind=?)", (kind, kind)).fetchone()[0]
+                rows = con.execute(sql + "SELECT tag,count,related,tag IN ('论文','博客') AS built_in,lower(tag)=lower(?) AS exact_match,CASE WHEN instr(lower(?),lower(tag))>0 THEN 1 ELSE 0 END AS title_match FROM counts ORDER BY exact_match DESC,title_match DESC,related DESC,built_in DESC,count DESC,tag ASC LIMIT ? OFFSET ?", values + (query, title, limit, offset)).fetchall()
+                untagged = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND tags='' AND kind NOT IN ('paper','blog') AND (?='' OR kind=?)", (kind, kind)).fetchone()[0]
             finally:
                 con.close()
             self.json_response({"tags": [dict(row) for row in rows], "total": total, "untagged": untagged, "next_offset": offset + len(rows) if offset + len(rows) < total else None})
@@ -1646,10 +1686,15 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 clauses.append("status=?")
                 values.append(status)
             if tag:
-                clauses.append("(kind='paper' OR instr(',' || tags || ',', ',' || ? || ',') > 0)" if tag == PAPER_TAG else "instr(',' || tags || ',', ',' || ? || ',') > 0")
-                values.append(tag)
+                builtin_kind = next((kind for kind, label in BUILTIN_TAGS.items() if label == tag), None)
+                if builtin_kind:
+                    clauses.append("(kind=? OR instr(',' || tags || ',', ',' || ? || ',') > 0)")
+                    values.extend([builtin_kind, tag])
+                else:
+                    clauses.append("instr(',' || tags || ',', ',' || ? || ',') > 0")
+                    values.append(tag)
             if params.get("untagged", [""])[0] == "1":
-                clauses.append("tags='' AND kind!='paper'")
+                clauses.append("tags='' AND kind NOT IN ('paper','blog')")
             if entry_date:
                 clauses.append("entry_date=?")
                 values.append(entry_date)
@@ -2138,6 +2183,18 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 log_activity(con, "restore_file", "file", file_id, row["name"])
                 restored = con.execute("SELECT id,name,size,content_type,created_at FROM files WHERE id=?", (file_id,)).fetchone()
             self.json_response({"file": dict(restored)})
+            return
+        if path in {"/api/blogs/lookup", "/api/blogs/draft"}:
+            if not self.require_user():
+                return
+            try:
+                data = parse_json(self)
+                if path.endswith('/lookup'):
+                    self.json_response({'article': lookup_blog(data.get('reference', ''))})
+                else:
+                    self.json_response(blog_draft(data))
+            except Exception as exc:
+                self.request_error(exc, '博客整理暂时不可用，请稍后再试', 503)
             return
         if path in {"/api/papers/lookup", "/api/papers/draft"}:
             if not self.require_user():

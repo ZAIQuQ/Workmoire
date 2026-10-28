@@ -58,6 +58,8 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - Verify inline media magic bytes, authentication, same-origin frame policy, and PDF byte ranges; HTML/SVG must remain downloads.
 - Verify title, DOI, and arXiv lookup using public metadata, and test private/redirect destinations using synthetic fixtures.
 - Verify generated paper text preserves the source and uncertainty notice, and creates no records before explicit insertion/save.
+- For blogs, test extracted metadata, blocked-source/manual-text fallback, truthful summary scope, source-only archives, native save/import, protected blog bookmarks and mobile dialogs. Exercise the short summary template with `scripts/check_assistant.py --blog` using the service environment.
+- Before a document-kind CHECK expansion, rehearse the migration on a private database copy and compare record digests, foreign keys and sequence state. Ensure the deployment ships the new parser/migration modules and prompt resources before restarting.
 - Verify concurrent saves keep current typing, stale local drafts require manual merging, and mobile editing has no horizontal page overflow.
 - If source retrieval requires an egress proxy, configure it only in the private environment file and test a public source through pinned DNS before deploying.
 
