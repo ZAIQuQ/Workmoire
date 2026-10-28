@@ -1,3 +1,5 @@
+import {createDocumentOutline} from './document-outline.js';
+window.WorkmoireOutline={create:createDocumentOutline};
 import {openAbout,loadVersion} from './about.js';
 window.WorkmoireAbout={open:openAbout,load:loadVersion};
 import {openShareDialog} from './share-dialog.js';

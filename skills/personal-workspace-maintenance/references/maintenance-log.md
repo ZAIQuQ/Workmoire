@@ -137,3 +137,5 @@ changes belong in normal commit history.
 - Verified Linux setgid inheritance across distinct publisher/reader users: the publisher must be a member of the sharing group before chmod and file creation. Rehearse publication with actual OS identities; same-user unit/browser tests cannot prove the deployment permission boundary.
 
 - Reconnected the existing GitHub history with deployed development, restored repository CI/legal/container files and prior regression coverage, and recorded standing authorization for post-deployment pushes/releases. Added version metadata, bounded public release checks, bilingual README maintenance, and an exact-deployment publication helper that rejects divergence and avoids force-push.
+
+- Made the document outline a dedicated navigation view beside the body, with live headings, scroll tracking, content-reflow handling and responsive disclosure. Added selection/save/PDF preservation and lifecycle cleanup to the browser release checks.

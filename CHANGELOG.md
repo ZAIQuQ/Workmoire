@@ -2,6 +2,25 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.2.0] — 2026-10-29
+
+### 文档目录
+
+- 正文右侧新增独立目录，编辑、阅读和专注模式下都可使用。
+- 自动展示标题 1–6 的层级，点击跳转，随正文滚动高亮当前章节。
+- 标题改名、增删、调整层级和撤销后自动更新；重名标题仍可分别定位。
+- 窄屏通过「目录」按钮展开，选择章节后自动收起；目录导航不会修改正文或触发保存。
+- 保留内嵌 PDF、代码折叠和编辑草稿，支持内容高度变化后的重新定位。
+
+见[使用说明](docs/user-guide.md)。主站和分享服务仍使用原端口与数据目录。
+
+### English
+
+A dedicated right-hand document outline is available while editing, reading and
+using focus mode. It follows heading levels 1–6, highlights the current section,
+and stays in sync with edits and layout changes. On narrow screens, open it with
+the outline button. Navigation preserves the document, selection and embedded PDF.
+
 ## [1.1.0] — 2026-10-29
 
 ### 新增与改进
@@ -34,3 +53,5 @@ Earlier development was published as untagged commits. See the
 [commit history](https://github.com/ZAIQuQ/Workmoire/commits/main) for those changes.
 
 [1.1.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.1.0
+
+[1.2.0]: https://github.com/ZAIQuQ/Workmoire/releases/tag/v1.2.0

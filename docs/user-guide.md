@@ -8,6 +8,15 @@ and tags, rather than separate creation types.
 
 ## Writing
 
+The document body has an independent outline on its right in editing, reading,
+and focus modes. Headings 1–6 appear with their hierarchy; selecting an entry
+scrolls only the document, while the current section follows scrolling. Heading
+edits, undo and content reflow update the outline automatically. On narrow
+screens use the outline button beside the reading/editing controls, choose a
+section to close the panel, or press Escape. Navigation does not change the
+document, editor selection or save state. Plain text styled to look large is
+not a heading: choose a heading style to include a paragraph in the outline.
+
 - Tiptap/ProseMirror block editor with direct rich-text input, a selection toolbar,
   slash insertion menu, draggable blocks, and separate undo steps for block actions.
   Bold, italic, underline, strike, color, highlight, alignment, nested lists and
