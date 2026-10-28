@@ -150,3 +150,45 @@ class TagTests(unittest.TestCase):
         self.assertEqual(len(json.loads(self.request('/api/items/'+str(first['id'])+'/revisions')[1])['revisions']),1)
         self.request('/api/items/'+str(first['id']),'DELETE')
         self.assertEqual(self.request(path,'POST',{'tags':'ignored','base_updated_at':changed['updated_at']})[0],404)
+
+    def test_tag_deletion_is_previewed_versioned_recoverable_and_cannot_delete_builtin(self):
+        native={'version':1,'document':{'type':'doc','content':[{'type':'paragraph','content':[{'type':'text','text':'Original body','marks':[{'type':'bold'}]}]}]}}
+        first=self.create('First','delete-me,keep',rich_content=native)
+        second=self.create('Second','delete-me',kind='paper')
+        trashed=self.create('Trashed','delete-me')
+        self.request('/api/items/'+str(trashed['id']),'DELETE')
+        payload={'source':'delete-me','action':'delete'}
+        self.assertEqual(self.request('/api/tags/delete','POST',payload,anonymous=True)[0],401)
+        plan=json.loads(self.request('/api/tags/preview','POST',payload)[1])
+        self.assertEqual(plan['count'],2)
+        self.assertEqual(plan['action'],'delete')
+        self.assertEqual(self.get(first)['tags'],'delete-me,keep')
+        rename=json.loads(self.request('/api/tags/preview','POST',{'source':'delete-me','target':'changed'})[1])
+        self.assertEqual(self.request('/api/tags/delete','POST',rename)[0],409)
+        status,body,_=self.request('/api/tags/delete','POST',plan)
+        self.assertEqual(status,200)
+        result=json.loads(body)
+        self.assertEqual(len(result['updates']),2)
+        update=result['updates'][0]
+        self.assertEqual(update['before']['updated_at'],first['updated_at'])
+        self.assertEqual(update['after']['tags'],'keep')
+        self.assertNotIn('content',update['before'])
+        changed=self.get(first)
+        self.assertEqual(changed['content'],first['content'])
+        self.assertEqual(changed['rich_content'],first['rich_content'])
+        self.assertEqual(self.get(second)['tags'],'论文')
+        self.assertEqual(json.loads(self.request('/api/tags?q=delete-me')[1])['tags'],[])
+        with app.open_db() as con:self.assertEqual(con.execute('SELECT tags FROM items WHERE id=?',(trashed['id'],)).fetchone()[0],'delete-me')
+        revision=json.loads(self.request('/api/items/'+str(first['id'])+'/revisions')[1])['revisions'][0]
+        self.assertEqual(self.request('/api/items/'+str(first['id'])+'/revisions/'+str(revision['id'])+'/restore','POST',{})[0],200)
+        self.assertEqual(self.get(first)['tags'],first['tags'])
+        for path in ['/api/tags/preview','/api/tags/delete']:
+            self.assertEqual(self.request(path,'POST',{'source':'论文','action':'delete'})[0],400)
+
+    def test_tag_deletion_rejects_a_stale_preview_without_partial_changes(self):
+        first=self.create('First','obsolete')
+        plan=json.loads(self.request('/api/tags/preview','POST',{'source':'obsolete','action':'delete'})[1])
+        self.create('Added after preview','obsolete')
+        self.assertEqual(self.request('/api/tags/delete','POST',plan)[0],409)
+        self.assertEqual(self.get(first)['tags'],'obsolete')
+        with app.open_db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM item_revisions').fetchone()[0],0)

@@ -25,7 +25,8 @@ icons are reused.
   and pinning remain available.
 - The bookmark control sits immediately left of pin, with two visible tag chips
   and a `+N` overflow control. Tag chips filter the list. A bounded, anchored
-  picker handles the full set; tag maintenance is removed from the title area.
+  panel handles the full set through Document tags and Manage tags tabs. The
+  former includes a visible new-tag form; the latter exposes rename and delete.
 - Filtering changes the document list and preserves the editor. On phones it
   reveals the list, and reopening the current document retains unsaved edits.
   A draft/current-document row remains accessible outside the filtered page.
@@ -42,15 +43,19 @@ not stored document metadata.
 Suggestions use existing local metadata: title substring matches first, then
 co-occurrence with the last selected tag, then usage count. The picker explains
 the first two reasons. It supports keyboard selection, Chinese composition,
-case-insensitive reuse and normalized full-width names. Suggestions are not
-automatic assignments. The picker has explicit apply/cancel controls. Existing
-documents use a dedicated metadata save that changes only labels and the
-revision timestamp. It records history and rejects stale versions, leaving the
-body and native document untouched. Unsaved body edits remain local; a matching
-local draft is rebased only over the known tag-only revision. Body saves and
-tag saves on the same document cannot race through the client. New documents
-keep labels in their local draft until the first document save. No additional
-AI service is involved.
+case-insensitive reuse and normalized full-width names. Exact queried names rank
+first. Suggestions are not automatic assignments. New tag → Create and add,
+selection, and × removal are explicit actions that immediately save an existing
+document's label associations. Enter does not depend on a debounced suggestion
+having arrived. Creation has its own named input and button, and the search
+field remains an alternative fast path.
+
+Dedicated metadata saves change only labels and the revision timestamp. They
+record history and reject stale versions, leaving the body and native document
+untouched. Unsaved body edits remain local; a matching local draft is rebased
+only over a known tag-only revision. Body saves and tag saves on the same
+document cannot race through the client. New documents keep labels in their
+local draft until the first document save. No additional AI service is involved.
 
 The `论文` catalogue entry is built in, including at zero usage. Renaming or
 merging it away is rejected by the backend. Paper dossiers always expose it,
@@ -59,19 +64,25 @@ It is locked in paper pickers and excluded from custom-label limits. Notes may
 associate with it without changing their document type. No startup rewrite of
 existing documents or their historical revisions is required.
 
-Renaming to an existing name merges it. A preview lists the impact count and up
-to five example titles; the operation applies across the workspace, including
-when opened from a paper filter. A fingerprint of affected versions protects
-against stale previews. Writes are authenticated and transactional, update only
-labels and document timestamps, and record the original revisions. Trash is
-excluded. One operation is bounded to 100 active documents; larger changes
-require a smaller affected set. No bulk label or document deletion is added.
+Renaming to an existing name merges it. Shared-label deletion is distinct from
+removing a label from the current document. Both management actions preview the
+impact count and up to five titles, then require explicit confirmation. They
+apply across the workspace, including when opened from a paper filter. A
+fingerprint includes the operation type and affected versions, protecting
+against stale previews or using a rename token for deletion.
+
+Writes are authenticated and transactional, update only labels and document
+timestamps, and record original revisions. Before/after metadata enables the
+client to advance matching body drafts safely without replacing their text.
+Trash is excluded; restoring a trashed document or an earlier revision can
+restore its former tags. One operation is bounded to 100 active documents.
 
 ## Verification
 
 Backend checks cover local ranking, normalization, authentication, previews,
 atomic merge/history, stale editors/previews, untagged filtering and operation
 bounds. Browser checks cover row-control placement, independent metadata saves,
-draft preservation/rebasing, new local documents, built-in protection, keyboard
-and Chinese input, palette consistency/contrast, history, stale updates,
+draft preservation/rebasing, new local documents, built-in protection, visible
+creation, immediate Enter while earlier suggestions are pending, Chinese input,
+same-entry rename/delete, palette consistency/contrast, history, stale updates,
 pagination, filtering and phone widths. Visual reviews use synthetic documents.

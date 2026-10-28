@@ -130,3 +130,31 @@
   .tag-library, .tag-rename-form { padding: 18px; }
   .tag-library-rows { max-height: 45dvh; }
 }
+/* One row entry exposes assignment, creation and catalogue maintenance. */
+.row-tag-dialog { width: min(390px, calc(100vw - 24px)); max-height: min(680px, calc(100dvh - 24px)); }
+.row-tag-tabs { display: flex; gap: 4px; margin: 0 14px 10px; padding: 3px; background: var(--surface); border-radius: var(--radius-md); flex: none; }
+.row-tag-tab { flex: 1; border-radius: var(--radius-sm); padding: 7px 10px; color: var(--muted); font-size: 12px; }
+.row-tag-tab[aria-selected="true"] { background: var(--paper); color: var(--ink); box-shadow: 0 1px 3px #202c4010; }
+.row-tag-manager { min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 0 12px 12px; }
+.row-tag-manager .tag-library-rows { max-height: none; overflow: visible; }
+.row-tag-manager .tag-library-caption { padding-right: 8px; }
+.row-tag-manager .tag-rename-form { padding: 0 2px; }
+.row-tag-manager .tag-rename-form h3 { margin-top: 16px; font-size: 16px; }
+.row-tag-manager .tag-rename-preview { min-height: 0; }
+.row-tag-manager .dialog-actions { margin-top: 16px; }
+.tag-create-trigger { margin: 0 4px 8px; }
+.tag-create-trigger .icon { width: 14px; height: 14px; }
+.tag-create-form { padding: 12px; margin: 0 4px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.tag-create-form .field { margin: 0 0 10px; }
+.tag-create-form input { font-size: 13px; }
+.tag-create-actions { display: flex; justify-content: flex-end; gap: 14px; align-items: center; }
+.row-tag-footer { align-items: center; justify-content: space-between; gap: 10px; }
+.row-tag-footer > span { color: var(--muted); font-size: 11px; line-height: 1.6; }
+.tag-library-edit, .tag-library-delete { flex: none; padding: 6px; font-size: 11px; color: var(--muted); border-radius: var(--radius-sm); }
+.tag-library-delete:hover { background: #fff0ee; color: var(--danger); }
+.tag-delete-confirm { background: var(--danger) !important; }
+.row-tag-manager .tag-library-row { gap: 3px; }
+.row-tag-manager .tag-library-pick { gap: 5px; font-size: 12px; }
+.row-tag-manager .tag-library-pick > .icon { display: none; }
+.row-tag-manager .tag-library-pick .bookmark-tag { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-tag-manager [hidden] { display: none !important; }

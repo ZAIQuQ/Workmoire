@@ -92,21 +92,33 @@ function rebaseTagDraft(before,after){
   const draft=readDraft(before);if(!draft||String(draft.base_updated_at||'')!==String(before.updated_at||''))return;
   try{localStorage.setItem(draftKey(before),JSON.stringify({...draft,tags:after.tags,base_updated_at:after.updated_at}));}catch{toast('标签已保存，本机草稿仍保留旧版本，可在打开文档后复制合并',true);}
 }
+function acceptTagUpdate(before,after){
+  rebaseTagDraft(before,after);
+  if(state.current?.id===before.id&&state.current.updated_at===before.updated_at){state.current.tags=after.tags;state.current.tags_list=after.tags_list;state.current.updated_at=after.updated_at;state.baseline.tags=after.tags;updateSaveState();if(dirty())writeDraft();}
+}
+async function refreshTagCatalogue(){if(!$("#item-list"))return;try{await loadItems();renderList();refreshSidebar();}catch{toast('标签已保存，列表暂时无法刷新，请稍后重试',true);}}
+async function executeTagOperation(plan){
+  if(state.saving||state.tagSavingId)throw new Error('文档正在保存，请稍后再操作标签');
+  state.tagSavingId=state.current?.id||null;
+  try{
+    const result=await post('/api/tags/'+(plan.action==='delete'?'delete':'rename'),plan);
+    for(const update of result.updates||[])acceptTagUpdate(update.before,update.after);
+    if(state.current&&!state.current.id){const tags=WorkmoireTags.labels(state.current.tags,state.current.kind).flatMap(tag=>tag!==result.source?[tag]:result.action==='delete'?[]:[result.target]);state.current.tags=[...new Set(tags)].join(',');changed();writeDraft();}
+    if(state.tag===result.source)state.tag=result.action==='delete'?'':result.target;
+    await refreshTagCatalogue();return result;
+  }finally{state.tagSavingId=null;}
+}
 async function openRowTags(row,anchor){
   if(!row||state.tagDialogOpen)return;if(state.saving&&state.current?.id===row.id){toast("正文正在保存，请稍候");return;}
   state.tagDialogOpen=true;let item;try{item=row.id&&state.current?.id!==row.id?(await api('/api/items/'+row.id)).item:{...row,tags:state.current?.id===row.id?state.current.tags:row.tags};}catch(error){state.tagDialogOpen=false;toast(error.message,true);return;}
   const draftTarget=!item.id?state.current:null;
-  WorkmoireTags.edit({anchor,item,request:api,onClose:()=>{state.tagDialogOpen=false;document.querySelector('[data-row-key="'+(item.id||'draft')+'"] .row-tags-button')?.focus();},
-   async onApply(tags){
-    if(!item.id){if(state.current!==draftTarget)throw new Error('文档已切换，请重新打开标签');state.current.tags=tags;changed();writeDraft();renderList();return;}
-    if(state.saving&&state.current?.id===item.id)throw new Error('正文正在保存，请稍后再保存标签');
+  WorkmoireTags.edit({anchor,item,request:api,post,onExecute:executeTagOperation,onClose:()=>{state.tagDialogOpen=false;document.querySelector('[data-row-key="'+(item.id||'draft')+'"] .row-tags-button')?.focus();},
+   async onApply(tags,base=item){
+    if(!item.id){if(state.current!==draftTarget)throw new Error('文档已切换，请重新打开标签');if(state.current.tags!==tags){state.current.tags=tags;changed();writeDraft();renderList();}return {tags:state.current.tags,kind:state.current.kind};}
+    if(state.saving&&state.current?.id===item.id)throw new Error('正文正在保存，请稍后再操作标签');
     state.tagSavingId=item.id;
-    try{
-     const result=(await post('/api/items/'+item.id+'/tags',{tags,base_updated_at:item.updated_at})).item;
-     rebaseTagDraft(item,result);
-     if(state.current?.id===item.id&&state.current.updated_at===item.updated_at){state.current.tags=result.tags;state.current.tags_list=result.tags_list;state.current.updated_at=result.updated_at;state.baseline.tags=result.tags;updateSaveState();if(dirty())writeDraft();}
-     await loadItems();renderList();refreshSidebar();
-    }finally{state.tagSavingId=null;}
+    try{const result=(await post('/api/items/'+item.id+'/tags',{tags,base_updated_at:base.updated_at})).item;acceptTagUpdate(base,result);Object.assign(item,result);await refreshTagCatalogue();return result;}
+    finally{state.tagSavingId=null;}
    }
   });
 }
@@ -244,14 +256,7 @@ async function applyTagFilter(tag,untagged=false){
   try{await loadItems();renderList();}catch(error){toast(error.message,true);}
 }
 function openTags(kind=""){
-  WorkmoireTags.open({request:api,post,kind,onSelect:async(tag,untagged)=>{const target=kind?"papers":"documents";if(state.page!==target&&!await goPage(target))return;await applyTagFilter(tag,untagged);},
-   beforeApply(){if(state.saving||dirty()){toast("请先保存当前文档，再整理标签",true);return false;}return true;},
-   async onApplied(result){
-    if(state.tag===result.source)state.tag=result.target;
-    if(state.current?.id){const current=state.current;const data=await api("/api/items/"+current.id);if(state.current===current&&!dirty()){state.current=data.item;state.baseline=snapshot(data.item);renderEditor();}}
-    if($("#item-list")){await loadItems();renderList();renderTagFilter();}
-   }
-  });
+  WorkmoireTags.open({request:api,post,kind,onExecute:executeTagOperation,onSelect:async(tag,untagged)=>{const target=kind?"papers":"documents";if(state.page!==target&&!await goPage(target))return;await applyTagFilter(tag,untagged);}});
 }
 
 async function renderRelations(query=""){

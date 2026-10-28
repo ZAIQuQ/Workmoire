@@ -451,25 +451,28 @@ def tag_summary(row: sqlite3.Row) -> dict:
     return {'id': row['id'], 'kind': row['kind'], 'tags': tags, 'tags_list': tags.split(',') if tags else [], 'updated_at': row['updated_at']}
 
 
-def tag_rename_plan(con: sqlite3.Connection, source: object, target: object) -> tuple[dict, list]:
-    if not isinstance(source, str) or not isinstance(target, str):
-        raise ValueError("请输入标签名称")
-    target = tag_name(target)
+def tag_change_plan(con: sqlite3.Connection, source: object, target: object = None, action: str = 'rename') -> tuple[dict, list]:
+    if not isinstance(action, str) or action not in {'rename', 'delete'}:
+        raise ValueError('标签操作无效')
+    if not isinstance(source, str) or (action == 'rename' and not isinstance(target, str)):
+        raise ValueError('请输入标签名称')
     if source == PAPER_TAG:
-        raise ValueError('“论文”是内置标签，不能重命名或合并移除')
-    if any(not name or len(name) > 32 or "," in name or "，" in name for name in [source, target]):
-        raise ValueError("标签名称需要 1 到 32 个字符，不能包含逗号")
-    if source == target:
-        raise ValueError("请输入新的标签名称")
-    rows = con.execute("SELECT id,title,tags,updated_at FROM items WHERE deleted_at='' AND instr(',' || tags || ',', ',' || ? || ',') > 0 ORDER BY id LIMIT 101", (source,)).fetchall()
+        raise ValueError('“论文”是内置标签，不能删除、重命名或合并移除')
+    target = tag_name(target) if action == 'rename' else ''
+    names = [source, target] if action == 'rename' else [source]
+    if any(not name or len(name) > 32 or ',' in name or '，' in name for name in names):
+        raise ValueError('标签名称需要 1 到 32 个字符，不能包含逗号')
+    if action == 'rename' and source == target:
+        raise ValueError('请输入新的标签名称')
+    rows = con.execute("SELECT id,kind,title,tags,updated_at FROM items WHERE deleted_at='' AND instr(',' || tags || ',', ',' || ? || ',') > 0 ORDER BY id LIMIT 101", (source,)).fetchall()
     if not rows:
-        raise ValueError("这个标签已不存在，请刷新列表")
+        raise ValueError('这个标签已不存在，请刷新列表')
     if len(rows) > 100:
-        raise ValueError("一次最多修改 100 份文档的标签，请先缩小整理范围")
-    destination = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND instr(',' || tags || ',', ',' || ? || ',') > 0", (target,)).fetchone()[0]
+        raise ValueError('一次最多修改 100 份文档的标签，请先缩小整理范围')
+    destination = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND instr(',' || tags || ',', ',' || ? || ',') > 0", (target,)).fetchone()[0] if action == 'rename' else 0
     versions = [(row['id'], row['updated_at'], row['tags']) for row in rows]
-    token = hashlib.sha256(json.dumps([source, target, destination, versions], ensure_ascii=False).encode()).hexdigest()
-    return {'source': source, 'target': target, 'count': len(rows), 'merge': bool(destination) or target == PAPER_TAG, 'preview_token': token,
+    token = hashlib.sha256(json.dumps([action, source, target, destination, versions], ensure_ascii=False).encode()).hexdigest()
+    return {'action': action, 'source': source, 'target': target, 'count': len(rows), 'merge': action == 'rename' and (bool(destination) or target == PAPER_TAG), 'preview_token': token,
             'items': [{'id': row['id'], 'title': row['title']} for row in rows[:5]]}, rows
 
 
@@ -1399,7 +1402,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 con.execute("BEGIN")
                 values = (context, context, context, kind, kind, query)
                 total = con.execute(sql + "SELECT COUNT(*) FROM counts", values).fetchone()[0]
-                rows = con.execute(sql + "SELECT tag,count,related,tag='论文' AS built_in,CASE WHEN instr(lower(?),lower(tag))>0 THEN 1 ELSE 0 END AS title_match FROM counts ORDER BY title_match DESC,related DESC,built_in DESC,count DESC,tag ASC LIMIT ? OFFSET ?", values + (title, limit, offset)).fetchall()
+                rows = con.execute(sql + "SELECT tag,count,related,tag='论文' AS built_in,lower(tag)=lower(?) AS exact_match,CASE WHEN instr(lower(?),lower(tag))>0 THEN 1 ELSE 0 END AS title_match FROM counts ORDER BY exact_match DESC,title_match DESC,related DESC,built_in DESC,count DESC,tag ASC LIMIT ? OFFSET ?", values + (query, title, limit, offset)).fetchall()
                 untagged = con.execute("SELECT COUNT(*) FROM items WHERE deleted_at='' AND tags='' AND kind!='paper' AND (?='' OR kind=?)", (kind, kind)).fetchone()[0]
             finally:
                 con.close()
@@ -2539,15 +2542,17 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self.request_error(exc)
             return
-        if path in {"/api/tags/preview", "/api/tags/rename"}:
+        if path in {"/api/tags/preview", "/api/tags/rename", "/api/tags/delete"}:
             if not self.require_user():
                 return
             try:
                 data = parse_json(self)
                 with closing(open_db()) as con, con:
-                    con.execute("BEGIN IMMEDIATE" if path.endswith("/rename") else "BEGIN")
-                    plan, rows = tag_rename_plan(con, data.get("source"), data.get("target"))
-                    if path.endswith("/rename"):
+                    action = data.get('action', 'rename') if path.endswith('/preview') else path.rsplit('/', 1)[1]
+                    con.execute('BEGIN' if path.endswith('/preview') else 'BEGIN IMMEDIATE')
+                    plan, rows = tag_change_plan(con, data.get('source'), data.get('target'), action)
+                    updates = []
+                    if not path.endswith('/preview'):
                         token = data.get("preview_token")
                         if not isinstance(token, str) or not hmac.compare_digest(token, plan['preview_token']):
                             self.error("受影响的文档已变化，请重新预览后再应用", 409)
@@ -2555,9 +2560,12 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                         stamp = utc_now()
                         for row in rows:
                             row = con.execute("SELECT * FROM items WHERE id=?", (row['id'],)).fetchone()
+                            before = tag_summary(row)
                             tags = []
                             for tag in row['tags'].split(','):
-                                if tag == plan['source'] or tag.lower() == plan['target'].lower():
+                                if plan['action'] == 'delete' and tag == plan['source']:
+                                    continue
+                                if plan['action'] == 'rename' and (tag == plan['source'] or tag.lower() == plan['target'].lower()):
                                     tag = plan['target']
                                 if tag and tag not in tags:
                                     tags.append(tag)
@@ -2565,7 +2573,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                             record_revision(con, row)
                             con.execute("UPDATE items SET tags=?,updated_at=? WHERE id=?", (tags, stamp, row['id']))
                             log_activity(con, "update", "item", row['id'], row['title'])
-                self.json_response({"ok": True, **plan})
+                            after = tag_summary(con.execute('SELECT id,kind,tags,updated_at FROM items WHERE id=?', (row['id'],)).fetchone())
+                            updates.append({'before': before, 'after': after})
+                self.json_response({"ok": True, **plan, **({'updates': updates} if not path.endswith('/preview') else {})})
             except Exception as exc:
                 self.request_error(exc)
             return

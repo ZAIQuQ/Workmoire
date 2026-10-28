@@ -69,13 +69,21 @@ row shows two tags and an overflow count; clicking a tag filters the catalogue.
 The same normalized label always receives the same color across rows, pickers
 and the tag library. Labels remain readable without relying on color alone.
 
-Manage a document's tags from its catalogue row, without opening the document.
-The picker supports search, keyboard selection, creation, removal and contextual
-suggestions. Explicitly saving labels on an existing document updates only its
-tags, with a version check and history revision. Unsaved body text remains local;
-matching local drafts advance to the new metadata revision. A new document has
-a draft row, and its tag changes stay local until normal document save. The
-current document remains accessible even if it is outside the filtered page.
+Manage a document's tags from the bookmark control beside pin, without opening
+the document. Its **Document tags** tab has an explicit **New tag** form; creating
+and adding a tag saves the association immediately. Enter also works directly
+in the search field while suggestions are loading. Existing labels can be
+selected, or removed from this document with their × control. These actions
+update only tags, with a version check and history revision; unsaved body text
+remains local. Matching local drafts advance to the new metadata revision. New
+documents keep tags local until document save. The current document remains
+accessible even if it is outside the filtered page.
+
+The same entry's **Manage tags** tab supports renaming, merging and deleting
+shared labels. Deletion previews the affected documents and removes only the
+label association from active documents; it preserves document content and
+history. Removing a tag from one document and deleting it across documents are
+separate, explicitly named actions. Existing-body drafts survive these changes.
 
 `论文` is a built-in label and exists even with zero matching documents. It cannot
 be renamed or merged away. Paper dossiers automatically include it and cannot
@@ -84,10 +92,10 @@ paper records are classified on read without a bulk database rewrite. The
 built-in paper label does not consume a paper's twelve custom-label slots.
 
 The list's tag filter and searchable, paginated tag library include an untagged
-view. Filtering preserves the open draft. Rename or merge a tag through the
-library's edit action: preview the affected documents, then apply. Each affected
-document retains a history revision; stale previews are rejected, and each
-operation is limited to 100 active documents. Trash is excluded. See the
+view. Filtering preserves the open draft. Rename, merge or delete a tag through
+the same management controls: preview the affected documents, then apply. Each
+affected document retains a history revision; stale previews are rejected, and
+each operation is limited to 100 active documents. Trash is excluded. See the
 [navigation and tag design research](docs/navigation-tags-design.md).
 
 The [product-style research](docs/product-style-design.md) records the Notion,
