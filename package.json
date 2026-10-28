@@ -5,7 +5,8 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "test:browser": "playwright test",
-    "check": "node --check workspace/static/app.js"
+    "check": "node --check workspace/static/app.js",
+    "test:commands": "node --test tests/slash-commands.test.mjs"
   },
   "keywords": [],
   "author": "",

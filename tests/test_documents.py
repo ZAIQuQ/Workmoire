@@ -198,8 +198,10 @@ class PaperNetworkTests(unittest.TestCase):
             self.assertEqual(kwargs['start_new_session'],os.name=='posix')
             return Process()
         with patch.object(app,'codex_command',return_value=['synthetic-codex']),patch.object(app.subprocess,'Popen',side_effect=launch):
-            self.assertEqual(app.invoke_codex('Synthetic text'),'Synthetic suggestion')
+            self.assertEqual(app.invoke_codex('Synthetic text',reasoning_effort='xhigh',model='gpt-6.1-sol'),'Synthetic suggestion')
         self.assertIn('--ephemeral',observed['args'])
+        self.assertIn('model_reasoning_effort=xhigh',observed['args'])
+        self.assertEqual(observed['args'][observed['args'].index('--model')+1],'gpt-6.1-sol')
         self.assertEqual(observed['args'][observed['args'].index('--sandbox')+1],'read-only')
         self.assertFalse(Path(observed['cwd']).exists())
 

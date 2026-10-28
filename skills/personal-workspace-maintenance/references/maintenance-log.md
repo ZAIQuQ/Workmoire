@@ -110,3 +110,9 @@ changes belong in normal commit history.
 - Added versioned native JSON to documents and revisions with additive migration, validation, mirror hashes, conflict/draft preservation, and reference remapping in JSON/ZIP restores.
 - Increased paper reasoning separately from general document tasks and added bounded public arXiv HTML extraction with explicit evidence scope; checked the actual CLI service environment and a public-paper generation.
 - Added complete runtime license notices and build-time gzip assets with matching GET/HEAD negotiation and stale-copy handling.
+
+## 2026-10-28
+
+- Set the paper generation default to gpt-6.1-sol with xhigh reasoning and a bounded 240-second timeout, independently from general document tasks.
+- Added deterministic slash-command aliases for Chinese, pinyin and English, including the requested ddm/yy/cite/todo/db shortcuts. Verified compound queries, exact-match ordering, cancelled queries and Chinese composition through browser input.
+- Recorded per-service AI skill/template standardization in TODO.md for user-guided refinement after overall design convergence.

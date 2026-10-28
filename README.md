@@ -32,6 +32,15 @@ checklists are document templates rather than separate applications.
   navigation until the document is saved. Imports remap both document references
   and attachment references when allocating new IDs.
 
+Slash commands accept Chinese labels, pinyin initials/full pinyin, and English
+aliases. Examples: `/ddm` or `/dmk` for a code block; `/yy`, `/cite` or `/quote`
+for a blockquote; `/todo` or `/db` for a checklist; `/bg` for a table; `/gs` for
+a formula; `/tp` for an image; and `/bt1`–`/bt3` for headings. Queries can combine
+terms such as `/code block`, `/yy cite` or `/待办 checkbox`. Exact labels and
+aliases rank first; matching ignores case and normalizes full-width input.
+Choose with the arrow keys and Enter, or click a result. Unmatched/cancelled
+queries remain ordinary document text.
+
 The interface uses white and gray surfaces, dark text, one blue interaction
 accent, and a consistent Lucide icon set. Inter is bundled locally; Chinese text
 prefers native platform fonts, with a locally bundled Noto Sans SC fallback.
@@ -51,7 +60,7 @@ whether it used HTML text, a truncated excerpt, an abstract, or metadata only;
 it does not claim to have read missing sections, PDF figures or a full paper
 from an abstract.
 
-Paper dossiers default to `high` reasoning with a 240-second model timeout.
+Paper dossiers default to `gpt-6.1-sol` with `xhigh` reasoning and a 240-second model timeout.
 General document tasks default to `medium` with a 90-second timeout. Optional
 private settings can override the paper model and budget independently. The
 prompt requests mechanisms, evidence, limitations and concrete experiments,
@@ -68,6 +77,9 @@ Codex runs in an empty temporary directory with explicit `--ephemeral` and
 `--sandbox read-only` flags. Only the selected document or chosen public paper
 material is supplied. The CLI may contact its configured model provider. Prompts,
 responses, credentials, and personal documents are not written into source or logs.
+
+AI skill/template standardization and later user-guided refinement are tracked in
+[`TODO.md`](TODO.md), after the overall interface and workflow design settles.
 
 ## Run
 
@@ -87,7 +99,7 @@ Copy `.env.example` to a private `.env` and configure:
 - `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`: configure these in the same private
   service environment when the selected model provider requires an egress proxy.
 - `WORKSPACE_CODEX_MODEL` / `WORKSPACE_CODEX_REASONING_EFFORT`: optional general CLI overrides.
-- `WORKSPACE_PAPER_CODEX_MODEL` / `WORKSPACE_PAPER_REASONING_EFFORT`: independent paper overrides, defaulting to the configured CLI model and `high`.
+- `WORKSPACE_PAPER_CODEX_MODEL` / `WORKSPACE_PAPER_REASONING_EFFORT`: independent paper overrides, defaulting to `gpt-6.1-sol` and `xhigh`.
 - `WORKSPACE_PAPER_ASSISTANT_TIMEOUT`: paper model timeout in seconds (default 240; bounded to 60–600).
 - `WORKSPACE_PAPER_PROXY`: optional trusted HTTP CONNECT proxy for paper retrieval.
   The paper fetcher also recognizes `HTTPS_PROXY`; target DNS is validated and the

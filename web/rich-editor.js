@@ -29,16 +29,11 @@ import css from 'highlight.js/lib/languages/css';
 import latex from 'highlight.js/lib/languages/latex';
 import {researchNodes,safeLink,SafeLink,safeMarkdownParser} from './rich-extensions.js';
 import {safeMedia,mathHTML} from './markdown-preview.js';
+import {searchSlashCommands} from './slash-commands.mjs';
 
 const lowlight=createLowlight({javascript,python,cpp,json,sql,bash,xml,css,latex});
 const icon=name=>window.WorkmoireIcons.render(name);
 const languages=[['','纯文本'],['python','Python'],['javascript','JavaScript'],['cpp','C / C++'],['json','JSON'],['sql','SQL'],['bash','Shell'],['xml','HTML / XML'],['css','CSS'],['latex','LaTeX']];
-const commandItems=[
- ['paragraph','正文','普通段落','write','text paragraph'],['heading-1','标题 1','一级标题','document','h1 title'],['heading-2','标题 2','二级标题','document','h2'],['heading-3','标题 3','三级标题','document','h3'],
- ['list','无序列表','列出要点','list','bullet'],['ordered-list','有序列表','按顺序编号','ordered','number'],['task','待办清单','勾选完成状态','task','todo checkbox'],['quote','引用','引用段落','quote','blockquote'],
- ['code','代码块','语法高亮与语言切换','code','python javascript'],['table','表格','可直接编辑、调整列宽','table','table'],['formula','公式','LaTeX 块级公式','formula','math latex'],['inline-math','行内公式','在段落中插入公式','variable','math'],
- ['image','图片','上传、粘贴或使用链接','image','image photo'],['pdf','PDF','在文档内阅读原文','book','pdf paper'],['document-link','文档链接','引用其他文档','relations','link'],['divider','分隔线','分隔文档内容','minus','divider'],
-];
 function button(command,label,glyph){const el=document.createElement('button');el.type='button';el.dataset.richCommand=command;el.title=label;el.setAttribute('aria-label',label);el.innerHTML=icon(glyph);return el;}
 function positionMenu(menu,anchor,maxHeight=350){
  const width=Math.min(menu.offsetWidth||270,innerWidth-24),availableBelow=innerHeight-anchor.bottom-14,above=anchor.top-14;
@@ -62,7 +57,7 @@ function findText(doc,query){
 }
 
 export function mountRichEditor(host,options={}){
- let editor,ready=false,destroyed=false,markdownCache='',cachedDoc=null,baselineDoc=null,baselineMarkdown=options.baseline?.content??options.content??'',slashRange=null,slashIndex=0,slashItems=[],blockTarget=null,updateFrame=0,blurTimer=0;
+ let editor,ready=false,destroyed=false,markdownCache='',cachedDoc=null,baselineDoc=null,baselineMarkdown=options.baseline?.content??options.content??'',slashRange=null,slashIndex=0,slashItems=[],blockTarget=null,updateFrame=0,blurTimer=0,compositionTimer=0;
  const reservations=new Set(),owned=[],cleanup=[],diagnostics={markdownSerializations:0,documentUpdates:0};
  const make=(tag,cls,parent=host)=>{const node=document.createElement(tag);node.className=cls;parent.append(node);return node;};
  const scroll=make('div','rich-editor-scroll');const contentHost=make('div','rich-editor-content',scroll);
@@ -134,6 +129,7 @@ export function mountRichEditor(host,options={}){
   ],
   editorProps:{
    attributes:{class:'rich-document prose','aria-label':'文档正文','aria-multiline':'true',role:'textbox',spellcheck:'false'},
+   handleDOMEvents:{compositionstart(){hideSlash();return false;},compositionend(){clearTimeout(compositionTimer);compositionTimer=setTimeout(()=>{if(!destroyed)scheduleControls();},20);return false;}},
    handleKeyDown(view,event){
     if(event.isComposing||view.composing)return false;
     if(!slash.hidden&&slashRange){
@@ -178,18 +174,18 @@ export function mountRichEditor(host,options={}){
  function updateSlash(){
   if(!editor.isEditable||editor.view.composing||!editor.state.selection.empty){hideSlash();return;}
   const {$from}=editor.state.selection;if($from.parent.type.name!=='paragraph'){hideSlash();return;}
-  const prefix=$from.parent.textBetween(0,$from.parentOffset,'','\ufffc'),match=/^\/([^\s/]{0,32})$/.exec(prefix);
+  const prefix=$from.parent.textBetween(0,$from.parentOffset,'','\ufffc'),match=/^[\/／]([^\/／\r\n]{0,64})$/u.exec(prefix);
   if(!match){hideSlash();return;}
-  const query=match[1].toLowerCase();slashItems=commandItems.filter(item=>(item[1]+' '+item[4]).toLowerCase().includes(query));
+  const query=match[1];slashItems=searchSlashCommands(query);
   if(!slashItems.length){hideSlash();return;}
   const range={from:$from.start(),to:$from.pos,query};if(slashRange?.query!==query)slashIndex=0;slashRange=range;slashIndex=Math.min(slashIndex,slashItems.length-1);paintSlash();
  }
  function paintSlash(){
-  slash.replaceChildren();const caption=document.createElement('div');caption.className='rich-menu-caption';caption.textContent='插入内容';slash.append(caption);
-  slashItems.forEach((item,index)=>{const el=document.createElement('button');el.type='button';el.id='rich-slash-option-'+index;el.className=index===slashIndex?'is-active':'';el.setAttribute('role','option');el.setAttribute('aria-selected',String(index===slashIndex));el.innerHTML=icon(item[3]);const text=document.createElement('span'),label=document.createElement('strong'),description=document.createElement('small');label.textContent=item[1];description.textContent=item[2];text.append(label,description);el.append(text);el.onmousedown=event=>event.preventDefault();el.onclick=()=>chooseSlash(index);slash.append(el);});
+  slash.replaceChildren();const caption=document.createElement('div');caption.className='rich-menu-caption';caption.textContent='插入内容 · 中文 / 简拼 / 英文';slash.append(caption);
+  slashItems.forEach((item,index)=>{const el=document.createElement('button');el.type='button';el.id='rich-slash-option-'+index;el.className=index===slashIndex?'is-active':'';el.setAttribute('role','option');el.setAttribute('aria-selected',String(index===slashIndex));el.dataset.commandId=item.id;el.innerHTML=icon(item.icon);const text=document.createElement('span'),label=document.createElement('strong'),description=document.createElement('small');label.textContent=item.label;description.textContent=item.description;text.append(label,description);const shortcut=document.createElement('kbd');shortcut.textContent=item.shortcut;el.append(text,shortcut);el.onmousedown=event=>event.preventDefault();el.onclick=()=>chooseSlash(index);slash.append(el);});
   slash.hidden=false;const coords=editor.view.coordsAtPos(editor.state.selection.from);positionMenu(slash,coords);editor.view.dom.setAttribute('aria-activedescendant','rich-slash-option-'+slashIndex);slash.querySelector('[aria-selected="true"]')?.scrollIntoView({block:'nearest'});
  }
- function chooseSlash(index){const item=slashItems[index],range=slashRange;if(!item||!range)return;hideSlash();editor.chain().focus().deleteRange({from:range.from,to:range.to}).run();run(item[0]);}
+ function chooseSlash(index){const item=slashItems[index],range=slashRange;if(!item||!range)return;hideSlash();editor.chain().focus().deleteRange({from:range.from,to:range.to}).run();run(item.id);}
  const outside=event=>{if(!slash.contains(event.target)&&!editor.view.dom.contains(event.target))hideSlash();if(!blockMenu.contains(event.target)&&!event.target.closest('.rich-block-handle'))blockMenu.hidden=true;};document.addEventListener('mousedown',outside);cleanup.push(()=>document.removeEventListener('mousedown',outside));
  const reflow=()=>{hideSlash();blockMenu.hidden=true;};scroll.addEventListener('scroll',reflow);window.addEventListener('resize',reflow);cleanup.push(()=>window.removeEventListener('resize',reflow));
  function createBookmark(){const reservation={mark:editor.state.selection.getBookmark(),release(){reservations.delete(reservation);}};reservations.add(reservation);return reservation;}
@@ -266,7 +262,7 @@ export function mountRichEditor(host,options={}){
   isEmpty:()=>editor.isEmpty,
   isComposing:()=>editor.view.composing,
   markBaseline(item){baselineMarkdown=item.content||'';baselineDoc=item.rich_content?.version===1?completeDocument(editor.schema.nodeFromJSON(item.rich_content.document)):parseDocument(baselineMarkdown);if(editor.state.doc.eq(baselineDoc)){cachedDoc=editor.state.doc;markdownCache=baselineMarkdown;}},
-  setValue(value){editor.commands.setContent(String(value||''),{contentType:'markdown'});},
+  setValue(value){editor.commands.setContent(parseDocument(String(value||'')).toJSON());},
   insertMarkdown(value){editor.chain().focus().insertContent(String(value),{contentType:'markdown'}).run();},
   appendMarkdown(value){editor.chain().focus().insertContentAt(editor.state.doc.content.size,String(value),{contentType:'markdown'}).run();},
   insertText(value){editor.chain().focus().insertContent({type:'text',text:String(value)}).run();},
@@ -286,7 +282,7 @@ export function mountRichEditor(host,options={}){
   setColor:color=>color?editor.chain().focus().setColor(color).run():editor.chain().focus().unsetColor().run(),
   focus:()=>editor.commands.focus(),undo:()=>editor.commands.undo(),redo:()=>editor.commands.redo(),
   showFind,measure:()=>{},
-  destroy(){destroyed=true;cancelAnimationFrame(updateFrame);clearTimeout(blurTimer);cleanup.forEach(fn=>fn());reservations.clear();editor.destroy();owned.slice().forEach(el=>{if(el instanceof HTMLDialogElement&&el.open)el.close();el.remove();});host.replaceChildren();},
+  destroy(){destroyed=true;cancelAnimationFrame(updateFrame);clearTimeout(blurTimer);clearTimeout(compositionTimer);cleanup.forEach(fn=>fn());reservations.clear();editor.destroy();owned.slice().forEach(el=>{if(el instanceof HTMLDialogElement&&el.open)el.close();el.remove();});host.replaceChildren();},
  };
  host.dataset.editable=String(editor.isEditable);scheduleControls();return adapter;
 }

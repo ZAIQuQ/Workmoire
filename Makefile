@@ -8,6 +8,7 @@ compile:
 
 test:
 	python3 -m unittest discover -s tests -v
+	npm run test:commands
 
 build:
 	npm run build

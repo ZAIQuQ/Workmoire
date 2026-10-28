@@ -186,7 +186,9 @@ class ReadingMaterialTests(unittest.TestCase):
         with patch.object(app,'lookup_papers',return_value=[paper]),patch.object(app,'reading_material',return_value=material),patch.object(app,'invoke_codex',return_value='## 研究问题\n\nSynthetic') as invoke:
             result=app.paper_draft('Synthetic reference')
         self.assertEqual(invoke.call_args.kwargs['reasoning_effort'],app.PAPER_REASONING_EFFORT)
-        self.assertGreaterEqual(invoke.call_args.kwargs['timeout'],180)
+        self.assertEqual(app.PAPER_REASONING_EFFORT,'xhigh')
+        self.assertEqual(invoke.call_args.kwargs['model'],'gpt-6.1-sol')
+        self.assertEqual(invoke.call_args.kwargs['timeout'],240)
         self.assertIn('partial_text',invoke.call_args.args[0]);self.assertIn('失败判据',invoke.call_args.args[0])
         self.assertIn('部分公开 HTML 正文',result['content'])
         self.assertEqual(result['evidence']['scope'],'partial_text')

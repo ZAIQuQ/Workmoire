@@ -77,10 +77,10 @@ CODEX_MODEL = os.environ.get("WORKSPACE_CODEX_MODEL", "").strip()
 CODEX_REASONING_EFFORT = os.environ.get("WORKSPACE_CODEX_REASONING_EFFORT", "medium").strip().lower()
 if CODEX_REASONING_EFFORT not in {"low", "medium", "high", "xhigh", "max"}:
     CODEX_REASONING_EFFORT = "medium"
-PAPER_CODEX_MODEL = os.environ.get("WORKSPACE_PAPER_CODEX_MODEL", "").strip() or CODEX_MODEL
-PAPER_REASONING_EFFORT = os.environ.get("WORKSPACE_PAPER_REASONING_EFFORT", "high").strip().lower()
+PAPER_CODEX_MODEL = os.environ.get("WORKSPACE_PAPER_CODEX_MODEL", "gpt-6.1-sol").strip() or CODEX_MODEL
+PAPER_REASONING_EFFORT = os.environ.get("WORKSPACE_PAPER_REASONING_EFFORT", "xhigh").strip().lower()
 if PAPER_REASONING_EFFORT not in {"medium", "high", "xhigh", "max"}:
-    PAPER_REASONING_EFFORT = "high"
+    PAPER_REASONING_EFFORT = "xhigh"
 try:
     PAPER_ASSISTANT_TIMEOUT = min(max(int(os.environ.get("WORKSPACE_PAPER_ASSISTANT_TIMEOUT", "240")), 60), 600)
 except ValueError:

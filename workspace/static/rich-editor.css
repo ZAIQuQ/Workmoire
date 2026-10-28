@@ -139,3 +139,6 @@
 
 .document-location { overflow: hidden; }
 .document-location .save-state { overflow: hidden; text-overflow: ellipsis; }
+
+.rich-slash-menu button > span { flex: 1; min-width: 0; }
+.rich-slash-menu kbd { flex: none; font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 2px 4px; background: var(--surface); }
