@@ -8,14 +8,14 @@
   <link rel="icon" href="/static/favicon.svg?v=4" type="image/svg+xml">
   <link rel="stylesheet" href="/static/vendor/katex.min.css?v=20261027">
   <link rel="stylesheet" href="/static/vendor/type.css?v=20261027-neutral">
-  <link rel="stylesheet" href="/static/design-tokens.css?v=20261028-blog">
-  <link rel="stylesheet" href="/static/app.css?v=20261028-blog">
-  <link rel="stylesheet" href="/static/rich-editor.css?v=20261028-blog">
-  <link rel="stylesheet" href="/static/code-block.css?v=20261028-blog">
-  <link rel="stylesheet" href="/static/organization.css?v=20261028-blog">
-  <script defer src="/static/vendor/interface.js?v=20261028-blog"></script>
-  <script defer src="/static/vendor/editor.js?v=20261028-blog"></script>
-  <script defer src="/static/app.js?v=20261028-blog"></script>
+  <link rel="stylesheet" href="/static/design-tokens.css?v=20261028-paper-import">
+  <link rel="stylesheet" href="/static/app.css?v=20261028-paper-import">
+  <link rel="stylesheet" href="/static/rich-editor.css?v=20261028-paper-import">
+  <link rel="stylesheet" href="/static/code-block.css?v=20261028-paper-import">
+  <link rel="stylesheet" href="/static/organization.css?v=20261028-paper-import">
+  <script defer src="/static/vendor/interface.js?v=20261028-paper-import"></script>
+  <script defer src="/static/vendor/editor.js?v=20261028-paper-import"></script>
+  <script defer src="/static/app.js?v=20261028-paper-import"></script>
 </head>
 <body>
   <section id="auth-view" class="auth-view is-hidden">
@@ -59,9 +59,7 @@
     </main>
   </div>
 
-  <dialog id="template-dialog" class="dialog"><div class="dialog-card template-dialog-card"><div class="dialog-head"><div><h2>新建文档</h2></div><button class="icon-button" data-close="template-dialog" aria-label="关闭"><span data-icon="close"></span></button></div><p class="dialog-note">选择空白文档或预设模板。</p><div id="template-grid" class="template-grid"></div></div></dialog>
-
-  <dialog id="paper-dialog" class="dialog"><div class="dialog-card paper-dialog-card"><div class="dialog-head"><div><h2>整理一篇论文</h2></div><button class="icon-button" data-close="paper-dialog" aria-label="关闭"><span data-icon="close"></span></button></div><p class="dialog-note">输入论文标题、DOI 或链接，选择来源后生成档案。</p><form id="paper-form" class="paper-source-form"><input id="paper-reference" class="control-input" placeholder="论文标题 / arXiv、DOI、期刊链接" maxlength="3000" required aria-label="论文标题或链接"><button id="paper-lookup" class="button primary" type="submit">查找论文</button></form><p id="paper-error" class="error" role="alert"></p><div id="paper-candidates" class="paper-candidates"></div><div id="paper-result" class="paper-result is-hidden"><div class="result-heading"><strong>论文档案草稿</strong><span>点击“放入编辑器”后修改，点击“保存”保存文档。</span></div><div id="paper-preview" class="prose"></div><div class="dialog-actions"><button id="paper-use" class="button primary">放入编辑器</button></div></div></div></dialog>
+  <dialog id="template-dialog" class="dialog"><div class="dialog-card template-dialog-card"><div class="dialog-head"><div><h2>新建文档</h2></div><button class="icon-button" data-close="template-dialog" aria-label="关闭"><span data-icon="close"></span></button></div><p class="dialog-note">选择直接记录内容，或导入论文 PDF。</p><div id="template-grid" class="template-grid"></div></div></dialog>
 
   <dialog id="search-dialog" class="dialog"><div class="dialog-card search-dialog-card"><div class="search-box"><span data-icon="search"></span><input id="global-search" type="search" placeholder="搜索标题、正文、标签或附件…" autocomplete="off" aria-label="全局搜索"><button class="keycap" data-close="search-dialog">ESC</button></div><div id="search-results" class="search-results"><p class="empty-hint">输入关键词开始搜索。</p></div></div></dialog>
 

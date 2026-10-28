@@ -113,6 +113,8 @@ changes belong in normal commit history.
 
 ## 2026-10-28
 
+- Reduced creation to blank documents and paper materials, retiring specialized templates and the blog workflow without deleting records. Added explicit selected-PDF priority, URL-download/manual fallback, bounded PDF.js text extraction, replacement/cancel cleanup and byte/source-preservation checks.
+
 - Added blog dossiers with protected Chinese classification, attributed short summaries, restricted-source/manual-text fallback and a versioned base prompt. Added a tested atomic CHECK-constraint expansion with private-copy record/reference/sequence verification, plus a synthetic exact-service blog-summary check.
 
 - Unified creation and shared rename/delete in the pin-side label entry. Replaced the hidden two-step creation flow with a named form and immediate association saves; added operation-specific deletion previews and before/after metadata for preserving body drafts across successive tag changes.

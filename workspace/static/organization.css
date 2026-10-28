@@ -158,32 +158,33 @@
 .row-tag-manager .tag-library-pick > .icon { display: none; }
 .row-tag-manager .tag-library-pick .bookmark-tag { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-tag-manager [hidden] { display: none !important; }
-/* Blog dossiers use the existing document workflow, with source attribution. */
-.template-card[data-template="blog"] { grid-column: 1 / -1; grid-template-columns: 28px minmax(0, 1fr); gap: 3px 12px; padding: 15px 18px; }
-.template-card[data-template="blog"] .template-symbol { grid-row: 1 / 3; margin: 0; align-self: center; }
-.template-card[data-template="blog"] > span:last-child { grid-column: 2; }
-.blog-import-card { width: 660px; }
-.blog-reference-row { display: flex; gap: 8px; }
-.blog-reference-row input { flex: 1; min-width: 0; }
-.blog-reference-row .button { flex: none; }
-.blog-source-status { font-size: 12px; line-height: 1.8; color: var(--muted); overflow-wrap: anywhere; }
-.blog-source-status.needs-input { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
-.blog-metadata-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
-.blog-metadata-grid .field { margin-top: 0; }
-.blog-manual { margin: 10px 0 18px; font-size: 12px; }
-.blog-manual summary { color: var(--body); cursor: pointer; }
-.blog-manual textarea { font: 13px/1.8 var(--ui-font); }
-.blog-generate-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.blog-result { margin-top: 24px; }
-.blog-preview { padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-lg); max-height: 380px; overflow-y: auto; background: var(--surface); font-size: 14px; }
-@media (max-width: 600px) {
- .blog-import-card { padding: 20px; }
- .blog-reference-row { flex-wrap: wrap; }
- .blog-reference-row input { flex-basis: 100%; }
- .blog-metadata-grid { grid-template-columns: 1fr; gap: 0; }
-}
-.blog-import-dialog { overflow: hidden; }
-.blog-import-card { display: flex; flex-direction: column; max-height: calc(100dvh - 50px); }
-.blog-import-card > .dialog-head, .blog-import-card > .dialog-actions { flex: none; }
-.blog-import-scroll { min-height: 0; overflow-y: auto; scrollbar-width: thin; padding-right: 3px; }
-.blog-import-card > .dialog-actions { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 14px; }
+/* Only blank documents and papers are creation choices. */
+.template-dialog-card { width: 590px; }
+.paper-import-dialog { overflow: hidden; }
+.paper-import-card { display: flex; flex-direction: column; width: 700px; max-height: calc(100dvh - 50px); }
+.paper-import-card > .dialog-head, .paper-import-card > .dialog-actions { flex: none; }
+.paper-import-scroll { min-height: 0; overflow-y: auto; scrollbar-width: thin; padding-right: 3px; }
+.paper-import-card > .dialog-actions { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 14px; }
+.paper-upload-zone { display: grid; gap: 8px; padding: 16px; margin-bottom: 12px; border: 1px dashed var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.paper-upload-zone > span { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.paper-upload-zone small { font-size: 11px; color: var(--muted); line-height: 1.7; }
+.paper-upload-zone input { min-width: 0; max-width: 100%; font-size: 12px; }
+.paper-selected-upload { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 12px; }
+.paper-selected-upload > span { overflow-wrap: anywhere; min-width: 0; }
+.paper-selected-upload > button { flex: none; }
+.paper-import-status { margin-top: 12px; font-size: 12px; line-height: 1.8; color: var(--muted); }
+.paper-import-status.needs-input { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.paper-source-links { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 5px; }
+.paper-selected-info { font-size: 12px; color: var(--body); line-height: 1.8; overflow-wrap: anywhere; margin-bottom: 10px; }
+.paper-file-preview { margin: 10px 0 16px; font-size: 12px; }
+.paper-file-preview summary { cursor: pointer; padding: 7px 0; color: var(--body); }
+.paper-file-preview iframe { width: 100%; height: 360px; display: block; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.paper-analysis-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.paper-analysis-result { margin-top: 22px; }
+.paper-analysis-preview { max-height: 360px; overflow: auto; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); font-size: 14px; }
+.paper-analysis-preview .pdf-block { display: none; }
+@media (max-width: 600px) { .paper-import-card { padding: 20px; } .paper-file-preview iframe { height: 300px; } }
+.paper-upload-zone { position: relative; cursor: pointer; }
+.paper-upload-zone input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.paper-upload-zone:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.paper-upload-zone:has(input:disabled) { opacity: .65; cursor: default; }

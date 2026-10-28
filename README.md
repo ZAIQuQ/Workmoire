@@ -2,8 +2,9 @@
 
 A quiet, single-user space for academic notes, paper reading, and connected ideas.
 The interface has three primary destinations: all documents, paper references,
-and document relationships. Planning notes, research ideas, todos, and self-review
-checklists are document templates rather than separate applications.
+and document relationships. Creation has exactly two choices: **Blank document**
+and **Paper materials**. Blogs, plans, ideas and checklists use ordinary documents
+and tags, rather than separate creation types.
 
 ## Writing
 
@@ -85,12 +86,11 @@ label association from active documents; it preserves document content and
 history. Removing a tag from one document and deleting it across documents are
 separate, explicitly named actions. Existing-body drafts survive these changes.
 
-`论文` and `博客` are built-in labels and exist even with zero matching documents.
-They cannot be deleted, renamed or merged away. Paper/blog dossiers automatically
-include their corresponding label and cannot remove it; ordinary notes may add
-or remove their association. Existing records are classified on read without
-a bulk rewrite. A document's required label does not consume its twelve custom
-label slots.
+`论文` is the only built-in classification. It exists at zero usage, cannot be
+deleted or renamed, and stays attached to paper materials. Blogs and other topics
+are ordinary editable/removable tags. Older specialized records remain readable
+as ordinary documents; explicit new writes/imports normalize non-paper kinds to
+notes without erasing existing content or history.
 
 The list's tag filter and searchable, paginated tag library include an untagged
 view. Filtering preserves the open draft. Rename, merge or delete a tag through
@@ -104,14 +104,23 @@ Feishu and Yuque references, typography audit and visual verification.
 
 ## Papers and Codex
 
-Enter a title, DOI, arXiv link, or a publisher abstract-page link. Title lookup
-combines arXiv and Crossref results. Confirm the paper before generating a dossier.
-For arXiv references, the service attempts to retrieve the public HTML article
-through the same bounded, public-IP-validated transport as metadata. At most
-60,000 characters of article text are supplied to Codex. Each dossier labels
-whether it used HTML text, a truncated excerpt, an abstract, or metadata only;
-it does not claim to have read missing sections, PDF figures or a full paper
-from an abstract.
+Choose **New document → Paper materials**. Upload a PDF, supply a public HTTPS
+paper/PDF link, or provide both. Uploaded files always take precedence: no other
+PDF or web text is retrieved for them. A URL without a file triggers a bounded
+metadata/PDF lookup and download. Failed downloads show source links and require
+a manual PDF upload before proceeding.
+
+The selected file is previewed before use. It can be replaced at any point before
+insertion; replacing it invalidates the earlier extracted text and generated
+notes. Browser-side PDF.js extraction reads only that authenticated attachment,
+up to 80 pages / 60,000 characters, with a bounded loading task. Optional Codex
+analysis uses those extracted words, never a substitute HTML article or another
+PDF. Textless/scanned PDFs can be archived and read without invented analysis.
+
+Confirm the title/author and optionally generate reading notes, then insert into
+the editor and save. Only the final selected file is associated with the saved
+document. Abandoned/replaced temporary imports move to recoverable attachment
+trash. See [paper intake behavior](docs/paper-intake.md).
 
 Paper dossiers default to `gpt-6.1-sol` with `xhigh` reasoning and a 240-second model timeout.
 General document tasks default to `medium` with a 90-second timeout. Optional
@@ -119,31 +128,11 @@ private settings can override the paper model and budget independently. The
 prompt requests mechanisms, evidence, limitations and concrete experiments,
 while keeping speculative research directions separate from supported facts.
 
-For blogs, choose **New document → Blog dossier**, paste a public HTTPS article
-link and read it. The service extracts title, author, source site, publication
-date when available, and article text from semantic HTML or structured article
-metadata. Confirm/correct the metadata, generate a brief Chinese summary, then
-insert and save the document. Blog documents use the protected `博客` bookmark
-and remain in the existing document library.
-
-Blog summaries use the general assistant budget and a versioned base template
-at `prompts/blog-summary.md`. The summary normally consists of a short overview
-and 3–5 points. At most 30,000 source characters are supplied to Codex; partial
-or pasted evidence is identified in the archive. No source page is copied into
-the repository or saved as a file automatically.
-
-If a source returns an access restriction or has no extractable body, the UI
-shows that state and permits a confirmed title plus pasted body. Metadata alone
-does not produce an invented summary. Users may instead create a source-only
-archive and add notes later. Reading/generation remain previews until explicit
-insertion and normal document save. See [blog import behavior](docs/blog-import.md).
-
-Generated dossiers and assistant suggestions are previews. Inserting them into the
-editor does not save them; use the normal save action to persist a document. Paper
-and blog lookup/drafting endpoints do not write documents or attachments. PDF downloads
-happen only through an explicit import action; publisher access restrictions are
-not bypassed. A source can lack metadata, disallow embedding, or be unavailable;
-use its DOI/title or upload a locally obtained PDF in those cases.
+Generated dossiers and assistant suggestions are previews. Importing a chosen
+PDF creates an unassociated attachment; inserting a dossier creates unsaved
+editor state. Normal save persists the document and links its selected PDF.
+Lookup and analysis endpoints do not create document records. Publisher access
+restrictions are not bypassed; manual upload is the fallback.
 
 Codex runs in an empty temporary directory with explicit `--ephemeral` and
 `--sandbox read-only` flags. Only the selected document or chosen public paper

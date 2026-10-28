@@ -6,6 +6,7 @@ Interface resources are served locally. Package versions are pinned in
 | Resource | Upstream | Pinned source | License and local use |
 | --- | --- | --- | --- |
 | Rich editor | https://github.com/ueberdosis/tiptap and https://github.com/ProseMirror | Tiptap 3.32.0; ProseMirror versions locked in `package-lock.json` | MIT. Native editing, block drag controls, tables, clipboard, history and Markdown compatibility. |
+| PDF reading and text extraction | https://github.com/mozilla/pdf.js | `pdfjs-dist` 6.4.299 | Apache-2.0. Locally served PDF viewer and bounded text extraction from the selected authenticated attachment. |
 | Formula rendering | https://github.com/KaTeX/KaTeX | `katex` 0.19.1 | MIT. Used by editable formula nodes; trusted commands are disabled. |
 | Syntax highlighting | https://github.com/wooorm/lowlight and https://github.com/highlightjs/highlight.js | `lowlight` 3.3.0, `highlight.js` 11.12.0 | MIT / BSD-3-Clause. Incremental code-block highlighting. |
 | Interface icons | https://github.com/lucide-icons/lucide | `lucide` 1.62.0 | ISC, with MIT notices for Feather-derived icons. Named imports in `web/interface-assets.js` bundle only the icons in use. The favicon adapts `BookOpen`. |

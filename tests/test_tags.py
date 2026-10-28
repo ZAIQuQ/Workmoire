@@ -98,7 +98,7 @@ class TagTests(unittest.TestCase):
 
     def test_builtin_paper_tag_exists_when_empty_and_cannot_be_renamed(self):
         tags=json.loads(self.request('/api/tags')[1])['tags']
-        self.assertEqual({(row['tag'],row['count'],row['built_in']) for row in tags},{('论文',0,1),('博客',0,1)})
+        self.assertEqual({(row['tag'],row['count'],row['built_in']) for row in tags},{('论文',0,1)})
         self.assertEqual(json.loads(self.request('/api/tags?q=missing')[1])['tags'],[])
         for path in ['/api/tags/preview','/api/tags/rename']:
             self.assertEqual(self.request(path,'POST',{'source':'论文','target':'Renamed'})[0],400)

@@ -348,7 +348,7 @@ kbd { font-family: var(--ui-font); font-weight: 400; }
 .dialog-note { font-size: 13px; color: var(--muted); line-height: 1.95; margin-bottom: 24px; }
 .dialog-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 24px; }
 .template-dialog-card { width: 680px; padding: 32px; }
-.template-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 23px; }
+.template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 23px; }
 .template-card { position: relative; border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 20px 16px; display: grid; text-align: left; gap: 8px; background: var(--paper); transition: background .15s, border-color .15s, box-shadow .15s; border-color: var(--border); }
 .template-card:hover { border-color: #bcc8d8; background: var(--surface); box-shadow: none; }
 .template-symbol { display: grid; place-items: center; width: 28px; height: 28px; background: none; border: 0; border-radius: 0; color: var(--body); margin-bottom: 12px; }
