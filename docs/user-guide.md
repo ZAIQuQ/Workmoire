@@ -293,3 +293,14 @@ Choose 1, 7, 30 days or permanent; every link gets a strong generated password
 and an unpredictable URL identifier. Reset passwords, replace links or stop
 sharing from the same dialog. Later private edits are not published automatically.
 See [sharing setup, access controls and backup/restore](document-sharing.md).
+
+## Compact editing space
+
+The main formatting toolbar stays on one row. At narrow widths, scroll it
+horizontally or tab to the next control; color, insertion and More menus remain
+inside the visible editor area. Hover/focus descriptions still identify controls.
+The title area uses less vertical space. The footer contains only **链接文档**
+and **上报 Bug**, using the same size and alignment. Focus mode hides the footer;
+exit focus to restore it. Opening a Bug report still uses a separate tab and
+preserves the current draft. On phone layouts, returning to the document list
+keeps the reporting entry available.

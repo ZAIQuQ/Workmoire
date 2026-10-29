@@ -1,10 +1,16 @@
 /* Common actions stay visible; the More menu contains only less frequent tools. */
-.editor-toolbar { display: flex; flex-direction: column; align-items: stretch; gap: 3px; padding: 6px 16px; }
-.toolbar-row { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; min-width: 0; }
+.document-editor .editor-toolbar { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 2px; padding: 5px 10px; min-height: 44px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.toolbar-row { display: contents; }
+.editor-toolbar > .toolbar-row > * { flex-shrink: 0; }
+.editor-toolbar .toolbar-space { flex: 1 0 6px; }
+.editor-toolbar .insert-options { position: fixed; z-index: 40; }
+.document-editor .document-title-block { padding-top: 16px; padding-bottom: 8px; }
+.document-editor .document-subline { margin-top: 4px; }
 .toolbar-row > button { display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 30px; height: 30px; padding: 5px; border-radius: var(--radius-sm); color: var(--body); }
 .toolbar-row > button:hover { background: var(--hover); color: var(--ink); }
 .toolbar-row > button.is-active { color: var(--accent); background: var(--accent-soft); }
 .toolbar-row .toolbar-divider { margin: 0 4px; }
+.body-font-control > span { display: none; }
 .body-font-control { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; padding: 0 5px; border-radius: var(--radius-sm); }
 .body-font-control:focus-within { background: var(--surface); }
 .editor-toolbar .body-font-control select { width: 75px; max-width: 100%; }
@@ -26,7 +32,7 @@
 .editor-tooltip { position: fixed; z-index: 1000; pointer-events: none; max-width: min(290px, calc(100vw - 16px)); padding: 7px 10px; border-radius: var(--radius-sm); background: var(--action); color: #fff; font: 12px/1.5 var(--ui-font); box-shadow: 0 2px 8px #11182714; }
 .editor-tooltip[hidden] { display: none; }
 @media(max-width:760px){
- .editor-toolbar { padding: 5px 7px; gap: 1px; flex-direction: row; align-items: center; flex-wrap: wrap; }
+ .document-editor .editor-toolbar { padding: 5px 7px; gap: 1px; }
  .toolbar-row { display: contents; }
  .toolbar-row > button { min-width: 28px; height: 29px; }
  .toolbar-row .toolbar-divider { margin: 0 2px; }

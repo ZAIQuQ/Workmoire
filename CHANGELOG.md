@@ -2,6 +2,25 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.8.0] — 2026-10-29
+
+### 更紧凑的编辑空间
+
+- 主工具栏改为单行；窄屏可横向滚动，常用按钮、字体选择和提示保持可用。
+- 颜色、插入和更多菜单随按钮定位，避免被横向滚动容器裁切。
+- 缩短标题区上下留白和标题信息间距，把更多空间留给正文。
+- 底栏仅保留「链接文档」与「上报 Bug」，统一大小、样式和对齐，删除输入与保存快捷键提示。
+- 专注模式隐藏底栏；退出后恢复，切换文档或手机目录时仍可正常上报 Bug。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+Use a single toolbar row with horizontal overflow on narrow screens and unclipped
+formatting menus. Reduce title spacing and unify the document-link and bug-report
+actions in the footer. Focus mode hides the footer while preserving the document,
+selection and embedded PDF state.
+
 ## [1.7.1] — 2026-10-29
 
 - AI 未能确认作者时，不再把未经用户确认的 PDF 元数据作者写入档案；用户手动确认的作者保留。
