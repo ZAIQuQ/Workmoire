@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent read-only HTTP surface for password-protected snapshots."""
+"""Independent read-only HTTP surface for optionally protected snapshots."""
 from __future__ import annotations
 
 from contextlib import closing
@@ -17,7 +17,7 @@ import threading
 import time
 from urllib.parse import quote, urlsplit, unquote
 
-from share_store import active_share, password_matches, publication_connection, shared_document, token_hash
+from share_store import active_share, password_matches, publication_connection, shared_document, token_hash, requires_password
 
 SESSION_SECONDS = 12 * 3600
 STATIC_EXACT = {'share.html','share.css','design-tokens.css','app.css','rich-editor.css','code-block.css','pdf-viewer.css','favicon.svg',
@@ -130,8 +130,9 @@ class ShareHandler(BaseHTTPRequestHandler):
             if not action:self.static('share.html',head);return
             share=active_share(self.server.share_root,token)
             if not share:self.fail(head=head);return
-            session_expiry=self.grant(share)
-            if not session_expiry:self.fail(401,'请输入分享密码',head=head);return
+            protected=requires_password(share)
+            session_expiry=self.grant(share) if protected else None
+            if protected and not session_expiry:self.fail(401,'请输入分享密码',head=head);return
             if action=='document':
                 self.respond({**shared_document(share,token),'session_expires_at':session_expiry},head=head);return
             self.file(share,alias,head)
@@ -155,6 +156,7 @@ class ShareHandler(BaseHTTPRequestHandler):
             if not isinstance(password,str) or len(password)>128:self.fail(400,'请求格式无效');return
             share=active_share(self.server.share_root,token)
             if not share:self.fail();return
+            if not requires_password(share):self.respond({'ok':True});return
             if not self.server.auth.kdf.acquire(blocking=False):self.fail(429,'验证繁忙，请稍后重试',extra=[('Retry-After','2')]);return
             try:valid=password_matches(password,share['password_hash'])
             finally:self.server.auth.kdf.release()

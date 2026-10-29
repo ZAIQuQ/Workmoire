@@ -195,6 +195,15 @@
 .share-field-row input { min-width: 0; flex: 1; font-family: var(--mono-font); font-size: 12px; }
 .share-field-row .button { flex: none; }
 .share-settings-dialog .field small { color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.7; }
+.share-protection-setting { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 5px 12px; margin: 16px 0; }
+.share-protection-setting label { font-size: 12px; font-weight: 500; cursor: pointer; }
+.share-protection-setting p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.share-protection-setting input { appearance: none; width: 34px; height: 20px; margin: 0; padding: 2px; border: 0; border-radius: 20px; background: var(--border); cursor: pointer; }
+.share-protection-setting input::before { content: ''; display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--paper); }
+.share-protection-setting input:checked { background: var(--accent); }
+.share-protection-setting input:checked::before { transform: translateX(14px); }
+.share-protection-setting input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.share-protection-setting input:disabled { cursor: wait; opacity: .5; }
 .share-dialog-status { color: var(--body); font-size: 12px; line-height: 1.8; min-height: 22px; }
 .share-dialog-actions { display: flex; align-items: center; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
 .share-dialog-actions > .quiet-button { margin-right: auto; font-size: 12px; }

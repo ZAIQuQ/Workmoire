@@ -2344,7 +2344,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                         self.error('文档不存在', 404)
                         return
                     if share_match[2]:
-                        result = publisher.change(item_id, str(payload.get('share_id','')), payload.get('revision'), str(payload.get('action','')), payload.get('days'))
+                        result = publisher.change(item_id, str(payload.get('share_id','')), payload.get('revision'), str(payload.get('action','')), payload.get('days'), payload.get('password_required'))
                     else:
                         if payload.get('base_updated_at') != item['updated_at']:
                             self.error('文档已变化，请先保存或重新打开后再分享', 409)
@@ -2366,7 +2366,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                         references(native['document'])
                         if len(ids)>256: raise ValueError('单个分享最多包含 256 个附件')
                         files = {row['id']:dict(row) for file_id in ids for row in con.execute("SELECT * FROM files WHERE id=? AND deleted_at=''", (file_id,))}
-                        result = publisher.publish(dict(item), files, FILES_DIR, payload.get('days',7), origin or 'http://'+self.headers.get('Host',''))
+                        result = publisher.publish(dict(item), files, FILES_DIR, payload.get('days',7), origin or 'http://'+self.headers.get('Host',''), payload.get('password_required',True))
                 self.json_response({'share':result,'public_base_url':SHARE_PUBLIC_URL,'port':SHARE_PORT})
             except Exception as exc:
                 self.request_error(exc, '分享暂时不可用，请稍后重试', 503)

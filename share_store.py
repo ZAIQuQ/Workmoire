@@ -38,6 +38,11 @@ def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def requires_password(row) -> bool:
+    # Old databases and unknown values remain protected during rolling upgrades.
+    return 'password_required' not in row.keys() or row['password_required'] != 0
+
+
 def new_password_nonce() -> str:
     # Existing unprefixed nonces retain their original password derivation.
     return 'v2:' + secrets.token_urlsafe(32)
@@ -126,7 +131,8 @@ class SharePublisher:
                     key_id TEXT NOT NULL, title TEXT NOT NULL, document TEXT NOT NULL,
                     source_updated_at TEXT NOT NULL, created_at INTEGER NOT NULL,
                     days INTEGER NOT NULL, expires_at INTEGER, revoked_at INTEGER NOT NULL DEFAULT 0,
-                    version INTEGER NOT NULL DEFAULT 1, revision INTEGER NOT NULL DEFAULT 1
+                    version INTEGER NOT NULL DEFAULT 1, revision INTEGER NOT NULL DEFAULT 1,
+                    password_required INTEGER NOT NULL DEFAULT 1 CHECK(password_required IN (0,1))
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_live_share ON shares(owner_item_id) WHERE revoked_at=0;
                 CREATE TABLE IF NOT EXISTS share_files(
@@ -137,6 +143,8 @@ class SharePublisher:
                 );
                 CREATE INDEX IF NOT EXISTS idx_share_blob ON share_files(blob);
                 ''')
+                if 'password_required' not in {row['name'] for row in con.execute('PRAGMA table_info(shares)')}:
+                    con.execute('ALTER TABLE shares ADD COLUMN password_required INTEGER NOT NULL DEFAULT 1 CHECK(password_required IN (0,1))')
             os.chmod(self.root/'published.db', 0o640)
 
     def credentials(self, row) -> tuple[str, str]:
@@ -155,7 +163,8 @@ class SharePublisher:
 
     def owner_view(self, row) -> dict:
         token, password = self.credentials(row)
-        return {'id':row['id'], 'path':'/s/'+token, 'password':password,
+        protected = requires_password(row)
+        return {'id':row['id'], 'path':'/s/'+token, 'password':password if protected else None, 'password_required':protected,
                 'title':row['title'], 'created_at':row['created_at'], 'source_updated_at':row['source_updated_at'],
                 'days':row['days'], 'expires_at':row['expires_at'], 'revision':row['revision'],
                 'active':not row['revoked_at'] and (row['expires_at'] is None or row['expires_at'] > time.time())}
@@ -191,8 +200,9 @@ class SharePublisher:
         for path in (self.root/'media').iterdir():
             if re.fullmatch(r'[a-f0-9]{64}', path.name) and path.name not in used: path.unlink(missing_ok=True)
 
-    def publish(self, item: dict, file_rows: dict, files_dir: Path, days: int, owner_origin: str='') -> dict:
+    def publish(self, item: dict, file_rows: dict, files_dir: Path, days: int, owner_origin: str='', password_required: bool=True) -> dict:
         if type(days) is not int or days not in DURATIONS: raise ValueError('请选择 1 天、7 天、30 天或永久')
+        if type(password_required) is not bool: raise ValueError('密码保护设置无效')
         rich = read_rich_content(item.get('rich_content'), item['content'])
         if not rich: raise ValueError('请先在编辑器保存文档，再生成分享链接')
         self.initialize()
@@ -249,8 +259,8 @@ class SharePublisher:
                     for share_id in old:
                         con.execute("UPDATE shares SET revoked_at=?,document='',version=version+1,revision=revision+1 WHERE id=?",(now,share_id))
                         con.execute('DELETE FROM share_files WHERE share_id=?',(share_id,))
-                    con.execute('INSERT INTO shares(id,owner_item_id,token_hash,link_nonce,password_nonce,password_hash,key_id,title,document,source_updated_at,created_at,days,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                                (record['id'],item['id'],token_hash(token),record['link_nonce'],record['password_nonce'],password_hash(password),record['key_id'],item['title'],document,item['updated_at'],now,days,now+days*86400 if days else None))
+                    con.execute('INSERT INTO shares(id,owner_item_id,token_hash,link_nonce,password_nonce,password_hash,key_id,title,document,source_updated_at,created_at,days,expires_at,password_required) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                                (record['id'],item['id'],token_hash(token),record['link_nonce'],record['password_nonce'],password_hash(password),record['key_id'],item['title'],document,item['updated_at'],now,days,now+days*86400 if days else None,password_required))
                     for file_id,alias in assets.items():
                         f=copied[file_id];con.execute('INSERT INTO share_files VALUES(?,?,?,?,?,?)',(record['id'],alias,f['blob'],f['name'],f['content_type'],f['size']))
                 self._collect_blobs(con)
@@ -258,7 +268,7 @@ class SharePublisher:
             except Exception:
                 con.rollback();self._collect_blobs(con);raise
 
-    def change(self, item_id: int, share_id: str, revision: int, action: str, days=None):
+    def change(self, item_id: int, share_id: str, revision: int, action: str, days=None, password_required=None):
         self.initialize()
         with self.locked(), closing(publication_connection(self.root, True)) as con, con:
             row=con.execute('SELECT * FROM shares WHERE id=? AND owner_item_id=? AND revoked_at=0',(share_id,item_id)).fetchone()
@@ -267,9 +277,20 @@ class SharePublisher:
                 if type(days) is not int or days not in DURATIONS: raise ValueError('分享有效期无效')
                 con.execute('UPDATE shares SET days=?,expires_at=?,revision=revision+1 WHERE id=?',(days,int(time.time())+days*86400 if days else None,share_id))
             elif action=='password':
+                if not requires_password(row): raise ValueError('请先开启密码保护')
                 updated=dict(row);updated['password_nonce']=new_password_nonce()
                 _,password=self.credentials(updated)
                 con.execute('UPDATE shares SET password_nonce=?,password_hash=?,version=version+1,revision=revision+1 WHERE id=?',(updated['password_nonce'],password_hash(password),share_id))
+            elif action=='protection':
+                if type(password_required) is not bool: raise ValueError('密码保护设置无效')
+                if password_required != requires_password(row):
+                    updated=dict(row)
+                    if password_required:
+                        updated['password_nonce']=new_password_nonce()
+                        _,password=self.credentials(updated)
+                        updated['password_hash']=password_hash(password)
+                    con.execute('UPDATE shares SET password_required=?,password_nonce=?,password_hash=?,version=version+1,revision=revision+1 WHERE id=?',
+                                (password_required,updated['password_nonce'],updated['password_hash'],share_id))
             elif action=='revoke':
                 con.execute("UPDATE shares SET revoked_at=?,document='',version=version+1,revision=revision+1 WHERE id=?",(int(time.time()),share_id))
                 con.execute('DELETE FROM share_files WHERE share_id=?',(share_id,));con.commit();self._collect_blobs(con);return None

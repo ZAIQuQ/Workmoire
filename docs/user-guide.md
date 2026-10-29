@@ -295,10 +295,12 @@ sources are listed in `workspace/static/THIRD_PARTY_ASSETS.md`.
 
 ## Document sharing
 
-Use **分享** at the upper right of a document to generate a password-protected,
+Use **分享** at the upper right of a document to generate a
 read-only snapshot on the independent sharing service (default port 5201).
-Choose 1, 7, 30 days or permanent; every link gets a strong generated password
-and an unpredictable URL identifier. Reset passwords, replace links or stop
+Choose 1, 7, 30 days or permanent. **密码保护** is on by default; turn it off to
+share a direct link with no password. Existing shares keep their protection
+after upgrades. Re-enable the switch to generate a new password on the same link.
+Every link uses an unpredictable URL identifier. Reset passwords, replace links or stop
 sharing from the same dialog. Later private edits are not published automatically.
 See [sharing setup, access controls and backup/restore](document-sharing.md).
 
@@ -355,3 +357,5 @@ composition input preserve both the original code and its surrounding text.
 shares and password resets generate 16 characters containing uppercase letters,
 lowercase letters and digits, without symbols. Existing passwords remain usable;
 choose **重置** to replace an older password with the new format.
+With **密码保护** off, **复制链接** copies just the URL and recipients can read
+the snapshot, PDF and included images directly. Expiry and revocation still apply.

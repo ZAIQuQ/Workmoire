@@ -1,12 +1,13 @@
-# Password-protected document sharing
+# Document sharing with optional password protection
 
 Open a document and click **分享** at its upper right. The dialog provides the
-link, validity (1, 7, 30 days or permanent), and an automatically generated
-16-character alphanumeric password containing uppercase, lowercase and digits.
-New passwords contain no symbols.
-The default validity is seven days. Generate the link, then use **复制链接和密码**
-to copy exactly two lines: the share link and password. The copied text does not
-include expiry commentary.
+link, validity (1, 7, 30 days or permanent), and a **密码保护** switch. Protection
+is on by default. When enabled, it uses an automatically generated 16-character
+password containing uppercase, lowercase and digits, without symbols. Turn it
+off to let anyone with the link read the snapshot and its included attachments.
+The default validity is seven days. **复制链接和密码** copies exactly two lines
+when protected; **复制链接** copies only the URL when protection is off. Neither
+adds expiry commentary.
 Unsaved or legacy documents are saved through the normal revision-checked flow
 first. A stale save prevents publication.
 
@@ -18,6 +19,12 @@ published. **生成新链接** updates the snapshot and revokes the previous lin
 its share; restoring the document does not reactivate the link. Already downloaded
 content cannot be recalled. A permanent link remains active until revoked or
 replaced. Changing validity counts from the time of the change.
+
+Changing **密码保护** on an existing share saves immediately and keeps the link
+and snapshot. Re-enabling protection generates a fresh password and invalidates
+earlier reader sessions. The owner API hides passwords while protection is off;
+password reset is available only while protection is enabled. Concurrent stale
+settings are rejected rather than silently overriding a newer choice.
 
 The public page preserves rich text, math, read-only tasks, images, code folding,
 and the local PDF reader. References to other private documents become plain text.
@@ -79,13 +86,20 @@ upgrade or expiry change does not change a live password. Explicit resets use
 the new format and invalidate old reader sessions. Publisher software must
 support the nonce version to recover passwords after a restore.
 
-The public service exposes only its password gate, document/file routes, selected
-static assets and health endpoint. Title, body and media require password
-verification. Workspace login cookies do not authorize a reader request. Reader
+The public service exposes only its access page, document/file routes, selected
+static assets and health endpoint. Protected shares require password verification
+for title, body and media. Explicitly unprotected shares allow these requests
+without a login, password or reader session. Workspace login cookies do not authorize a reader request. Reader
 cookies are HttpOnly, SameSite=Strict and scoped to one link; server-side sessions
 last at most 12 hours, bounded by link expiry. Every document/file request checks
-expiry, revocation and credential version. Reader logs omit URL tokens, cookies,
+expiry, revocation, the saved protection setting and, when protected, credential version. Reader logs omit URL tokens, cookies,
 passwords and document contents; configure reverse-proxy access logs the same way.
+
+The additive `password_required` column defaults to `1`: all existing shares
+remain protected after an upgrade, with unchanged passwords and links. Only an
+explicit boolean `false` from the authenticated owner disables protection. A
+reader encountering the old schema treats it as protected. Include the setting
+in publication backups; restoring a previous snapshot also restores its access mode.
 
 Persistent limits permit five failed passwords per IP per ten minutes and thirty
 per link, plus sixty attempts per IP per minute and 120 total attempts per minute.

@@ -171,3 +171,5 @@ changes belong in normal commit history.
 - Simplified copied share credentials to two lines and changed new/reset passwords to sixteen alphanumeric characters with all three character classes. Versioned the password nonce to retain legacy credentials without a data migration; added legacy-vector, lifecycle, recovery and clipboard regression checks.
 
 - 2026-10-29: A longer release number exposed the sidebar's truncated wordmark. Moved the version to a separate row in organization.css and recorded long-version, fallback-font and scaling inspection in the skill/release checklist; updated the stylesheet URL so existing browsers request the new layout.
+
+- 2026-10-29: Added explicitly optional share protection at the owner’s request. Recorded default-on migration, per-request content/media mode checks, fresh credentials when re-enabled, mode-aware clipboard text and access-mode backup recovery in the skill and release checklist.

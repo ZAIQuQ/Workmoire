@@ -41,8 +41,8 @@ class SharingTests(unittest.TestCase):
         if body_font:doc['document']['attrs']={'bodyFont':body_font}
         status,body,_=self.request('/api/items','POST',{'kind':'note','title':title,'content':text,'rich_content':doc});self.assertEqual(status,201)
         return json.loads(body)['item']
-    def publish(self,item,days=7):
-        status,body,_=self.request('/api/items/'+str(item['id'])+'/share','POST',{'days':days,'base_updated_at':item['updated_at']});self.assertEqual(status,200,body)
+    def publish(self,item,days=7,**extra):
+        status,body,_=self.request('/api/items/'+str(item['id'])+'/share','POST',{'days':days,'base_updated_at':item['updated_at'],**extra});self.assertEqual(status,200,body)
         return json.loads(body)['share']
     def unlock(self,share,client=None):return self.public_request(share['path']+'/unlock','POST',{'password':share['password']},client=client)
     def change(self,item,share,action,**extra):
@@ -52,6 +52,7 @@ class SharingTests(unittest.TestCase):
         item=self.create(body_font='serif')
         for days in [1,7,30,0]:
             share=self.publish(item,days);token=share['path'].split('/')[-1]
+            self.assertTrue(share['password_required'])
             self.assertRegex(token,r'^[A-Za-z0-9_-]{43}$');self.assertNotEqual(token,str(item['id']))
             self.assertRegex(share['password'],r'^[A-Za-z0-9]{16}$')
             for regex in [r'[A-Z]',r'[a-z]',r'[0-9]']:self.assertRegex(share['password'],regex)
@@ -67,6 +68,83 @@ class SharingTests(unittest.TestCase):
         self.request('/api/items/'+str(item['id']),'PUT',{**item,'content':'New private text','rich_content':None,'base_updated_at':item['updated_at']})
         self.assertNotIn('New private text',self.public_request(share['path']+'/document')[1].decode())
         self.assertEqual(self.request('/api/items/'+str(item['id'])+'/share','POST',{'days':2,'base_updated_at':item['updated_at']})[0],409)
+
+    def test_public_links_allow_anonymous_pdf_reading_and_keep_expiry_revocation_and_backups(self):
+        source=self.fixture_file('open.pdf',b'%PDF-1.4 public synthetic bytes','application/pdf')
+        item=self.create(nodes=[{'type':'pdf','attrs':{'src':source+'?inline=1','title':'PDF'}}])
+        share=self.publish(item,0,password_required=False)
+        self.assertFalse(share['password_required']);self.assertIsNone(share['password'])
+        self.assertRegex(share['path'],r'^/s/[A-Za-z0-9_-]{43}$')
+        status,body,headers=self.public_request(share['path']+'/document')
+        self.assertEqual(status,200);self.assertNotIn('Set-Cookie',headers);self.assertIsNone(json.loads(body)['session_expires_at'])
+        file=json.loads(body)['rich_content']['document']['content'][0]['attrs']['src']
+        self.assertEqual(self.public_request(file,headers={'Range':'bytes=0-4'})[:2],(206,b'%PDF-'))
+        self.assertEqual(self.public_request(file,method='HEAD')[0],200)
+        self.assertEqual(self.public_request('/api/items')[0],404)
+        other=self.publish(self.create('Protected sibling'))
+        self.assertEqual(self.public_request(other['path']+'/document')[0],401)
+        share=self.change(item,share,'expiry',days=7);self.assertFalse(share['password_required']);self.assertIsNone(share['password'])
+        archive=Path(self.temp.name)/'public-shares.tgz';backup_publications(self.root,archive)
+        restored=Path(self.temp.name)/'public-restored';restored.mkdir()
+        with tarfile.open(archive,'r:gz') as snapshot:snapshot.extractall(restored)
+        recovered=SharePublisher(restored).latest(item['id'])
+        self.assertFalse(recovered['password_required']);self.assertEqual(recovered['path'],share['path']);self.assertIsNone(recovered['password'])
+        with publication_connection(self.root,True) as con:con.execute('UPDATE shares SET expires_at=? WHERE id=?',(int(time.time())-1,share['id']))
+        for path in [share['path']+'/document',file]:self.assertEqual(self.public_request(path)[0],404)
+        share=self.change(item,share,'expiry',days=0);self.assertEqual(self.public_request(file)[0],200)
+        self.change(item,share,'revoke')
+        for path in [share['path']+'/document',file]:self.assertEqual(self.public_request(path)[0],404)
+        share=self.publish(item,password_required=False)
+        self.assertEqual(self.request('/api/items/'+str(item['id']),'DELETE')[0],200)
+        self.request('/api/trash/items/'+str(item['id'])+'/restore','POST',{})
+        self.assertEqual(self.public_request(share['path']+'/document')[0],404)
+
+    def test_toggling_protection_relocks_content_and_files_with_fresh_credentials(self):
+        source=self.fixture_file('toggle.pdf',b'%PDF-1.4 toggle bytes','application/pdf')
+        item=self.create(nodes=[{'type':'pdf','attrs':{'src':source+'?inline=1','title':'PDF'}}])
+        protected=self.publish(item);self.assertEqual(self.unlock(protected)[0],200)
+        file=json.loads(self.public_request(protected['path']+'/document')[1])['rich_content']['document']['content'][0]['attrs']['src']
+        opened=self.change(item,protected,'protection',password_required=False)
+        self.assertEqual(opened['path'],protected['path']);self.assertFalse(opened['password_required']);self.assertIsNone(opened['password'])
+        anonymous=urllib.request.build_opener()
+        for path in [opened['path']+'/document',file]:self.assertEqual(self.public_request(path,client=anonymous)[0],200)
+        relocked=self.change(item,opened,'protection',password_required=True)
+        self.assertEqual(relocked['path'],protected['path']);self.assertTrue(relocked['password_required'])
+        self.assertNotEqual(relocked['password'],protected['password']);self.assertRegex(relocked['password'],r'^[A-Za-z0-9]{16}$')
+        for client in [self.guest,anonymous]:
+            for path in [relocked['path']+'/document',file]:
+                self.assertEqual(self.public_request(path,client=client)[0],401)
+                self.assertEqual(self.public_request(path,method='HEAD',client=client)[0],401)
+        self.assertEqual(self.unlock(protected)[0],401);self.assertEqual(self.unlock(relocked)[0],200)
+        self.assertEqual(self.public_request(file)[0],200)
+        self.assertEqual(self.change(item,relocked,'protection',password_required=True),relocked)
+
+    def test_protection_changes_require_explicit_boolean_current_revision_and_owner(self):
+        item=self.create();share=self.publish(item)
+        endpoint='/api/items/'+str(item['id'])+'/share'
+        for invalid in [None,0,1,'false',[],{}]:
+            self.assertEqual(self.request(endpoint,'POST',{'base_updated_at':item['updated_at'],'password_required':invalid})[0],400)
+            self.assertEqual(self.request(endpoint+'/settings','POST',{'share_id':share['id'],'revision':share['revision'],'action':'protection','password_required':invalid})[0],400)
+        payload={'share_id':share['id'],'revision':share['revision'],'action':'protection','password_required':False}
+        self.assertEqual(self.request(endpoint+'/settings','POST',payload,anonymous=True)[0],401)
+        self.assertEqual(self.publisher.latest(item['id']),share)
+        opened=self.change(item,share,'protection',password_required=False)
+        self.assertEqual(self.request(endpoint+'/settings','POST',{**payload,'password_required':True})[0],400)
+        self.assertEqual(self.request(endpoint+'/settings','POST',{**payload,'revision':opened['revision'],'action':'password'})[0],400)
+        self.assertFalse(self.publisher.latest(item['id'])['password_required'])
+
+    def test_legacy_schema_migrates_to_protected_without_changing_credentials_or_records(self):
+        item=self.create();share=self.publish(item)
+        with publication_connection(self.root,True) as con:
+            con.execute('ALTER TABLE shares DROP COLUMN password_required')
+            original=dict(con.execute('SELECT * FROM shares WHERE id=?',(share['id'],)).fetchone())
+        self.assertEqual(self.public_request(share['path']+'/document')[0],401)
+        self.publisher.initialize();self.publisher.initialize()
+        with publication_connection(self.root) as con:
+            migrated=dict(con.execute('SELECT * FROM shares WHERE id=?',(share['id'],)).fetchone())
+            self.assertEqual(migrated.pop('password_required'),1);self.assertEqual(migrated,original)
+            self.assertEqual(con.execute('PRAGMA integrity_check').fetchone()[0],'ok')
+        self.assertEqual(self.publisher.latest(item['id']),share);self.assertEqual(self.unlock(share)[0],200)
 
     def test_legacy_passwords_and_links_survive_until_explicit_password_reset(self):
         key=bytes(range(32));(self.root/'publisher.key').write_bytes(key)

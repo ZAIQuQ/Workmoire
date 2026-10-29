@@ -14,7 +14,7 @@ Self-hosted academic notes and paper reading. Write rich documents, read PDFs in
 - **Work with tables** that fit the document by default. Distribute columns evenly, or turn off fixed width to enable horizontal scrolling.
 - **Read papers** by manually uploading a PDF and optionally recording its source link. The server does not download papers. Embed the PDF reader directly in a document. Uploads show measured progress, and one AI analysis organizes publication, authors, labs and research fields, suggests up to two tags, and presents bilingual abstracts plus concise insights and technical explanations with an estimated wait.
 - **Organize** with colored catalogue tags, pin-side tag management, and document links. Create either a blank document or paper materials.
-- **Share** a read-only snapshot with a generated 16-character alphanumeric password and a 1-day, 7-day, 30-day, or permanent lifetime. Reset the password or revoke access at any time.
+- **Share** a read-only snapshot with password protection on by default, or turn it off to share a direct link. Passwords use 16 alphanumeric characters. Choose a 1-day, 7-day, 30-day, or permanent lifetime; reset the password or revoke access at any time.
 - **Keep your work** with local drafts, save-conflict detection, version history, recoverable trash, and JSON / full-archive import and export.
 
 Codex assistance is **optional and disabled by default**. When enabled, selected material is passed to the local CLI and its configured model provider. Generated text must be reviewed, inserted, and saved explicitly.
@@ -53,7 +53,7 @@ Use **上报 Bug** at the bottom right to submit screenshots and reproduction st
 | Service | Default port | Purpose |
 | --- | --- | --- |
 | Workspace | `5200` | Sign-in, editing, and document management |
-| Sharing, enabled separately | `5201` | Password-protected read-only snapshots |
+| Sharing, enabled separately | `5201` | Read-only snapshots with optional password protection |
 
 The reader runs under a separate OS identity and reads a dedicated publication store, without access to the private document library. Follow the [sharing deployment guide](docs/document-sharing.md); [systemd examples](deploy/systemd/) cover the workspace and scheduled backups. Alternatively, run the workspace with `docker compose up -d --build`; data uses a named volume. Sharing and Codex are not enabled in the default container setup.
 

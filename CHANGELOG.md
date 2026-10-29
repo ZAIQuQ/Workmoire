@@ -2,6 +2,23 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.11.0] — 2026-10-29
+
+- 分享弹窗新增「密码保护」开关，默认开启；关闭后，接收者可直接通过链接阅读正文、PDF 和图片。
+- 无密码分享隐藏密码栏，复制内容仅含链接；开启保护时仍使用 16 位大小写字母和数字密码，复制内容保留链接与密码两行。
+- 已有分享可直接切换保护状态，保留原链接；重新开启保护会生成新密码并使旧访问会话失效。
+- 已有分享升级后保持密码保护，原链接和密码不变；两种模式均支持有效期、撤销和回收站联动。
+
+见[使用说明](docs/user-guide.md)与[分享说明](docs/document-sharing.md)。
+
+### English
+
+Add optional password protection to document shares. Protection stays on by
+default and for existing shares. Turn it off for direct access to the snapshot
+and included media; copying then returns only the URL. Re-enabling protection
+keeps the URL, creates a fresh password and invalidates earlier sessions.
+Expiry, revocation and trash handling apply in both modes.
+
 ## [1.10.2] — 2026-10-29
 
 - 左上角改为上下布局：图标与项目名独占第一行，版本入口位于名称下方并左对齐。
