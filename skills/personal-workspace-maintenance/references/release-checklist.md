@@ -23,6 +23,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - When assistant UI changes, verify that generated text is not persisted until an explicit insert and save action.
 - When assistant calls are slow or unavailable, verify the entry is disabled or visibly busy and repeated clicks do not create concurrent calls.
 - Update the README when the user-visible behavior or deployment contract changes.
+- For sidebar identity changes, inspect the rendered full wordmark and version at desktop/mobile widths, with longer versions, font fallback and scaling; the version must not truncate or overlap the project name.
 - Update the project skill and maintenance log when the workflow or an operational invariant changes.
 
 ## Database and data

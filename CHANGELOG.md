@@ -2,6 +2,20 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.10.2] — 2026-10-29
+
+- 左上角改为上下布局：图标与项目名独占第一行，版本入口位于名称下方并左对齐。
+- 项目名完整显示，不再因版本号增长而被挤成省略号；版本号保持可点击，较长版本可独立换行。
+- 统一桌面与手机侧栏的品牌间距，保留键盘焦点和更新日志入口。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+Stack the version link beneath the sidebar wordmark with aligned text edges.
+Keep the full project name visible independently of version length; long
+versions wrap within their own row. Preserve About, release links and keyboard access.
+
 ## [1.10.1] — 2026-10-29
 
 - 「复制链接和密码」仅复制链接与密码两行，不再附带有效期说明；永久分享也不再显示重复的说明文字。

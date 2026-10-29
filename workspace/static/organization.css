@@ -200,14 +200,14 @@
 .share-dialog-actions > .quiet-button { margin-right: auto; font-size: 12px; }
 @media(max-width:600px){.share-settings-dialog .dialog-card{padding:22px}.share-dialog-actions .button{flex:1}.share-dialog-actions > .quiet-button{flex-basis:100%}.share-field-row{flex-wrap:wrap}.share-field-row input{flex-basis:100%}#share-document{padding:5px 7px}#share-document .icon{display:none}}
 
-.sidebar-brand { display: flex; align-items: center; gap: 8px; min-height: 28px; flex: none; }
-.sidebar-brand .brand { min-width: 0; padding-left: 0; font-size: 16px; line-height: 22px; gap: 6px; letter-spacing: -.35px; }
-.sidebar-brand .brand > span:last-child { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.sidebar-brand .brand-mark { width: 24px; height: 24px; border-radius: 7px; }
-.sidebar-brand .brand-mark .icon { width: 16px; height: 16px; }
-/* The lower padding optically centers smaller numerals with the wordmark. */
-.version-badge { display: inline-flex; align-items: center; justify-content: center; flex: none; height: 22px; min-width: 40px; margin: 0; padding: 0 5px 1px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--muted); font: 500 10px/14px var(--ui-font); font-variant-numeric: tabular-nums; letter-spacing: 0; white-space: nowrap; }
-.version-badge:hover { color: var(--ink); border-color: var(--border); background: var(--hover); }
+/* Give the wordmark its own row; version length must not consume its width. */
+.sidebar-brand { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 3px 9px; flex: none; }
+.sidebar-brand .brand { grid-column: 1 / -1; min-width: 0; padding-left: 0; font-size: 19px; line-height: 28px; gap: 9px; letter-spacing: -.45px; }
+.sidebar-brand .brand > span:last-child { white-space: nowrap; }
+.sidebar-brand .brand-mark { width: 28px; height: 28px; border-radius: 8px; }
+.sidebar-brand .brand-mark .icon { width: 18px; height: 18px; }
+.version-badge { grid-column: 2; justify-self: start; max-width: 100%; min-width: 0; min-height: 24px; margin: 0; padding: 2px 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: 500 11px/20px var(--ui-font); font-variant-numeric: tabular-nums; letter-spacing: 0; text-align: left; overflow-wrap: anywhere; }
+.version-badge:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 #about-button { display: flex; align-items: center; gap: 8px; }
 #about-button .icon { width: 15px; height: 15px; }
 .about-card { width: 540px; }

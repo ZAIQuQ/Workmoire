@@ -6,6 +6,12 @@ and document relationships. Creation has exactly two choices: **Blank document**
 and **Paper materials**. Blogs, plans, ideas and checklists use ordinary documents
 and tags, rather than separate creation types.
 
+The sidebar shows the project name above the current version. Click the version
+to open **关于 Workmoire**, inspect the deployed version and release notes, and
+visit the GitHub project or latest release. The account menu provides the same
+About panel. Long version numbers stay on their own row without truncating the
+project name.
+
 ## Bug reports
 
 Use the bottom-right **上报 Bug** link to open a separate page. Add a title,

@@ -39,7 +39,7 @@ Use this skill for changes to the Workmoire source, tests, deployment, GitHub sy
 - Keep search ranking deterministic and privacy-preserving: rank metadata matches ahead of body-only matches without exposing deleted content or adding an external indexing service.
 - Open search and activity results through an authenticated item lookup rather than assuming the current client list contains the result; navigation must remain correct when list views are bounded or filtered.
 
-- Keep current-version metadata tied to the deployed package/revision. GitHub update checks must be authenticated, bounded and cached, send no private data, and distinguish no release from network failure. Preserve editor drafts when opening About.
+- Keep current-version metadata tied to the deployed package/revision. Place the sidebar version beneath the full wordmark so longer versions cannot truncate the project name; verify narrow layouts, font fallback and scaling. GitHub update checks must be authenticated, bounded and cached, send no private data, and distinguish no release from network failure. Preserve editor drafts when opening About.
 
 ## Document and paper workflow
 
