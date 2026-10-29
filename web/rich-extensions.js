@@ -110,7 +110,7 @@ function pdfExtension(callbacks){
         if(src&&new URL(src,location.origin).origin===location.origin){
           body=document.createElement('iframe');body.src='/static/pdf-viewer.html?v=20261027-rich&file='+encodeURIComponent(new URL(src,location.origin).href);body.title='内嵌 PDF 阅读器';body.loading='lazy';body.referrerPolicy='no-referrer';
         }else{
-          body=document.createElement('div');body.className='native-pdf-import';const hint=document.createElement('span');hint.textContent='导入 PDF 后可在文档中阅读。';const button=document.createElement('button');button.type='button';button.className='button secondary small';button.textContent='导入 PDF';button.disabled=!src||!editor.isEditable;button.onclick=()=>callbacks.importPDF?.(src,button);body.append(hint,button);
+          body=document.createElement('div');body.className='native-pdf-import';const hint=document.createElement('span');hint.textContent='请下载原文后，通过「插入 PDF」上传本地文件。';body.append(hint);
         }
         dom.append(body);
       };paint();

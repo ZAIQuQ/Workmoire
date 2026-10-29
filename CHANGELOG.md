@@ -2,6 +2,28 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.6.1] — 2026-10-29
+
+### 手动上传 PDF 与长论文解析修复
+
+- 停用论文链接自动下载和编辑器中的 PDF 链接导入，所有 PDF 由用户手动上传。
+- 来源链接仅用于记录出处；只有选定本地 PDF 后才能上传、读取和分析。
+- 旧的在线获取接口也已停用，旧页面无法继续触发服务器下载；已有附件、原文链接和文档内容保留。
+- 手动上传继续提供实际进度、PDF 预览、AI 分析和预估等待时间。
+- 修复长论文达到文字提取上限时被误报为无效 PDF：正常停止读取并标注部分文字，保留预览和分析。
+- 文字提取失败时保留上传成功状态，并区分文件无效、加密、超时与一般读取异常。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+PDF intake now requires a manual upload. Source URLs are attribution only; remote
+PDF imports and legacy online paper lookup are disabled at the API boundary as
+well as in the UI. Existing documents and attachments remain available, with
+measured uploads, local extraction and optional AI briefs. Fix stream cancellation
+at the text limit so valid long PDFs retain partial evidence instead of failing
+as invalid files; extraction errors no longer overwrite successful upload status.
+
 ## [1.6.0] — 2026-10-29
 
 ### 论文速读与等待进度

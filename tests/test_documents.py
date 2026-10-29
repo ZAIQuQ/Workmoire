@@ -99,38 +99,12 @@ class DocumentHttpTests(unittest.TestCase):
         self.assertEqual(body,b'')
 
     def test_paper_endpoints_require_authentication_before_network_or_generation(self):
-        with patch.object(app,'lookup_papers') as lookup, patch.object(app,'invoke_codex') as invoke, patch.object(app,'fetch_public') as fetch:
-            for path in ['/api/papers/lookup','/api/papers/draft','/api/papers/pdf']:
+        with patch.object(paper_tools,'lookup_papers') as lookup, patch.object(app,'invoke_codex') as invoke, patch.object(paper_tools,'fetch_public') as fetch:
+            for path in ['/api/papers/lookup','/api/papers/draft','/api/papers/pdf','/api/papers/prepare']:
                 self.assertEqual(self.request(path,'POST',{'reference':'Synthetic title'},anonymous=True)[0],401)
             lookup.assert_not_called()
             invoke.assert_not_called()
             fetch.assert_not_called()
-
-    def test_paper_draft_is_source_grounded_and_not_persisted(self):
-        paper={'title':'Synthetic paper','authors':['Example Author'],'year':'2026','venue':'Example Journal','url':'https://example.org/paper','doi':'10.0000/example','pdf_url':'https://example.org/paper.pdf','abstract':'A synthetic abstract.','reference':'doi:10.0000/example','provider':'Synthetic'}
-        with patch.object(app,'lookup_papers',return_value=[paper]),patch.object(app,'invoke_codex',return_value='## 研究问题\n\n待全文核实。') as invoke:
-            status,body,_=self.request('/api/papers/draft','POST',{'reference':paper['reference']})
-            self.assertEqual(status,200)
-            draft=json.loads(body)
-            self.assertIn('https://example.org/paper',draft['content'])
-            self.assertIn('尚未阅读全文',draft['content'])
-            self.assertIn('待全文核实',invoke.call_args.args[0])
-        with app.open_db() as con:
-            self.assertEqual(con.execute('SELECT COUNT(*) FROM users').fetchone()[0],1)
-            for table in ['items','files','item_revisions']:
-                self.assertEqual(con.execute('SELECT COUNT(*) FROM '+table).fetchone()[0],0)
-
-    def test_pdf_import_validates_bytes_before_saving(self):
-        with patch.object(app,'fetch_public',return_value=(b'<html>not PDF</html>','application/pdf','https://example.org/a.pdf')):
-            status,_,_=self.request('/api/papers/pdf','POST',{'url':'https://example.org/a.pdf'})
-            self.assertEqual(status,400)
-        with app.open_db() as con:
-            self.assertEqual(con.execute('SELECT COUNT(*) FROM files').fetchone()[0],0)
-        with patch.object(app,'fetch_public',return_value=(b'%PDF-1.4\nfixture','application/pdf','https://example.org/a.pdf')):
-            status,body,_=self.request('/api/papers/pdf','POST',{'url':'https://example.org/a.pdf','name':'test.pdf'})
-            self.assertEqual(status,201)
-            file_id=json.loads(body)['id']
-        self.assertEqual(self.request('/files/'+file_id+'?inline=1')[0],200)
 
 
 class PaperNetworkTests(unittest.TestCase):

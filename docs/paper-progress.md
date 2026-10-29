@@ -31,8 +31,12 @@ Extraction reports completed pages against its bounded page target. Remaining
 time uses recent completed pages, avoiding first-page initialization overhead;
 unmeasurable/stalled work is labelled accordingly. Existing limits remain 80
 pages, 60,000 characters and 45 seconds. Reaching a text/page limit is clearly
-marked as partial extraction. URL downloads show a separate stage because the
-upstream content length/throughput is not always observable.
+marked as partial extraction. At the character limit, cancel the PDF.js text
+stream with an explicit Error reason and retain the extracted evidence. Do not
+await a cancellation acknowledgement from an already-closed PDF.js sink; destroy
+the loading task in the finalizer to release its worker. A text extraction failure
+must not overwrite an already successful upload. PDF input is manual-upload only;
+optional source links do not trigger network retrieval.
 
 ## AI jobs and estimates
 

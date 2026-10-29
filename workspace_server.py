@@ -37,9 +37,8 @@ from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from paper_tools import dossier_header, fetch_public, lookup_papers, reading_material
 from rich_documents import normalized_rich_content, read_rich_content, remap_references
-from paper_intake import download_paper, paper_source, selected_pdf_header
+from paper_intake import paper_source, selected_pdf_header
 from share_store import SharePublisher
 from app_release import release_info
 import bug_reports
@@ -639,17 +638,6 @@ def paper_notes(paper: dict, material: dict, progress=None) -> str:
     return result
 
 
-def paper_draft(reference: str) -> dict:
-    papers = lookup_papers(reference)
-    if len(papers) != 1:
-        raise ValueError("请先选择一篇具体论文")
-    paper = papers[0]
-    material = reading_material(paper)
-    notes = paper_notes(paper, material)
-    evidence = {key: material[key] for key in ("scope", "url", "truncated")}
-    return {"title": paper["title"], "content": dossier_header(paper, material) + "\n" + notes, "paper": paper, "evidence": evidence}
-
-
 def selected_pdf(file_id: object) -> dict:
     if not isinstance(file_id, str) or not re.fullmatch(r'[a-f0-9]{32}', file_id):
         raise ValueError('请选择有效的 PDF 附件')
@@ -661,25 +649,10 @@ def selected_pdf(file_id: object) -> dict:
 
 
 def prepare_paper(payload: dict) -> dict:
+    if not payload.get('file_id'):
+        raise ValueError('请先手动上传 PDF；论文链接仅用于记录来源，不会自动下载')
     reference = paper_source(payload.get('reference', ''))
-    if payload.get('file_id'):
-        # A supplied PDF always wins. Do not retrieve another PDF or its text.
-        return {'status':'ready', 'file':selected_pdf(payload['file_id']), 'paper':{'title':'','authors':[],'year':'','venue':'','url':reference}, 'source_url':reference, 'pdf_origin':'uploaded'}
-    result = download_paper(reference, MAX_UPLOAD)
-    if result['status'] != 'ready':
-        return result
-    raw = result.pop('raw')
-    file_id = uuid.uuid4().hex
-    target = FILES_DIR / (file_id+'.pdf')
-    try:
-        target.write_bytes(raw)
-        with closing(open_db()) as con, con:
-            con.execute("INSERT INTO files(id,name,stored_name,size,content_type,item_id,created_at) VALUES(?,?,?,?,?,NULL,?)", (file_id,result['name'],target.name,len(raw),'application/pdf',utc_now()))
-            log_activity(con,'upload','file',file_id,result['name'])
-    except Exception:
-        target.unlink(missing_ok=True)
-        raise
-    return {**result,'file':{'id':file_id,'name':result['name'],'size':len(raw)},'pdf_origin':'downloaded'}
+    return {'status':'ready', 'file':selected_pdf(payload['file_id']), 'paper':{'title':'','authors':[],'year':'','venue':'','url':reference}, 'source_url':reference, 'pdf_origin':'uploaded'}
 
 
 def paper_from_pdf(payload: dict, progress=None) -> dict:
@@ -2394,56 +2367,27 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self.request_error(exc, '论文导入暂时不可用，请稍后再试', 503)
             return
-        if path in {"/api/papers/lookup", "/api/papers/draft"}:
+        if path in {"/api/papers/lookup", "/api/papers/pdf"}:
+            if not self.require_user():
+                return
+            self.json_response({"error": "已停用在线论文获取，请手动上传 PDF；链接仅用于记录来源"}, 410)
+            return
+        if path == "/api/papers/draft":
             owner = self.require_user()
             if not owner:
                 return
             try:
                 payload = parse_json(self)
-                reference = str(payload.get("reference", "")).strip()
-                if path.endswith("/lookup"):
-                    self.json_response({"papers": lookup_papers(reference)})
-                else:
-                    if payload.get('background') is True and payload.get('generate',True) and payload.get('file_id'):
-                        selected_pdf(payload['file_id'])
-                        if not isinstance(payload.get('text'),str) or len(payload['text'])>60000:raise ValueError('PDF 提取文字无效')
-                        job=paper_runtime().start(owner,payload,lambda progress:paper_from_pdf(payload,progress))
-                        self.json_response(job,202)
-                    else:self.json_response(paper_from_pdf(payload) if payload.get("file_id") else paper_draft(reference))
+                if not payload.get('file_id'):
+                    raise ValueError('请先手动上传 PDF，再分析论文')
+                if payload.get('background') is True and payload.get('generate',True):
+                    selected_pdf(payload['file_id'])
+                    if not isinstance(payload.get('text'),str) or len(payload['text'])>60000:raise ValueError('PDF 提取文字无效')
+                    job=paper_runtime().start(owner,payload,lambda progress:paper_from_pdf(payload,progress))
+                    self.json_response(job,202)
+                else:self.json_response(paper_from_pdf(payload))
             except Exception as exc:
                 self.request_error(exc, "论文整理暂时不可用，请稍后再试", 503)
-            return
-        if path == "/api/papers/pdf":
-            if not self.require_user():
-                return
-            target = None
-            try:
-                payload = parse_json(self)
-                raw_id = payload.get("item_id")
-                item_id = int(raw_id) if raw_id is not None else None
-                if item_id is not None:
-                    with closing(open_db()) as con:
-                        if not con.execute("SELECT 1 FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone():
-                            raise ValueError("文档不存在")
-                raw, _, _ = fetch_public(str(payload.get("url", "")), MAX_UPLOAD)
-                if not raw.startswith(b"%PDF-"):
-                    raise ValueError("此链接没有返回 PDF 文件，可下载原文后手动上传")
-                file_id = uuid.uuid4().hex
-                name = Path(str(payload.get("name", "论文原文.pdf"))).name[:180]
-                if not name.lower().endswith(".pdf"):
-                    name += ".pdf"
-                target = FILES_DIR / (file_id + ".pdf")
-                target.write_bytes(raw)
-                with closing(open_db()) as con, con:
-                    if item_id is not None and not con.execute("SELECT 1 FROM items WHERE id=? AND deleted_at=''", (item_id,)).fetchone():
-                        raise ValueError("文档状态已变化，请刷新后重试")
-                    con.execute("INSERT INTO files(id,name,stored_name,size,content_type,item_id,created_at) VALUES(?,?,?,?,?,?,?)", (file_id, name, target.name, len(raw), "application/pdf", item_id, utc_now()))
-                    log_activity(con, "upload", "file", file_id, name)
-                self.json_response({"id": file_id, "name": name, "item_id": item_id}, 201)
-            except Exception as exc:
-                if target is not None:
-                    target.unlink(missing_ok=True)
-                self.request_error(exc, "PDF 导入失败，请下载后手动上传", 503)
             return
         if path == "/api/assistant":
             if not self.require_user():

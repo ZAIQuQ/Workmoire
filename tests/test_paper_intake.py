@@ -4,38 +4,19 @@ import unittest
 from unittest.mock import patch
 
 import paper_intake
+import paper_tools
 import test_documents as support
 import workspace_server as app
 
 
 class PaperSourceTests(unittest.TestCase):
-    def test_direct_pdf_and_landing_page_resolve_without_persisting(self):
-        with patch.object(paper_intake,'fetch_public',return_value=(b'%PDF-1.7 synthetic','application/pdf','https://example.org/final.pdf')) as fetch:
-            result=paper_intake.download_paper('https://example.org/source.pdf',1000)
-            self.assertEqual(result['raw'],b'%PDF-1.7 synthetic')
-            self.assertEqual(result['status'],'ready')
-            fetch.assert_called_once_with('https://example.org/source.pdf',1000)
-        paper={'title':'Verified paper','authors':['Author'],'url':'https://example.org/article','pdf_url':'https://example.org/file.pdf'}
-        with patch.object(paper_intake,'lookup_papers',return_value=[paper]),patch.object(paper_intake,'fetch_public',return_value=(b'%PDF-1.7 synthetic','application/pdf',paper['pdf_url'])):
-            result=paper_intake.download_paper(paper['url'],1000)
-            self.assertEqual(result['name'],'Verified paper.pdf')
-            self.assertEqual(result['source_url'],paper['url'])
-
-    def test_arxiv_pdf_download_does_not_depend_on_metadata_api_availability(self):
-        with patch.object(paper_intake,'lookup_papers',side_effect=ValueError('Metadata unavailable')),patch.object(paper_intake,'fetch_public',return_value=(b'%PDF-1.7 synthetic','application/pdf','https://arxiv.org/pdf/1706.03762v2')) as fetch:
-            result=paper_intake.download_paper('https://arxiv.org/abs/1706.03762v2',1000)
-            self.assertEqual(result['status'],'ready')
-            fetch.assert_called_once_with('https://arxiv.org/pdf/1706.03762v2',1000)
-
-    def test_blocked_or_non_pdf_sources_require_manual_upload(self):
-        for failure in [ValueError('论文来源暂不可用（HTTP 403）'),ValueError('Connection timed out')]:
-            with patch.object(paper_intake,'fetch_public',side_effect=failure):
-                result=paper_intake.download_paper('https://example.org/source.pdf',1000)
-                self.assertEqual(result['status'],'needs_pdf');self.assertIn('上传',result['message']);self.assertNotIn('raw',result)
-        with patch.object(paper_intake,'fetch_public',return_value=(b'<html>Login</html>','text/html','https://example.org/source.pdf')):
-            self.assertEqual(paper_intake.download_paper('https://example.org/source.pdf',1000)['status'],'needs_pdf')
-        with patch.object(paper_intake,'fetch_public',side_effect=ValueError('论文来源必须是公开网络地址')):
-            with self.assertRaises(ValueError):paper_intake.download_paper('https://example.org/source.pdf',1000)
+    def test_source_links_are_attribution_without_network_access(self):
+        with patch.object(paper_tools.socket, 'getaddrinfo') as dns, patch.object(paper_tools, 'fetch_public') as fetch:
+            self.assertEqual(paper_intake.paper_source(' https://example.org/source.pdf '), 'https://example.org/source.pdf')
+            self.assertEqual(paper_intake.paper_source(''), '')
+            for invalid in ['http://example.org/paper', 'https://user:password@example.org/paper', 'javascript:alert(1)']:
+                with self.assertRaises(ValueError):paper_intake.paper_source(invalid)
+            dns.assert_not_called();fetch.assert_not_called()
 
 
 class PaperIntakeHttpTests(unittest.TestCase):
@@ -47,7 +28,7 @@ class PaperIntakeHttpTests(unittest.TestCase):
     def test_uploaded_pdf_has_priority_over_url_for_import_and_analysis(self):
         self.fixture_file('chosen.pdf',b'%PDF-1.4 chosen bytes','application/pdf')
         payload={'reference':'https://example.org/other-paper','file_id':'a'*32}
-        with patch.object(app,'download_paper') as download,patch.object(app,'lookup_papers') as lookup,patch.object(app,'reading_material') as html:
+        with patch.object(paper_tools,'fetch_public') as download,patch.object(paper_tools,'lookup_papers') as lookup,patch.object(paper_tools,'reading_material') as html:
             self.assertEqual(self.request('/api/papers/prepare','POST',payload,anonymous=True)[0],401)
             status,body,_=self.request('/api/papers/prepare','POST',payload)
             self.assertEqual(status,200);prepared=json.loads(body);self.assertEqual(prepared['pdf_origin'],'uploaded');self.assertEqual(prepared['file']['id'],'a'*32)
@@ -59,17 +40,17 @@ class PaperIntakeHttpTests(unittest.TestCase):
             download.assert_not_called();lookup.assert_not_called();html.assert_not_called()
         with app.open_db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM items').fetchone()[0],0)
 
-    def test_url_import_creates_only_an_unassociated_pdf_and_failed_download_creates_nothing(self):
-        ready={'status':'ready','paper':{'title':'Source paper'},'source_url':'https://example.org/paper','download_url':'https://example.org/paper.pdf','name':'paper.pdf','raw':b'%PDF-1.4 downloaded'}
-        with patch.object(app,'download_paper',return_value=ready):
-            status,body,_=self.request('/api/papers/prepare','POST',{'reference':'https://example.org/paper'})
-        self.assertEqual(status,200);file=json.loads(body)['file']
+    def test_url_only_requests_cannot_download_or_generate_even_from_older_clients(self):
+        with patch.object(paper_tools,'fetch_public') as fetch, patch.object(paper_tools,'lookup_papers') as lookup, patch.object(app,'invoke_codex') as invoke:
+            for reference in ['https://example.org/paper.pdf', 'https://arxiv.org/abs/0000.00000', 'Synthetic paper title']:
+                for path,status_code in [('/api/papers/prepare',400),('/api/papers/draft',400),('/api/papers/pdf',410),('/api/papers/lookup',410)]:
+                    status,body,_=self.request(path,'POST',{'reference':reference,'url':reference,'background':True})
+                    self.assertEqual(status,status_code);self.assertIn('上传 PDF',json.loads(body)['error'])
+            fetch.assert_not_called();lookup.assert_not_called();invoke.assert_not_called()
         with app.open_db() as con:
-            row=con.execute('SELECT * FROM files WHERE id=?',(file['id'],)).fetchone();self.assertIsNone(row['item_id']);self.assertEqual((app.FILES_DIR/row['stored_name']).read_bytes(),b'%PDF-1.4 downloaded');self.assertEqual(con.execute('SELECT COUNT(*) FROM items').fetchone()[0],0)
-        with patch.object(app,'download_paper',return_value={'status':'needs_pdf','source_url':'https://example.org/blocked','message':'请上传'}):
-            status,body,_=self.request('/api/papers/prepare','POST',{'reference':'https://example.org/blocked'})
-        self.assertEqual(json.loads(body)['status'],'needs_pdf')
-        with app.open_db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM files').fetchone()[0],1)
+            for table in ['items','files','item_revisions']:
+                self.assertEqual(con.execute('SELECT COUNT(*) FROM '+table).fetchone()[0],0)
+        self.assertEqual(list(app.FILES_DIR.iterdir()),[])
 
     def test_no_text_can_be_archived_but_never_analyzed_as_if_it_were_a_readable_pdf(self):
         self.fixture_file('scan.pdf',b'%PDF-1.4 synthetic scan','application/pdf')

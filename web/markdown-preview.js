@@ -77,7 +77,7 @@ md.block.ruler.before("paragraph","research_pdf",(state,startLine,endLine,silent
 md.renderer.rules.pdf_embed=(tokens,index)=>{
   const url=safeMedia(tokens[index].content);
   if(!url)return '<p class="media-error">PDF 链接无效，请使用上传的附件或 HTTPS 链接。</p>';
-  if(new URL(url,location.origin).origin!==location.origin)return '<figure class="pdf-embed external-pdf"><figcaption><span>PDF · 原文资料</span><a href="'+escape(url)+'" target="_blank" rel="noopener noreferrer">打开原文 '+uiIcon("arrow")+'</a></figcaption><div class="external-pdf-body"><span>将原文导入附件，就能在文档内阅读。</span><button type="button" class="button secondary small import-pdf" data-pdf-url="'+escape(url)+'">导入并内嵌</button></div></figure>';
+  if(new URL(url,location.origin).origin!==location.origin)return '<figure class="pdf-embed external-pdf"><figcaption><span>PDF · 原文资料</span><a href="'+escape(url)+'" target="_blank" rel="noopener noreferrer">打开原文 '+uiIcon("arrow")+'</a></figcaption><div class="external-pdf-body"><span>请下载原文后，通过「插入 PDF」上传本地文件。</span></div></figure>';
   return '<figure class="pdf-embed"><figcaption><span>PDF · 原文阅读</span><a href="'+escape(url)+'" target="_blank" rel="noopener noreferrer">新窗口打开 '+uiIcon("arrow")+'</a></figcaption><iframe src="/static/pdf-viewer.html?v=20261027-neutral&amp;file='+encodeURIComponent(url)+'" title="内嵌 PDF 阅读器" loading="lazy" referrerpolicy="no-referrer"></iframe><div class="pdf-fallback">无法显示？可以在新窗口打开阅读。</div></figure>';
 };
 md.inline.ruler.before("link","document_reference",(state,silent)=>{

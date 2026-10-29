@@ -10,12 +10,18 @@ export async function extractPaperPDF(source,{onProgress=()=>{}}={}){
  try{
   const doc=await task.promise,meta=await doc.getMetadata().catch(()=>({info:{}}));let text='',pagesRead=0,truncated=false;const total=Math.min(doc.numPages,80);onProgress({stage:'extracting',done:0,total});
   for(let number=1;number<=total;number++){
-   const page=await doc.getPage(number),reader=page.streamTextContent().getReader();text+='\n[第 '+number+' 页]\n';pagesRead=number;
-   try{while(true){const {value,done}=await reader.read();if(done)break;for(const item of value.items){if(typeof item.str!=='string')continue;const part=item.str+(item.hasEOL?'\n':' ');const room=60000-text.length;if(part.length>room)truncated=true;text+=part.slice(0,Math.max(0,room));if(text.length>=60000)break;}if(text.length>=60000){truncated=true;await reader.cancel();break;}}}finally{page.cleanup();}
+   const page=await doc.getPage(number),reader=page.streamTextContent().getReader();text+=('\n[第 '+number+' 页]\n').slice(0,60000-text.length);pagesRead=number;
+   try{while(true){const {value,done}=await reader.read();if(done)break;for(const item of value.items){if(typeof item.str!=='string')continue;const part=item.str+(item.hasEOL?'\n':' ');const room=60000-text.length;if(part.length>room)truncated=true;text+=part.slice(0,Math.max(0,room));if(text.length>=60000)break;}if(text.length>=60000){
+    truncated=true;
+    // PDF.js may never acknowledge cancellation after its final chunk was queued.
+    // Cancel with the required reason; task.destroy() below owns worker cleanup.
+    reader.cancel(new Error('PDF text extraction limit reached')).catch(()=>{});
+    break;
+   }}}finally{reader.releaseLock();page.cleanup();}
    onProgress({stage:'extracting',done:number,total});if(text.length>=60000)break;
   }
   truncated ||= pagesRead<doc.numPages;
   return {text:text.trim(),pages_read:pagesRead,page_count:doc.numPages,truncated,title:String(meta.info?.Title||'').slice(0,200),author:String(meta.info?.Author||'').slice(0,200)};
- }catch(error){throw new Error(expired?'PDF 文字读取超时，可尝试较小的文件':error.name==='PasswordException'?'PDF 已加密，请先上传可直接阅读的版本':'无法解析这个 PDF，请更换有效的 PDF 文件');}
+ }catch(error){throw new Error(expired?'PDF 文字读取超时，可尝试较小的文件':error.name==='PasswordException'?'PDF 已加密，请先上传可直接阅读的版本':error.name==='InvalidPDFException'?'无法解析这个 PDF，请更换有效的 PDF 文件':'PDF 文字读取失败，请重试；原文件不一定已损坏');}
  finally{clearTimeout(timeout);await task.destroy();}
 }

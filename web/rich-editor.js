@@ -101,7 +101,7 @@ export function mountRichEditor(host,options={}){
  function hideFind(){findbar.hidden=true;findQuery='';findInput.value='';editor.view.dispatch(editor.state.tr.setMeta(findKey,true));editor.commands.focus();}
 
  const codeBlocks=createCodeBlocks({lowlight,copy:options.copy});cleanup.push(codeBlocks.destroy);
- const callbacks={math:openMath,openDocument:id=>options.openDocument?.(id),importPDF:(src,el)=>options.importPDF?.(src,el)};
+ const callbacks={math:openMath,openDocument:id=>options.openDocument?.(id)};
  const NativeKeys=Extension.create({name:'workmoireKeys',addKeyboardShortcuts(){return {
   'Mod-Shift-x':()=>editor.commands.toggleTaskList(),
   'Mod-Shift-h':()=>editor.commands.toggleHighlight({color:'#fff2a8'}),

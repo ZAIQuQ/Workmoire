@@ -71,8 +71,8 @@ not a heading: choose a heading style to include a paragraph in the outline.
   The editor updates changed blocks only. Markdown serialization is deferred to
   saves, idle drafts, explicit assistant requests and export.
 - Uploads remain authenticated; only byte-verified PDFs and raster images render
-  inline. HTML and SVG uploads remain downloads. Public PDF imports require an
-  explicit action. PDF text selection, search, pages and zoom remain available
+  inline. HTML and SVG uploads remain downloads. PDF insertion requires a
+  manual upload; source-link downloads are disabled. PDF text selection, search, pages and zoom remain available
   while writing around the same reader node.
 - Native documents are stored as versioned JSON alongside a Markdown mirror.
   Existing Markdown documents open without rewriting stored content. Native
@@ -155,16 +155,16 @@ Feishu and Yuque references, typography audit and visual verification.
 
 ## Papers and Codex
 
-Choose **New document → Paper materials**. Upload a PDF, supply a public HTTPS
-paper/PDF link, or provide both. Uploaded files always take precedence: no other
-PDF or web text is retrieved for them. A URL without a file triggers a bounded
-metadata/PDF lookup and download. Failed downloads show source links and require
-a manual PDF upload before proceeding.
+Choose **New document → Paper materials** and manually upload a PDF. An optional
+HTTPS source link is saved as attribution only; the server does not visit it or
+download a PDF. A source URL alone cannot start import or analysis. The editor's
+**Insert PDF** action also accepts local uploads only. Existing attachments and
+external source links remain available.
 
 The selected file is previewed before use. It can be replaced at any point before
 insertion; replacing it invalidates the earlier extracted text and generated
 notes. Browser-side PDF.js extraction reads the supplied local file in parallel with
-upload, or the authenticated stored file for a URL download,
+upload,
 up to 80 pages / 60,000 characters, with a bounded loading task. Optional Codex
 analysis uses those extracted words, never a substitute HTML article or another
 PDF. Textless/scanned PDFs can be archived and read without invented analysis.

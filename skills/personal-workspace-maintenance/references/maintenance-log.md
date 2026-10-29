@@ -147,3 +147,7 @@ changes belong in normal commit history.
 - Reproduced the Chinese IME deletion bug through Chromium's native composition API and traced it to empty shortcut transactions dispatched during composition. Added a shortcut guard and native IME regressions. Introduced private immutable Bug records with explicit screenshot upload, idempotent submission, scoped authenticated reads and backup/migration verification.
 
 - Replaced the long paper dossier prompt with a versioned concise brief and medium reasoning. Added direct measured uploads, parallel selected-file extraction and private transient analysis jobs with content-free timing calibration. Recorded honest progress/overrun behavior and public-input latency checks; other AI-template work stays deferred.
+
+- Changed paper intake to manual PDF uploads at the owner's request to avoid source-site crawler blocking. Retired server-side URL download/lookup paths and editor import controls, preserved stored attachments/source links, and added no-network regressions for old clients plus manual upload/analysis/replacement checks.
+
+- Diagnosed a valid long PDF rejected at the extraction character cap: PDF.js requires an Error argument when cancelling its text stream. Added a synthetic long-document regression, bounded page markers, specific extraction messages and separate upload/extraction failure states. User-supplied diagnostic files stay outside repository fixtures and logs.
