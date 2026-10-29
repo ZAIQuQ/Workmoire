@@ -2,6 +2,24 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.12.0] — 2026-10-29
+
+- 新增论文阅读台：PDF 与现有富文本笔记并排，支持拖动或键盘调整栏宽；手机通过「原文 / 笔记」切换。
+- 本机记住附件页码、缩放和笔记阅读位置；阅读台与普通内嵌 PDF 分别保存位置，切换布局保留草稿、选区和阅读器实例。
+- 选中 PDF 原文后可「引用到笔记」或「复制引用」。引用带来源和页码，点击可回到原文页面，正常保存后持久化。
+- 页码引用支持历史、Markdown、完整归档和文档分享；分享链接使用独立附件副本并遵守密码、有效期与撤销设置。
+- 多附件可切换，外部来源继续要求手动上传；首版实现页码定位，精确高亮和图片框选留待后续。
+
+见[使用说明](docs/user-guide.md)与[阅读台指南](docs/reading-desk.md)。
+
+### English
+
+Add a resizable PDF-and-notes reading desk with mobile Original / Notes tabs
+and local reading positions. Quote PDF selections into unsaved rich notes,
+copy attributed Markdown, and navigate citations back to their source page.
+Preserve references through history, archives and protected or direct shares,
+using only uploaded PDFs and scoped publication attachments.
+
 ## [1.11.1] — 2026-10-29
 
 - 修正目录撤销回归测试的初始化方式，避免快速执行时将测试全文插入与标题修改合并为一次撤销。

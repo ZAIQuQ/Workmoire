@@ -27,6 +27,13 @@ input, select { border: 1px solid var(--border); background: #fff; border-radius
 .pdfViewer .page canvas { display: block; }
 #pdf-status { position: absolute; top: 48%; left: 15px; right: 15px; text-align: center; font-size: 12px; line-height: 1.9; color: var(--muted); }
 #pdf-status[hidden] { display: none; }
+.pdf-quote-tools { position: absolute; bottom: 0; left: 0; right: 0; min-height: 38px; display: flex; align-items: center; gap: 5px; padding: 5px 8px; border-top: 1px solid var(--line); background: var(--paper); }
+.pdf-quote-tools > span { flex: 1; min-width: 0; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdf-quote-tools button { width: auto; padding: 0 8px; white-space: nowrap; font-size: 11px; }
+.pdf-quote-tools button:disabled { opacity: .45; cursor: default; }
+#pdf-insert-quote { background: var(--action); color: #fff; }
+.pdf-desk #pdf-container { bottom: 40px; }
+@media(max-width:420px){.pdf-quote-tools > span{display:none}.pdf-quote-tools{justify-content:flex-end}}
 @media (max-width: 360px) {
   .pdf-toolbar { gap: 2px; padding: 0 5px; }
   .pdf-toolbar select { max-width: 89px; font-size: 10px; }

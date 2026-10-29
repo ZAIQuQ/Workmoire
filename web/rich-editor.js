@@ -21,6 +21,7 @@ import {createCodeBlocks} from './code-block.js';
 import {Plugin, PluginKey, TextSelection, NodeSelection} from '@tiptap/pm/state';
 import {Fragment} from '@tiptap/pm/model';
 import {closeHistory} from '@tiptap/pm/history';
+import {pdfCitation,pdfViewerURL} from './pdf-source.js';
 import {Decoration, DecorationSet} from '@tiptap/pm/view';
 import {createLowlight} from 'lowlight';
 import javascript from 'highlight.js/lib/languages/javascript';
@@ -153,7 +154,7 @@ export function mountRichEditor(host,options={}){
     const files=Array.from(event.clipboardData?.files||[]).filter(file=>file.type.startsWith('image/')||file.type==='application/pdf');
     if(files.length){event.preventDefault();for(const file of files)options.upload?.(file,createBookmark());return true;}
     const html=event.clipboardData?.getData('text/html'),text=event.clipboardData?.getData('text/plain')||'';
-    if(!html&&!editor.isActive('codeBlock')&&/^(?:#{1,6}\s|```|\$\$|[-*+]\s|\d+\.\s|\|.+\|)|!\[[^\]]*\]\(|@\[pdf\]\(/m.test(text)){
+    if(!html&&!editor.isActive('codeBlock')&&/^(?:#{1,6}\s|>\s|```|\$\$|[-*+]\s|\d+\.\s|\|.+\|)|!\[[^\]]*\]\(|@\[pdf\]\(/m.test(text)){
      event.preventDefault();editor.commands.insertContent(text,{contentType:'markdown'});return true;
     }
     return false;
@@ -163,7 +164,7 @@ export function mountRichEditor(host,options={}){
     event.preventDefault();const coords=view.posAtCoords({left:event.clientX,top:event.clientY});if(coords)editor.commands.setTextSelection(coords.pos);
     for(const file of Array.from(event.dataTransfer.files))options.upload?.(file,createBookmark());return true;
    },
-   handleClick(view,pos,event){const anchor=event.target.closest('a[href]');if(anchor&&(!editor.isEditable||event.metaKey||event.ctrlKey)){const href=safeLink(anchor.getAttribute('href'));if(href){event.preventDefault();window.open(href,'_blank','noopener,noreferrer');return true;}}return false;},
+   handleClick(view,pos,event){const anchor=event.target.closest('a[href]');if(anchor){const href=safeLink(anchor.getAttribute('href'));if(href&&!pdfCitation(href)&&(!editor.isEditable||event.metaKey||event.ctrlKey)){event.preventDefault();window.open(href,'_blank','noopener,noreferrer');return true;}}return false;},
   },
   onTransaction({transaction}){if(ready&&transaction.storedMarksSet)scheduleControls();for(const reservation of reservations)reservation.mark=reservation.mark.map(transaction.mapping);if(ready&&bodyFont()!==lastFont){lastFont=bodyFont();options.onChange?.();scheduleControls();}},
   onUpdate({transaction}){if(ready&&transaction.docChanged){diagnostics.documentUpdates++;options.onChange?.();scheduleControls();}},
@@ -171,6 +172,8 @@ export function mountRichEditor(host,options={}){
   onBlur(){clearTimeout(blurTimer);blurTimer=setTimeout(()=>{if(destroyed)return;if(!slash.contains(document.activeElement))hideSlash();if(!bubble.contains(document.activeElement))editor.view.dispatch(editor.state.tr.setMeta('bubbleMenu','hide'));},120);},
  });
  cleanup.push(guardCompositionShortcuts(editor));
+ const citationClick=event=>{const anchor=event.target.closest('a[href]'),citation=anchor&&pdfCitation(anchor.getAttribute('href'));if(!citation)return;event.preventDefault();event.stopPropagation();if(event.metaKey||event.ctrlKey||!options.openPDF?.(citation))window.open(pdfViewerURL(citation,citation.page),'_blank','noopener,noreferrer');};
+ host.addEventListener('click',citationClick,true);cleanup.push(()=>host.removeEventListener('click',citationClick,true));
  function completeDocument(doc){return doc.lastChild?.type.name==='paragraph'?doc:doc.copy(doc.content.append(Fragment.from(editor.schema.nodes.paragraph.create())));}
  function parseDocument(markdown){return completeDocument(editor.schema.nodeFromJSON(editor.markdown.parse(markdown||'')));}
  if(editor.state.doc.lastChild?.type.name!=='paragraph')editor.view.dispatch(editor.state.tr.insert(editor.state.doc.content.size,editor.schema.nodes.paragraph.create()).setMeta('addToHistory',false));
@@ -281,6 +284,15 @@ export function mountRichEditor(host,options={}){
   insertImage(attrs,reservation){const src=safeMedia(attrs.src);if(src)insertAtReservation({type:'image',attrs:{...attrs,src}},reservation);},
   insertPDF(attrs,reservation){const src=safeMedia(attrs.src);if(src)insertAtReservation({type:'pdf',attrs:{...attrs,src}},reservation);},
   insertReference(item){editor.chain().focus().insertContent({type:'documentLink',attrs:{id:Number(item.id),title:item.title}}).run();},
+  insertPDFQuote({text,source,page,endPage=page,title='PDF 原文'}){
+   const citation=pdfCitation(source+'#page='+page);if(!citation||typeof text!=='string'||!text.trim()||text.length>12000||editor.view.composing)return false;
+   const pages=endPage>page?page+'–'+endPage:String(page);
+   const nodes=[{type:'blockquote',content:text.trim().split(/\n+/).map(line=>({type:'paragraph',content:[{type:'text',text:line}]}))},{type:'paragraph',content:[{type:'text',text:title+' · 第 '+pages+' 页',marks:[{type:'link',attrs:{href:citation.src+'#page='+page,target:'_blank',rel:'noopener noreferrer nofollow'}}]}]},{type:'paragraph'}];
+   editor.view.dispatch(closeHistory(editor.state.tr));
+   // A source quote is inserted after the current block, never over selected notes.
+   const {$to}=editor.state.selection,at=$to.depth?$to.after(1):$to.pos;
+   const result=editor.chain().focus().insertContentAt(at,nodes).run();editor.view.dispatch(closeHistory(editor.state.tr));return result;
+  },
   insertAttachment(file,reservation){insertAtReservation({type:'paragraph',content:[{type:'text',text:file.name,marks:[{type:'link',attrs:{href:'/files/'+file.id,target:'_blank',rel:'noopener noreferrer nofollow'}}]}]},reservation);},
   replacePDFSource(original,file){let tr=editor.state.tr;editor.state.doc.descendants((node,pos)=>{if(node.type.name==='pdf'&&new URL(node.attrs.src,location.origin).href===new URL(original,location.origin).href)tr=tr.setNodeMarkup(pos,undefined,{...node.attrs,src:'/files/'+file.id+'?inline=1',title:file.name||node.attrs.title});});if(tr.docChanged)editor.view.dispatch(tr);},
   setEditable(value){editor.setEditable(value,false);host.dataset.editable=String(value);if(!value)editor.view.dispatch(editor.state.tr.setMeta('bubbleMenu','hide'));hideSlash();blockMenu.hidden=true;codeBlocks.refresh();for(const checkbox of host.querySelectorAll('li[data-type="taskItem"] input'))checkbox.disabled=!value;},

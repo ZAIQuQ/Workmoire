@@ -26,6 +26,9 @@ def safe_url(value: object, media: bool = False) -> str:
         raise ValueError('文档链接格式无效')
     if re.fullmatch(r'/files/[a-f0-9]{32}(?:\?inline=1)?', value):
         return value
+    if not media and re.fullmatch(r'/files/[a-f0-9]{32}(?:\?inline=1)?#page=([1-9][0-9]{0,4})', value):
+        if int(value.rsplit('=',1)[1]) <= 10000:
+            return value
     if not media and re.fullmatch(r'#[\w-]+', value):
         return value
     parsed = urlsplit(value)

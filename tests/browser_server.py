@@ -24,6 +24,22 @@ def pdf_fixture():
     return data+b'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n'+str(start).encode()+b'\n%%EOF\n'
 
 
+def reading_pdf_fixture():
+    """A multipage synthetic paper with selectable, in-bounds text."""
+    objects=[b'<< /Type /Catalog /Pages 2 0 R >>',b'<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R] /Count 3 >>',b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>']
+    for page in range(1,4):
+        content_id=5+(page-1)*2
+        objects.append(f'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << /Font << /F1 3 0 R >> >> /Contents {content_id} 0 R >>'.encode())
+        lines=[f'Synthetic Reading Study - Page {page}','A fixture for source-linked academic notes.',f'PAGE_{page}_EVIDENCE: local context can guide selective attention.','Each quotation should return to its original PDF page.','The PDF and notes retain independent reading positions.']
+        stream=b'BT /F1 13 Tf 48 740 Td '+b' 0 -30 Td '.join(b'('+line.encode()+b') Tj' for line in lines)+b' ET'
+        objects.append(b'<< /Length '+str(len(stream)).encode()+b' >>\nstream\n'+stream+b'\nendstream')
+    data=b'%PDF-1.4\n';offsets=[]
+    for index,obj in enumerate(objects,1):offsets.append(len(data));data+=str(index).encode()+b' 0 obj\n'+obj+b'\nendobj\n'
+    start=len(data);count=len(objects)+1
+    data+=f'xref\n0 {count}\n0000000000 65535 f \n'.encode()+b''.join(('%010d 00000 n \n'%offset).encode() for offset in offsets)
+    return data+f'trailer\n<< /Size {count} /Root 1 0 R >>\nstartxref\n{start}\n%%EOF\n'.encode()
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix='workmoire-browser-') as scratch:
         app.DATA_DIR=Path(scratch);app.FILES_DIR=Path(scratch)/'files';app.DB_PATH=Path(scratch)/'workspace.db'
@@ -80,6 +96,8 @@ def attention(q, k, v):
             con.execute('INSERT INTO item_links(source_id,target_id,created_at) VALUES(1,2,?)',(stamp,))
             pdf=pdf_fixture();name='b'*32+'.pdf';(app.FILES_DIR/name).write_bytes(pdf)
             con.execute('INSERT INTO files(id,name,stored_name,size,content_type,item_id,created_at) VALUES(?,?,?,?,?,2,?)',('b'*32,'synthetic-paper.pdf',name,len(pdf),'application/pdf',stamp))
+            reading=reading_pdf_fixture();(app.FILES_DIR/('c'*32+'.pdf')).write_bytes(reading)
+            con.execute('INSERT INTO files(id,name,stored_name,size,content_type,item_id,created_at) VALUES(?,?,?,?,?,2,?)',('c'*32,'reading-study.pdf','c'*32+'.pdf',len(reading),'application/pdf',stamp))
         server=app.WorkspaceHTTPServer(('127.0.0.1',8765),app.WorkspaceHandler)
         sharing=ShareHTTPServer(('127.0.0.1',8766),Path(app.SHARE_DATA_DIR),app.STATIC_DIR,Path(scratch)/'sharing/auth')
         threading.Thread(target=sharing.serve_forever,daemon=True).start()

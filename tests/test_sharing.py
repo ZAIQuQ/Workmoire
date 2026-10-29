@@ -208,6 +208,17 @@ class SharingTests(unittest.TestCase):
         # A grant for one link never unlocks another link, even for the same content.
         other=self.publish(self.create('Other note'));self.assertEqual(self.public_request(other['path']+'/document')[0],401)
 
+    def test_pdf_citations_copy_only_the_scoped_attachment_and_preserve_the_page(self):
+        source=self.fixture_file('cited.pdf',b'%PDF-1.4 cited source','application/pdf')
+        item=self.create(nodes=[{'type':'paragraph','content':[{'type':'text','text':'Source p. 3','marks':[{'type':'link','attrs':{'href':source+'?inline=1#page=3'}}]}]}])
+        for protected in [True,False]:
+            share=self.publish(item,password_required=protected)
+            if protected:self.assertEqual(self.unlock(share)[0],200)
+            document=json.loads(self.public_request(share['path']+'/document')[1]);href=document['rich_content']['document']['content'][0]['content'][0]['marks'][0]['attrs']['href']
+            self.assertRegex(href,r'^'+re.escape(share['path'])+r'/files/[a-f0-9]{32}\?inline=1#page=3$');self.assertNotIn(source,href)
+            self.assertEqual(self.public_request(href.split('#')[0])[0],200)
+            self.change(item,share,'revoke');self.assertEqual(self.public_request(href.split('#')[0])[0],404)
+
     def test_expiry_password_reset_and_revocation_apply_to_existing_sessions(self):
         item=self.create();share=self.publish(item);self.assertEqual(self.unlock(share)[0],200)
         reset=self.change(item,share,'password');self.assertNotEqual(reset['password'],share['password']);self.assertEqual(reset['path'],share['path']);self.assertEqual(self.public_request(share['path']+'/document')[0],401)

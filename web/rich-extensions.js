@@ -11,7 +11,7 @@ export function safeLink(value) {
   try {
     const url=new URL(value,location.origin);
     if(url.username||url.password)return null;
-    if(url.origin===location.origin&&/^\/files\/[a-f0-9]{32}$/.test(url.pathname))return url.pathname+url.search;
+    if(url.origin===location.origin&&/^\/files\/[a-f0-9]{32}$/.test(url.pathname))return url.pathname+url.search+url.hash;
     return ['http:','https:','mailto:'].includes(url.protocol)?url.href:null;
   } catch {return null;}
 }
@@ -108,7 +108,7 @@ function pdfExtension(callbacks){
         const src=safeMedia(node.attrs.src);label.textContent=node.attrs.title||'PDF 原文';remove.hidden=!editor.isEditable;open.href=src||'#';dom.dataset.src=src||'';
         if(src===source&&body)return;source=src;body?.remove();
         if(src&&new URL(src,location.origin).origin===location.origin){
-          body=document.createElement('iframe');body.src='/static/pdf-viewer.html?v=20261027-rich&file='+encodeURIComponent(new URL(src,location.origin).href);body.title='内嵌 PDF 阅读器';body.loading='lazy';body.referrerPolicy='no-referrer';
+          body=document.createElement('iframe');body.src='/static/pdf-viewer.html?v=20261029-reading-desk&file='+encodeURIComponent(new URL(src,location.origin).href);body.title='内嵌 PDF 阅读器';body.loading='lazy';body.referrerPolicy='no-referrer';
         }else{
           body=document.createElement('div');body.className='native-pdf-import';const hint=document.createElement('span');hint.textContent='请下载原文后，通过「插入 PDF」上传本地文件。';body.append(hint);
         }

@@ -175,3 +175,5 @@ changes belong in normal commit history.
 - 2026-10-29: Added explicitly optional share protection at the owner’s request. Recorded default-on migration, per-request content/media mode checks, fresh credentials when re-enabled, mode-aware clipboard text and access-mode backup recovery in the skill and release checklist.
 
 - 2026-10-29: A fast cloud run grouped outline-test fixture insertion with a heading edit in ProseMirror history. Reopen the saved fixture before the undo check instead of relying on elapsed time; retain unchanged production history behavior.
+
+- 2026-10-29: Added the uploaded-PDF reading desk and page-linked text quotations. Separate embedded/desk view-state keys prevent hidden readers from overwriting a reading position. Capture citation clicks at the native click boundary to avoid opening both the raw PDF and the viewer. Recorded local-only view preferences, explicit-save quotation handling, strict iframe message checks and citation preservation through archives/shares.

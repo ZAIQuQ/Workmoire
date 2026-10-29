@@ -38,7 +38,7 @@ export function openPaperImport({request,post,assistantAvailable,onUse}){
    owned.add(result.file.id);
    const resultText=await localText;if(resultText.error)throw resultText.error;extracted=resultText.value;if(closed)return;
    prepared=result;q('#paper-title').value=extracted.title.trim()||fileForImport.name.replace(/\.pdf$/i,'');q('#paper-author').value=extracted.author||'';
-   q('.paper-prepared').hidden=false;q('.paper-file-preview iframe').src='/static/pdf-viewer.html?file='+encodeURIComponent('/files/'+result.file.id+'?inline=1');q('.paper-selected-info').textContent='使用你上传的 PDF：'+result.file.name;
+   q('.paper-prepared').hidden=false;q('.paper-file-preview iframe').src='/static/pdf-viewer.html?v=20261029-reading-desk&file='+encodeURIComponent('/files/'+result.file.id+'?inline=1');q('.paper-selected-info').textContent='使用你上传的 PDF：'+result.file.name;
    status.textContent='已上传，请核对 PDF 预览和论文信息。';
   }catch(e){sourceVersion++;prepared=null;extracted=null;q('.paper-prepared').hidden=true;error.textContent=e.message;status.textContent='';if(!uploadedSuccessfully)transfer.fail('PDF 上传未完成');extraction.fail('文字读取未完成');}
   finally{busy=false;controls();}

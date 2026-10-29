@@ -4,6 +4,8 @@ import {mountEditorToolbar} from './editor-toolbar.js';
 window.WorkmoireToolbar={mount:mountEditorToolbar};
 import {createDocumentOutline} from './document-outline.js';
 window.WorkmoireOutline={create:createDocumentOutline};
+import {createPaperDesk} from './paper-desk.js';
+window.WorkmoirePaperDesk={create:createPaperDesk};
 import {openAbout,loadVersion} from './about.js';
 window.WorkmoireAbout={open:openAbout,load:loadVersion};
 import {openShareDialog} from './share-dialog.js';

@@ -13,7 +13,7 @@ from unittest.mock import patch
 import test_documents as support
 import workspace_server as app
 import paper_tools
-from rich_documents import normalized_rich_content
+from rich_documents import normalized_rich_content, safe_url, remap_references
 
 
 def native(text='Native text'):
@@ -34,6 +34,23 @@ class RichDocumentTests(unittest.TestCase):
         status, body, _ = self.request('/api/items', 'POST', {'kind': 'note', 'title': title, 'content': content, 'rich_content': native() if rich is None else rich})
         self.assertEqual(status, 201, body)
         return json.loads(body)['item']
+
+    def test_pdf_page_citations_survive_save_history_and_reference_remapping(self):
+        source=self.fixture_file('citation.pdf',b'%PDF-1.4 synthetic quotation source','application/pdf')
+        href=source+'?inline=1#page=3';content='> A source quotation\n\n[Source p. 3]('+href+')'
+        rich={'version':1,'document':{'type':'doc','content':[{'type':'blockquote','content':[{'type':'paragraph','content':[{'type':'text','text':'A source quotation'}]}]},{'type':'paragraph','content':[{'type':'text','text':'Source p. 3','marks':[{'type':'link','attrs':{'href':href}}]}]}]}}
+        item=self.create(content=content,rich=rich);stored=item['rich_content']['document']['content'][1]['content'][0]['marks'][0]['attrs']['href'];self.assertEqual(stored,href)
+        changed={**item,'content':content+'\n\nMy interpretation','base_updated_at':item['updated_at']}
+        self.assertEqual(self.request('/api/items/'+str(item['id']),'PUT',changed)[0],200)
+        revision=json.loads(self.request('/api/items/'+str(item['id'])+'/revisions')[1])['revisions'][0]
+        restored=json.loads(self.request('/api/items/'+str(item['id'])+'/revisions/'+str(revision['id'])+'/restore','POST',{})[1])['item']
+        self.assertEqual(restored['rich_content']['document'],item['rich_content']['document'])
+        exported=json.loads(self.request('/api/export')[1]);self.assertEqual(exported['items'][0]['content'],content)
+        remapped,remapped_rich=remap_references(content,normalized_rich_content(rich,content),{}, {source.rsplit('/',1)[1]:'d'*32})
+        self.assertIn('/files/'+'d'*32+'?inline=1#page=3',remapped);self.assertIn('/files/'+'d'*32+'?inline=1#page=3',remapped_rich)
+        for invalid in ['#page=0','#page=-1','#page=10001','#page=1&url=https://example.org','#other=3']:
+            with self.assertRaises(ValueError):safe_url(source+'?inline=1'+invalid)
+        with self.assertRaises(ValueError):safe_url(href,media=True)
 
     def test_native_styles_tables_and_history_survive_save_and_restore(self):
         first = self.create()

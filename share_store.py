@@ -225,7 +225,9 @@ class SharePublisher:
                         if len(assets) >= MAX_MEDIA: raise ValueError('单个分享最多包含 256 个附件')
                         assets[file_id] = secrets.token_hex(16)
                         copied[file_id] = self._copy_file(file_rows[file_id], files_dir)
-                    return 'share-file:'+assets[file_id]
+                    fragment=urlsplit(str(value)).fragment
+                    page='#'+fragment if not media and re.fullmatch(r'page=[1-9][0-9]{0,4}',fragment) and int(fragment[5:])<=10000 else ''
+                    return 'share-file:'+assets[file_id]+page
                 parsed = urlsplit(str(value or ''))
                 if parsed.netloc and parsed.netloc == urlsplit(owner_origin).netloc: return None
                 if parsed.scheme in ({'https'} if media else {'https','http','mailto'}) and not parsed.username and not parsed.password:
@@ -341,7 +343,11 @@ def shared_document(row, token: str) -> dict:
     document=json.loads(row['document'])
     def rewrite(value):
         if isinstance(value,dict):
-            return {key:('/s/'+token+'/files/'+child.split(':',1)[1]+'?inline=1' if key in {'src','href'} and isinstance(child,str) and re.fullmatch(r'share-file:[a-f0-9]{32}',child) else rewrite(child)) for key,child in value.items()}
+            result={}
+            for key,child in value.items():
+                match=re.fullmatch(r'share-file:([a-f0-9]{32})(#page=[1-9][0-9]{0,4})?',child) if key in {'src','href'} and isinstance(child,str) else None
+                result[key]='/s/'+token+'/files/'+match[1]+'?inline=1'+(match[2] or '') if match else rewrite(child)
+            return result
         if isinstance(value,list): return [rewrite(child) for child in value]
         return value
     return {'title':row['title'],'rich_content':{'version':1,'document':rewrite(document)},'created_at':row['created_at'],'expires_at':row['expires_at']}
