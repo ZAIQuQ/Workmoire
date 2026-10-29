@@ -2,6 +2,19 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.11.1] — 2026-10-29
+
+- 修正目录撤销回归测试的初始化方式，避免快速执行时将测试全文插入与标题修改合并为一次撤销。
+- 延续 v1.11.0 的可选密码分享功能，完成发布回归验证。
+
+见[使用说明](docs/user-guide.md)与[分享说明](docs/document-sharing.md)。
+
+### English
+
+Load the saved outline fixture before testing heading undo, preventing fast CI
+runs from grouping fixture insertion with the edit. Optional share protection
+from v1.11.0 remains available.
+
 ## [1.11.0] — 2026-10-29
 
 - 分享弹窗新增「密码保护」开关，默认开启；关闭后，接收者可直接通过链接阅读正文、PDF 和图片。

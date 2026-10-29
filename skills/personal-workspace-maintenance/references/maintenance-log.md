@@ -173,3 +173,5 @@ changes belong in normal commit history.
 - 2026-10-29: A longer release number exposed the sidebar's truncated wordmark. Moved the version to a separate row in organization.css and recorded long-version, fallback-font and scaling inspection in the skill/release checklist; updated the stylesheet URL so existing browsers request the new layout.
 
 - 2026-10-29: Added explicitly optional share protection at the owner’s request. Recorded default-on migration, per-request content/media mode checks, fresh credentials when re-enabled, mode-aware clipboard text and access-mode backup recovery in the skill and release checklist.
+
+- 2026-10-29: A fast cloud run grouped outline-test fixture insertion with a heading edit in ProseMirror history. Reopen the saved fixture before the undo check instead of relying on elapsed time; retain unchanged production history behavior.
