@@ -1,6 +1,6 @@
 {
   "name": "workmoire",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Self-hosted academic notes, PDF reading, and connected documents",
   "scripts": {
     "build": "node scripts/build.mjs",

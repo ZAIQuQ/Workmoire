@@ -2,6 +2,19 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.9.1] — 2026-10-29
+
+- 优化左上角品牌行：图标改为方形，统一项目名与版本按钮的高度和视觉中心。
+- 调整字号、圆角与间距，让版本号贴近项目名，并修复侧边栏内边距溢出；桌面与手机布局保持一致。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+Align the sidebar icon, wordmark and version badge with explicit line heights
+and balanced proportions. Keep the version beside the name and within the
+sidebar padding on desktop and mobile.
+
 ## [1.9.0] — 2026-10-29
 
 ### 论文阅读笔记

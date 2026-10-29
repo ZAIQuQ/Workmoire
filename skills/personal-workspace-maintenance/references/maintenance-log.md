@@ -163,3 +163,5 @@ changes belong in normal commit history.
 - Reproduced inline code absorbing text inserted before its first character. Replaced inclusive mark boundaries with an explicit code extension and mark-only exits, preserving inherited parsing/serialization and interior editing. Added Mac shortcut, mouse-prefix, IME and persistence regressions; toolbar updates now include stored-mark changes without document mutations.
 
 - Refocused paper generation on technical reading notes at the owner’s request: omit unknown fields, classification explanations and review/process caveats; keep extraction coverage in the import UI. Added source-matched bilingual abstracts before the brief, retaining one model call and explicit insertion/save. Updated the template, renderers, tests, docs and timing calibration.
+
+- Refined the sidebar brand/version alignment using explicit line boxes, a square mark and tabular version numerals. Checked the rendered header at desktop/tablet/mobile widths; removed the previous overflow beyond the sidebar content area.
