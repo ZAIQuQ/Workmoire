@@ -38,7 +38,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from rich_documents import normalized_rich_content, read_rich_content, remap_references
-from paper_intake import paper_source, selected_pdf_header, parse_paper_analysis, paper_field_tags, paper_profile_markdown
+from paper_intake import paper_source, selected_pdf_header, parse_paper_analysis, paper_field_tags, paper_profile_markdown, paper_abstract_markdown
 from share_store import SharePublisher
 from app_release import release_info
 import bug_reports
@@ -686,7 +686,7 @@ def paper_from_pdf(payload: dict, progress=None) -> dict:
         if not generate and 'selected_tags' in payload:
             if not isinstance(payload['selected_tags'],list):raise ValueError('领域标签格式无效')
             tags=[tag for tag in tags if tag in payload['selected_tags']]
-        notes=paper_profile_markdown(details)+'\n'+details['brief']
+        notes='\n\n'.join(part for part in [paper_profile_markdown(details),paper_abstract_markdown(details),details['brief']] if part)
     else:notes='## 阅读笔记\n\n'
     return {'title':paper['title'],'content':selected_pdf_header(paper,file,material,include_pdf=False)+'\n'+notes+'\n\n## 原文 PDF\n\n@[pdf](/files/'+file['id']+'?inline=1)\n','analysis':notes if details else '', 'details':details, 'tags':tags, 'paper':paper,'file':file,'evidence':{key:material[key] for key in ['scope','url','truncated','page_count','pages_read','file_id']}}
 

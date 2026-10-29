@@ -2,12 +2,15 @@
 
 Paper analysis uses the versioned [brief template](../prompts/paper-brief.md),
 with `gpt-6.1-sol` and `medium` reasoning by default. The model request has a
-150-second limit. One request produces an evidence-grounded profile and a 400–700-character brief: one sentence,
-motivation, the core method/differentiator, and the strongest evidence/limitations.
-Publication, author, lab and field facts are validated separately from the brief;
-unknown or partial evidence is disclosed. No second call is used for tagging. Research proposals and reproduction
-plans are no longer part of this quick summary. General document assistance keeps
-its separate model/reasoning/timeout configuration.
+150-second limit. One request produces known metadata, a bilingual abstract when
+available, and a 400–700-character brief explaining the core insights and
+technical details.
+
+Supporting excerpts are checked internally. Unsupported metadata is omitted,
+and extraction coverage stays in the import dialog. The document does not include
+review-style caveats, classification explanations or process commentary. No
+second call is used for translation or tagging. General document assistance
+keeps its separate model/reasoning/timeout configuration.
 
 Lower reasoning effort favors speed and fewer tokens; see the
 [OpenAI reasoning guide](https://platform.openai.com/docs/guides/reasoning).

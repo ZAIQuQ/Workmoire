@@ -45,7 +45,7 @@ def parse_paper_analysis(value, source_text):
                 found.append(result);seen.add(_key(result['name']))
         return found
 
-    result={'brief':value['brief'].strip(), 'title':fact(value.get('title')),
+    result={'brief':value['brief'].strip(), 'abstract':None, 'title':fact(value.get('title')),
             'authors':facts(value.get('authors')), 'affiliations':facts(value.get('affiliations'),6),
             'corresponding_authors':[], 'labs':[], 'publication':{}, 'fields':{}}
     author_names={_key(row['name']) for row in result['authors']}
@@ -75,7 +75,7 @@ def parse_paper_analysis(value, source_text):
         cues={'published':r'published|proceedings|journal|发表于|正式发表',
               'accepted':r'accepted|to appear|录用|接收', 'submitted':r'submitted|under review|投稿|在审',
               'preprint':r'preprint|arxiv|预印本'}
-        if status in cues and re.search(cues[status],excerpt,re.I):
+        if isinstance(status,str) and status in cues and re.search(cues[status],excerpt,re.I):
             venue=_text(publication.get('venue'));year=_text(publication.get('year'),4)
             result['publication']={'status':status, 'venue':venue if _key(venue) in _key(excerpt) else '',
                                    'year':year if re.fullmatch(r'(19|20)\d{2}',year) and year in excerpt else '', 'evidence':excerpt}
@@ -85,7 +85,14 @@ def parse_paper_analysis(value, source_text):
             name=_text(fields.get(level),32)
             if name and name not in {'论文','未知','待核实','未确定'} and not re.search(r'[,，;；#<>\[\]{}|/\\]',name):
                 result['fields'][level]=name
-        result['fields'].update(reason=_text(fields.get('reason'),160),evidence=evidence(fields))
+        result['fields']['evidence']=evidence(fields)
+    abstract=value.get('abstract')
+    if isinstance(abstract,dict):
+        original=abstract.get('original');translation=abstract.get('translation');language=abstract.get('language')
+        if (isinstance(language,str) and language in {'en','zh'} and isinstance(original,str) and isinstance(translation,str)
+                and 40 <= len(original.strip()) <= 8000 and 20 <= len(translation.strip()) <= 8000
+                and _key(original) in source):
+            result['abstract']={'language':language,'original':original.strip(),'translation':translation.strip()}
     return result
 
 
@@ -99,16 +106,25 @@ def paper_field_tags(details):
 
 def paper_profile_markdown(details):
     publication=details['publication'];fields=details['fields']
-    status={'published':'已发表','accepted':'已录用','submitted':'投稿 / 在审','preprint':'预印本版本'}.get(publication.get('status'),'发表情况待核实')
-    known=' · '.join(filter(None,[status,publication.get('venue'),publication.get('year')]))
-    names=lambda rows:'；'.join(markdown_text(row['name']) for row in rows) or '材料未明确，待核实'
-    labs='；'.join(markdown_text(row['name'])+('（通讯作者：'+markdown_text(row['lead'])+'）' if row['lead'] else '') for row in details['labs']) or '材料未明确，待核实'
-    lines=['## 发表与作者团队','', '- **发表情况**：'+markdown_text(known)+'（依据所提供的 PDF）',
-           '- **作者单位**：'+names(details['affiliations']), '- **通讯作者**：'+names(details['corresponding_authors']), '- **团队 / 实验室**：'+labs,
-           '', '## 研究领域','', '- **一级领域**：'+markdown_text(fields.get('primary','未确定')),
-           '- **二级领域**：'+markdown_text(fields.get('secondary','未确定'))]
-    if fields.get('reason'):lines.append('- **归类依据**：'+markdown_text(fields['reason']))
-    return '\n'.join(lines)+'\n'
+    status={'published':'已发表','accepted':'已录用','submitted':'投稿 / 在审','preprint':'预印本版本'}.get(publication.get('status'))
+    rows=[];sections=[]
+    if status:rows.append('- **发表情况**：'+markdown_text(' · '.join(filter(None,[status,publication.get('venue'),publication.get('year')]))))
+    for key,label in [('affiliations','作者单位'),('corresponding_authors','通讯作者')]:
+        if details[key]:rows.append('- **'+label+'**：'+'；'.join(markdown_text(row['name']) for row in details[key]))
+    if details['labs']:
+        rows.append('- **团队 / 实验室**：'+'；'.join(markdown_text(row['name'])+('（通讯作者：'+markdown_text(row['lead'])+'）' if row['lead'] else '') for row in details['labs']))
+    if rows:sections.append('## 发表与作者团队\n\n'+'\n'.join(rows))
+    rows=['- **'+label+'**：'+markdown_text(fields[key]) for key,label in [('primary','一级领域'),('secondary','二级领域')] if fields.get(key)]
+    if rows:sections.append('## 研究领域\n\n'+'\n'.join(rows))
+    return '\n\n'.join(sections)
+
+
+def paper_abstract_markdown(details):
+    abstract=details.get('abstract')
+    if not abstract:return ''
+    chinese=abstract['original'] if abstract['language']=='zh' else abstract['translation']
+    english=abstract['original'] if abstract['language']=='en' else abstract['translation']
+    return '## 摘要\n\n### 中文摘要\n\n'+markdown_text(chinese)+'\n\n### English Abstract\n\n'+markdown_text(english)
 
 
 def paper_source(reference: object) -> str:
@@ -123,10 +139,5 @@ def selected_pdf_header(paper: dict, file: dict, material: dict, include_pdf: bo
     if paper.get('venue'):lines.append('- **期刊 / 会议**：'+markdown_text(paper['venue']))
     if paper.get('url'):lines.append('- **来源链接**：[打开原文]('+quote(paper['url'],safe=':/?&=%#@+~')+')')
     lines.append('- **使用的 PDF**：'+markdown_text(file['name']))
-    if material['text']:
-        scope='所选 PDF 提取的文字'
-        if material['truncated']:scope+='（部分内容）'
-        lines+=['','> 阅读依据：'+scope+'。图表、公式和排版细节请对照下方 PDF。']
-    else:lines+=['','> 已保留所选 PDF；尚未取得可用于自动分析的文字。']
     if include_pdf:lines+=['','## 原文 PDF','', '@[pdf](/files/'+file['id']+'?inline=1)','']
     return '\n'.join(lines)+'\n'

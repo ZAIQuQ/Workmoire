@@ -170,8 +170,10 @@ analysis uses those extracted words, never a substitute HTML article or another
 PDF. Textless/scanned PDFs can be archived and read without invented analysis.
 
 Optionally run **AI 分析论文** to organize publication, authors, affiliations,
-correspondence, labs and two research-field levels along with the concise brief.
-Unsupported facts are marked for verification. The preview suggests one or two
+correspondence, labs and two research-field levels along with a concise explanation of the core insights and technical method.
+Unknown fields are omitted. A matched original abstract and its translation appear
+before the one-sentence overview when available. The generated note omits
+review-style caveats, classification explanations and extraction-process notes. The preview suggests one or two
 field tags, selected by default; deselect any you do not want. Confirm the
 title/author, insert into the editor, then save. Tags appear in the catalogue
 after saving. Editing the title/author or optional source link retains the

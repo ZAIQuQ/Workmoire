@@ -2,6 +2,26 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.9.0] — 2026-10-29
+
+### 论文阅读笔记
+
+- 速读改为「一句话看懂 → 核心洞见 → 技术要点」，聚焦问题建模、设计逻辑与方法流程，移除审稿式的证据和局限性段落。
+- 识别到完整原文摘要时，在速读前展示中英文对照；原文须匹配上传材料，无法识别则省略。
+- 发表、作者团队与研究领域只显示已有信息，省略未知字段、空章节和归类解释。
+- 删除正文中的「依据所提供的 PDF」、阅读范围说明和待核实占位；读取进度继续保留在导入界面。
+- 保持单次 AI 调用、medium 推理、预览后插入与正常保存流程。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+Generate reading notes focused on insights and technical mechanisms instead of
+review-style caveats. Show a source-matched abstract with its translation before
+the brief when available. Omit unknown metadata, empty sections, classification
+explanations and extraction commentary from the document. Import progress remains
+visible in the dialog, and analysis still uses one model call.
+
 ## [1.8.2] — 2026-10-29
 
 ### 修复行内代码边界输入

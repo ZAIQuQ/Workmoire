@@ -161,3 +161,5 @@ changes belong in normal commit history.
 - Fixed Tab falling through to browser focus navigation by adding context-aware native indentation. Paragraph/heading levels use bounded rich attributes; code edits preserve full lines and selection, list nesting uses existing commands, and tables retain navigation. Added undo/save/share/IME coverage plus an Escape path to the toolbar.
 
 - Reproduced inline code absorbing text inserted before its first character. Replaced inclusive mark boundaries with an explicit code extension and mark-only exits, preserving inherited parsing/serialization and interior editing. Added Mac shortcut, mouse-prefix, IME and persistence regressions; toolbar updates now include stored-mark changes without document mutations.
+
+- Refocused paper generation on technical reading notes at the owner’s request: omit unknown fields, classification explanations and review/process caveats; keep extraction coverage in the import UI. Added source-matched bilingual abstracts before the brief, retaining one model call and explicit insertion/save. Updated the template, renderers, tests, docs and timing calibration.

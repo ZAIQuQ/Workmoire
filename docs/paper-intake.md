@@ -72,13 +72,11 @@ explicit estimates learned from recent durations. See [progress and timing](pape
 One medium-reasoning call returns structured publication, author, affiliation,
 correspondence, lab and field information together with the concise brief. Facts
 retain supporting excerpts found in the selected PDF text; correspondence can
-use an explicit matching footnote marker. Unsupported facts become unknown. An
+use an explicit matching footnote marker. Unsupported facts remain empty internally and are omitted from the rendered document. An
 arXiv URL alone does not prove publication status, and a famous author or their
-university alone does not identify a lab. No source page is fetched. Publication
-information describes the supplied version, not a verified latest status.
+university alone does not identify a lab. No source page is fetched. Publication information is populated only when the supplied text supports it.
 
-Research fields are explicitly classified from the paper's subject, with a short
-reason and supporting excerpt. Primary and secondary field names become at most
+Research fields are explicitly classified from the paper's subject, with a supporting excerpt kept for validation. Primary and secondary field names become at most
 two distinct tags, in addition to the protected `论文` tag. The preview selects
 them by default; the user may deselect either. They enter the unsaved document
 on insertion and the catalogue only on normal save. No tag or document is
@@ -89,3 +87,19 @@ fields. Subsequent title/author/source changes keep the result; insertion
 revalidates the reviewed analysis and composes the document without another AI
 call. Malformed structured output gives an explicit retry error. Raw model JSON
 is not rendered as the final document.
+
+## Reading-first presentation
+
+The v3 template explains the paper through **一句话看懂**, **核心洞见** and
+**技术要点**. It focuses on the idea behind the method and the input/module/
+training/decision flow, without adding review verdicts, missing-information
+placeholders or comments about how the analysis was generated. Unknown profile
+fields and empty sections are omitted. Field evidence stays internal; no
+classification explanation is appended to the document.
+
+When the model identifies a complete English or Chinese abstract, the original
+must match the supplied text and both language versions must be present. The
+renderer places Chinese and English paragraphs before the one-sentence brief.
+Missing or unmatched abstracts are omitted. Abstracts survive preview, reviewed
+metadata edits, insertion and save without a second model call. Extraction page
+counts and truncation remain in the import UI and authenticated job metadata.

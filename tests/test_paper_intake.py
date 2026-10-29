@@ -59,7 +59,7 @@ class PaperIntakeHttpTests(unittest.TestCase):
         with patch.object(app,'invoke_codex') as invoke:
             self.assertEqual(self.request('/api/papers/draft','POST',payload)[0],400)
             status,body,_=self.request('/api/papers/draft','POST',{**payload,'generate':False})
-            self.assertEqual(status,200);self.assertIn('尚未取得',json.loads(body)['content']);invoke.assert_not_called()
+            self.assertEqual(status,200);self.assertIn('## 原文 PDF',json.loads(body)['content']);self.assertNotIn('尚未取得',json.loads(body)['content']);invoke.assert_not_called()
         (app.FILES_DIR/('a'*32+'.pdf')).write_bytes(b'<html>not PDF</html>')
         self.assertEqual(self.request('/api/papers/prepare','POST',{'file_id':'a'*32})[0],400)
 
