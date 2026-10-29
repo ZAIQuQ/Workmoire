@@ -19,7 +19,7 @@ export function createPaperDesk({root,editor,getItem,toggle,getFocus,setFocus,se
   return result||{pos:0,offset:0};
  }
  function restoreNotes(value){
-  if(!value||!Number.isInteger(value.pos)||!Number.isFinite(value.offset))return;
+  if(destroyed||editor.tiptap.isDestroyed||!value||!Number.isInteger(value.pos)||!Number.isFinite(value.offset))return;
   const dom=editor.view.nodeDOM(Math.max(0,Math.min(value.pos,editor.tiptap.state.doc.content.size)));
   if(dom instanceof HTMLElement)scroll.scrollTop+=dom.getBoundingClientRect().top-scroll.getBoundingClientRect().top-value.offset;
  }
