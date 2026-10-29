@@ -159,3 +159,5 @@ changes belong in normal commit history.
 - Consolidated the formatting toolbar into one scrolling row with viewport-positioned menus, compressed title spacing, and moved the existing Bug-report entry into the shared editor footer. Removed redundant footer hints and hid the footer in focus mode; added lifecycle/navigation checks so the report link survives editor replacement and mobile list navigation.
 
 - Fixed Tab falling through to browser focus navigation by adding context-aware native indentation. Paragraph/heading levels use bounded rich attributes; code edits preserve full lines and selection, list nesting uses existing commands, and tables retain navigation. Added undo/save/share/IME coverage plus an Escape path to the toolbar.
+
+- Reproduced inline code absorbing text inserted before its first character. Replaced inclusive mark boundaries with an explicit code extension and mark-only exits, preserving inherited parsing/serialization and interior editing. Added Mac shortcut, mouse-prefix, IME and persistence regressions; toolbar updates now include stored-mark changes without document mutations.

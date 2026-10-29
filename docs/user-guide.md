@@ -321,3 +321,13 @@ The More menu uses the same indentation commands. Native JSON, archives, history
 and shares preserve paragraph indentation. Markdown keeps the text; use a native
 export to retain paragraph layout. Lists and code retain their structural/text
 indentation in Markdown.
+
+## Inline code boundaries
+
+Use **Cmd/Ctrl+E** to toggle inline code. Clicking its leading edge lets you type
+ordinary spaces, text or other formatting before the code, even when it is the
+first content in a paragraph. Text entered inside the code remains code; at a
+boundary you can explicitly toggle code on when you want to continue it. Left or
+right at an active code boundary exits that typing format without adding spacer
+characters. Tab still changes paragraph indentation. Undo, native saves and
+composition input preserve both the original code and its surrounding text.

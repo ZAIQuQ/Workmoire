@@ -1,4 +1,5 @@
 import {blockIndentExtension,handleEditorTab,indentContent} from './editor-indent.js';
+import {InlineCode} from './inline-code.js';
 import {guardCompositionShortcuts} from './composition-guard.js';
 import {DocumentTable,equalizeColumns,toggleTableWidth,selectedTable} from './document-table.js';
 import {DocumentFontStep,documentFontExtension,documentFontKey,validBodyFont} from './document-font.js';
@@ -117,7 +118,7 @@ export function mountRichEditor(host,options={}){
   element:contentHost,
   content:initialNative||options.content||'',contentType:initialNative?'json':'markdown',editable:options.editable!==false,enableContentCheck:true,
   extensions:[
-   StarterKit.configure({codeBlock:false,link:false}),SafeLink,blockIndentExtension,documentFontExtension(initialFont),
+   StarterKit.configure({code:false,codeBlock:false,link:false}),InlineCode,SafeLink,blockIndentExtension,documentFontExtension(initialFont),
    Markdown.configure({marked:safeMarkdownParser(),markedOptions:{gfm:true,breaks:true},indentation:{style:'space',size:2}}),
    TableKit.configure({table:false}),DocumentTable,TaskList,TaskItem.configure({nested:true,HTMLAttributes:{'data-type':'taskItem'},a11y:{checkboxLabel:node=>'切换待办：'+(node.textContent||'空白任务')}}),
    TextAlign.configure({types:['heading','paragraph']}),TextStyle,Color,Highlight.configure({multicolor:true}),Subscript,Superscript,
@@ -164,7 +165,7 @@ export function mountRichEditor(host,options={}){
    },
    handleClick(view,pos,event){const anchor=event.target.closest('a[href]');if(anchor&&(!editor.isEditable||event.metaKey||event.ctrlKey)){const href=safeLink(anchor.getAttribute('href'));if(href){event.preventDefault();window.open(href,'_blank','noopener,noreferrer');return true;}}return false;},
   },
-  onTransaction({transaction}){for(const reservation of reservations)reservation.mark=reservation.mark.map(transaction.mapping);if(ready&&bodyFont()!==lastFont){lastFont=bodyFont();options.onChange?.();scheduleControls();}},
+  onTransaction({transaction}){if(ready&&transaction.storedMarksSet)scheduleControls();for(const reservation of reservations)reservation.mark=reservation.mark.map(transaction.mapping);if(ready&&bodyFont()!==lastFont){lastFont=bodyFont();options.onChange?.();scheduleControls();}},
   onUpdate({transaction}){if(ready&&transaction.docChanged){diagnostics.documentUpdates++;options.onChange?.();scheduleControls();}},
   onSelectionUpdate(){if(ready){codeBlocks.reveal(editor.state.selection);scheduleControls();}},
   onBlur(){clearTimeout(blurTimer);blurTimer=setTimeout(()=>{if(destroyed)return;if(!slash.contains(document.activeElement))hideSlash();if(!bubble.contains(document.activeElement))editor.view.dispatch(editor.state.tr.setMeta('bubbleMenu','hide'));},120);},

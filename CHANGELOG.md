@@ -2,6 +2,24 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.8.2] — 2026-10-29
+
+### 修复行内代码边界输入
+
+- 行内代码开头和末尾不再自动吸收新输入的普通文字；点击开头后可输入空格、中文或其他格式的内容。
+- 保留 Cmd/Ctrl+E 切换、代码内部编辑、Tab 段落缩进，以及撤销和保存。
+- 在代码边界用方向键退出当前代码输入状态时只切换输入格式，不往文档插入占位空格或隐藏字符。
+- 工具栏及时显示当前输入格式；中文输入法组合输入保持原生处理。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+Inline code no longer captures ordinary text typed at its boundaries. Preserve
+code content while inserting a plain or styled prefix, including native IME
+input. Boundary exits change only the typing mark, without adding spacer text;
+the toolbar reflects the current typing format.
+
 ## [1.8.1] — 2026-10-29
 
 ### 修复 Tab 缩进
