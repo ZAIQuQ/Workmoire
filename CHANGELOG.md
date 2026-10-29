@@ -2,6 +2,19 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.7.1] — 2026-10-29
+
+- AI 未能确认作者时，不再把未经用户确认的 PDF 元数据作者写入档案；用户手动确认的作者保留。
+- 领域标签测试等待文档真正放入编辑器后再验证，并覆盖延迟返回；输入法测试等待编辑器获得焦点和文字更新，修复云端 CI 的时序问题。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+Discard unconfirmed PDF author metadata when analysis cannot ground it. Preserve
+explicit author edits. Verify profile insertion after the asynchronous handoff
+finishes, including a delayed response.
+
 ## [1.7.0] — 2026-10-29
 
 ### 论文档案与领域标签

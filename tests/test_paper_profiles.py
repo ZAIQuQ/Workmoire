@@ -64,3 +64,12 @@ class PaperProfileHttpTests(unittest.TestCase):
             invoke.assert_called_once();fetch.assert_not_called()
         status,body,_=self.request('/api/items','POST',{'kind':'paper','title':final['title'],'content':final['content'],'tags':','.join(final['tags'])})
         self.assertEqual(status,201);self.assertEqual(json.loads(body)['item']['tags'],'论文,时间序列预测')
+
+    def test_unconfirmed_pdf_author_metadata_is_not_kept_when_analysis_cannot_ground_it(self):
+        self.fixture_file('chosen.pdf',b'%PDF-1.4 synthetic','application/pdf')
+        payload={'file_id':'a'*32,'title':'A paper','author':'Unverified PDF metadata author','author_confirmed':False,'text':'A synthetic paper about prediction methods. '*10,'page_count':1,'pages_read':1}
+        with patch.object(app,'invoke_codex',return_value=analysis_fixture()):
+            status,body,_=self.request('/api/papers/draft','POST',payload);self.assertEqual(status,200)
+            result=json.loads(body);self.assertEqual(result['paper']['authors'],[]);self.assertNotIn(payload['author'],result['content'])
+            status,body,_=self.request('/api/papers/draft','POST',{**payload,'author':'Owner-confirmed author','author_confirmed':True})
+            self.assertEqual(status,200);self.assertEqual(json.loads(body)['paper']['authors'],['Owner-confirmed author'])

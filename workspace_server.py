@@ -681,7 +681,7 @@ def paper_from_pdf(payload: dict, progress=None) -> dict:
         for field in ['title_confirmed','author_confirmed']:
             if field in payload and type(payload[field]) is not bool:raise ValueError('论文信息确认状态无效')
         if not payload.get('title_confirmed',True) and details['title']:paper['title']=details['title']['name']
-        if not payload.get('author_confirmed',True) and details['authors']:paper['authors']=[row['name'] for row in details['authors']]
+        if not payload.get('author_confirmed',True):paper['authors']=[row['name'] for row in details['authors']]
         tags=paper_field_tags(details)
         if not generate and 'selected_tags' in payload:
             if not isinstance(payload['selected_tags'],list):raise ValueError('领域标签格式无效')
