@@ -2,6 +2,25 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.8.1] — 2026-10-29
+
+### 修复 Tab 缩进
+
+- 编辑正文时 Tab / Shift+Tab 调整段落或标题缩进，焦点保留在编辑器中；可对选中的多个段落操作。
+- 列表使用嵌套/提升层级；代码块以四个空格缩进，支持整行、多行和反向缩进。
+- 表格保留前后单元格导航与末尾新增行；边界处不再意外跳到目录。中文输入法组合输入不受拦截。
+- 缩进支持撤销、保存、历史、JSON / 完整归档与分享。普通段落的版式缩进不写成 Markdown 代码块。
+- Esc 可把正文焦点交还工具栏，其他控件保留正常键盘导航。「更多」中的缩进操作与快捷键一致。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+Handle Tab in the native editor instead of moving focus to the outline. Indent
+paragraphs/headings, nest list items and indent code lines; Shift+Tab reverses the
+operation. Preserve table navigation, IME composition, undo and native persistence.
+Escape returns keyboard focus to the toolbar.
+
 ## [1.8.0] — 2026-10-29
 
 ### 更紧凑的编辑空间

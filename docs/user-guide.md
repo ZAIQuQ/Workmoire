@@ -304,3 +304,20 @@ and **上报 Bug**, using the same size and alignment. Focus mode hides the foot
 exit focus to restore it. Opening a Bug report still uses a separate tab and
 preserves the current draft. On phone layouts, returning to the document list
 keeps the reporting entry available.
+
+## Tab and indentation
+
+While the text caret is in the editor, **Tab** indents and **Shift+Tab** outdents.
+Paragraphs and headings use native block formatting (up to eight levels); selected
+paragraphs change together. Lists nest under the previous item or move up a level.
+Code uses four spaces and adjusts the complete selected lines without replacing
+source text. Table cells keep next/previous-cell navigation, including adding a
+row at the end. An unavailable indent/outdent at a boundary keeps editor focus.
+
+Composition events are left to the input method. **Esc** returns focus from the
+text surface to the paragraph-style selector, where Tab resumes normal toolbar
+navigation. Other fields and read-only views keep their normal keyboard behavior.
+The More menu uses the same indentation commands. Native JSON, archives, history
+and shares preserve paragraph indentation. Markdown keeps the text; use a native
+export to retain paragraph layout. Lists and code retain their structural/text
+indentation in Markdown.

@@ -72,6 +72,26 @@ class RichDocumentTests(unittest.TestCase):
             invalid=native();invalid['document']['attrs']={'bodyFont':font}
             with self.assertRaises(ValueError):normalized_rich_content(invalid)
 
+    def test_paragraph_indent_survives_history_and_exports_with_bounded_validation(self):
+        rich=native();rich['document']['content'][0]['attrs']['blockIndent']=2
+        rich['document']['content'][1]['attrs']={'blockIndent':1}
+        first=self.create(rich=rich)
+        changed=copy.deepcopy(first);changed['rich_content']['document']['content'][0]['attrs']['blockIndent']=3;changed['base_updated_at']=first['updated_at']
+        self.assertEqual(self.request('/api/items/'+str(first['id']),'PUT',changed)[0],200)
+        revision=json.loads(self.request('/api/items/'+str(first['id'])+'/revisions')[1])['revisions'][0]
+        restored=json.loads(self.request('/api/items/'+str(first['id'])+'/revisions/'+str(revision['id'])+'/restore','POST',{})[1])['item']
+        self.assertEqual(restored['rich_content']['document']['content'][0]['attrs']['blockIndent'],2)
+        exported=json.loads(self.request('/api/export')[1]);self.assertEqual(self.request('/api/import','POST',exported)[0],201)
+        with app.open_db() as con:
+            rows=con.execute('SELECT rich_content FROM items').fetchall()
+            self.assertEqual(len(rows),2)
+            for row in rows:self.assertEqual(json.loads(row[0])['document']['content'][1]['attrs']['blockIndent'],1)
+        with zipfile.ZipFile(io.BytesIO(self.request('/api/export-archive')[1])) as archive:
+            manifest=json.loads(archive.read('manifest.json'));self.assertEqual(manifest['items'][0]['rich_content']['document']['content'][0]['attrs']['blockIndent'],2)
+        for value in [-1,9,True,1.5,'2',None]:
+            invalid=native();invalid['document']['content'][1]['attrs']={'blockIndent':value}
+            self.assertEqual(self.request('/api/items','POST',{'kind':'note','title':'Invalid indent','rich_content':invalid})[0],400)
+
     def test_table_width_mode_survives_history_and_archives_with_strict_boolean_validation(self):
         rich=native();rich['document']['content'][2]['attrs']={'fixedWidth':False}
         first=self.create(rich=rich);table=first['rich_content']['document']['content'][2]

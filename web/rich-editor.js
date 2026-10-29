@@ -1,3 +1,4 @@
+import {blockIndentExtension,handleEditorTab,indentContent} from './editor-indent.js';
 import {guardCompositionShortcuts} from './composition-guard.js';
 import {DocumentTable,equalizeColumns,toggleTableWidth,selectedTable} from './document-table.js';
 import {DocumentFontStep,documentFontExtension,documentFontKey,validBodyFont} from './document-font.js';
@@ -116,7 +117,7 @@ export function mountRichEditor(host,options={}){
   element:contentHost,
   content:initialNative||options.content||'',contentType:initialNative?'json':'markdown',editable:options.editable!==false,enableContentCheck:true,
   extensions:[
-   StarterKit.configure({codeBlock:false,link:false}),SafeLink,documentFontExtension(initialFont),
+   StarterKit.configure({codeBlock:false,link:false}),SafeLink,blockIndentExtension,documentFontExtension(initialFont),
    Markdown.configure({marked:safeMarkdownParser(),markedOptions:{gfm:true,breaks:true},indentation:{style:'space',size:2}}),
    TableKit.configure({table:false}),DocumentTable,TaskList,TaskItem.configure({nested:true,HTMLAttributes:{'data-type':'taskItem'},a11y:{checkboxLabel:node=>'切换待办：'+(node.textContent||'空白任务')}}),
    TextAlign.configure({types:['heading','paragraph']}),TextStyle,Color,Highlight.configure({multicolor:true}),Subscript,Superscript,
@@ -135,7 +136,7 @@ export function mountRichEditor(host,options={}){
    attributes:state=>({'data-body-font':documentFontKey.getState(state)||'sans',class:'rich-document prose','aria-label':'文档正文','aria-multiline':'true',role:'textbox',spellcheck:'false'}),
    handleDOMEvents:{compositionstart(){hideSlash();return false;},compositionend(){clearTimeout(compositionTimer);compositionTimer=setTimeout(()=>{if(!destroyed)scheduleControls();},20);return false;}},
    handleKeyDown(view,event){
-    if(event.isComposing||view.composing)return false;
+    if(event.isComposing||view.composing||event.keyCode===229)return false;
     if(!slash.hidden&&slashRange){
      if(['ArrowDown','ArrowUp','Enter','Escape'].includes(event.key)){
       event.preventDefault();if(event.key==='Escape'){hideSlash();return true;}
@@ -143,6 +144,8 @@ export function mountRichEditor(host,options={}){
       slashIndex=(slashIndex+(event.key==='ArrowDown'?1:-1)+slashItems.length)%slashItems.length;paintSlash();return true;
      }
     }
+    if(handleEditorTab(editor,event)){hideSlash();return true;}
+    if(event.key==='Escape'&&editor.isEditable&&event.target===view.dom){view.dom.closest('.document-editor')?.querySelector('#heading-tool')?.focus();}
     return false;
    },
    handlePaste(view,event){
@@ -249,7 +252,7 @@ export function mountRichEditor(host,options={}){
    case 'undo':return chain().undo().run();case 'redo':return chain().redo().run();
    case 'align-left':case 'align-center':case 'align-right':return chain().setTextAlign(command.slice(6)).run();
    case 'subscript':return chain().toggleSubscript().run();case 'superscript':return chain().toggleSuperscript().run();
-   case 'indent':return chain().sinkListItem(editor.isActive('taskItem')?'taskItem':'listItem').run();case 'outdent':return chain().liftListItem(editor.isActive('taskItem')?'taskItem':'listItem').run();
+   case 'indent':editor.commands.focus();return indentContent(editor,1);case 'outdent':editor.commands.focus();return indentContent(editor,-1);
    case 'equal-columns':return equalizeColumns(editor);case 'table-fixed-width':return toggleTableWidth(editor);
    case 'row-before':return chain().addRowBefore().run();case 'row-after':return chain().addRowAfter().run();case 'column-before':return chain().addColumnBefore().run();case 'column-after':return chain().addColumnAfter().run();
    case 'delete-row':return chain().deleteRow().run();case 'delete-column':return chain().deleteColumn().run();case 'delete-table':return chain().deleteTable().run();case 'table-header':return chain().toggleHeaderRow().run();case 'merge-cells':return chain().mergeCells().run();case 'split-cell':return chain().splitCell().run();

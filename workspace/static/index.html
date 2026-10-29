@@ -7,17 +7,17 @@
   <title>Workmoire · 拾序</title>
   <link rel="icon" href="/static/favicon.svg?v=4" type="image/svg+xml">
   <link rel="stylesheet" href="/static/vendor/katex.min.css?v=20261027">
-  <link rel="stylesheet" href="/static/vendor/type.css?v=20261029-compact-editor">
-  <link rel="stylesheet" href="/static/design-tokens.css?v=20261029-compact-editor">
-  <link rel="stylesheet" href="/static/app.css?v=20261029-compact-editor">
-  <link rel="stylesheet" href="/static/rich-editor.css?v=20261029-compact-editor">
-  <link rel="stylesheet" href="/static/code-block.css?v=20261029-compact-editor">
-  <link rel="stylesheet" href="/static/editor-toolbar.css?v=20261029-compact-editor">
-  <link rel="stylesheet" href="/static/document-outline.css?v=20261029-compact-editor">
-  <link rel="stylesheet" href="/static/organization.css?v=20261029-compact-editor">
-  <script defer src="/static/vendor/interface.js?v=20261029-compact-editor"></script>
-  <script defer src="/static/vendor/editor.js?v=20261029-compact-editor"></script>
-  <script defer src="/static/app.js?v=20261029-compact-editor"></script>
+  <link rel="stylesheet" href="/static/vendor/type.css?v=20261029-tab-indent">
+  <link rel="stylesheet" href="/static/design-tokens.css?v=20261029-tab-indent">
+  <link rel="stylesheet" href="/static/app.css?v=20261029-tab-indent">
+  <link rel="stylesheet" href="/static/rich-editor.css?v=20261029-tab-indent">
+  <link rel="stylesheet" href="/static/code-block.css?v=20261029-tab-indent">
+  <link rel="stylesheet" href="/static/editor-toolbar.css?v=20261029-tab-indent">
+  <link rel="stylesheet" href="/static/document-outline.css?v=20261029-tab-indent">
+  <link rel="stylesheet" href="/static/organization.css?v=20261029-tab-indent">
+  <script defer src="/static/vendor/interface.js?v=20261029-tab-indent"></script>
+  <script defer src="/static/vendor/editor.js?v=20261029-tab-indent"></script>
+  <script defer src="/static/app.js?v=20261029-tab-indent"></script>
 </head>
 <body>
   <section id="auth-view" class="auth-view is-hidden">
@@ -76,7 +76,7 @@
 
   <dialog id="password-dialog" class="dialog"><form id="password-form" class="dialog-card"><div class="dialog-head"><h2>修改密码</h2><button type="button" class="icon-button" data-close="password-dialog" aria-label="关闭"><span data-icon="close"></span></button></div><label class="field"><span>当前密码</span><input id="old-password" type="password" autocomplete="current-password" required></label><label class="field"><span>新密码（至少 10 个字符）</span><input id="new-password" type="password" autocomplete="new-password" minlength="10" required></label><p id="password-error" class="error" role="alert"></p><div class="dialog-actions"><button class="button primary" type="submit">更新密码</button></div></form></dialog>
 
-  <dialog id="shortcuts-dialog" class="dialog"><div class="dialog-card"><div class="dialog-head"><h2>编辑快捷键</h2><button class="icon-button" data-close="shortcuts-dialog" aria-label="关闭"><span data-icon="close"></span></button></div><div class="shortcut-list"><span>保存文档</span><kbd>Ctrl / ⌘ S</kbd><span>搜索所有文档</span><kbd>Ctrl / ⌘ K</kbd><span>新建文档</span><kbd>Ctrl / ⌘ Shift N</kbd><span>加粗 / 斜体 / 下划线</span><kbd>Ctrl / ⌘ B / I / U</kbd><span>插入内容块</span><kbd>/</kbd><span>选区链接</span><kbd>Ctrl / ⌘ K</kbd><span>待办清单</span><kbd>Ctrl / ⌘ Shift X</kbd><span>查找当前文档</span><kbd>Ctrl / ⌘ F</kbd><span>撤销 / 重做</span><kbd>Ctrl / ⌘ Z / Shift Z</kbd><span>图片</span><span>直接粘贴或拖入编辑器</span></div><p class="dialog-note">支持富文本、LaTeX 公式、代码块、表格和待办清单；输入 / 可插入内容块。</p></div></div></dialog>
+  <dialog id="shortcuts-dialog" class="dialog"><div class="dialog-card"><div class="dialog-head"><h2>编辑快捷键</h2><button class="icon-button" data-close="shortcuts-dialog" aria-label="关闭"><span data-icon="close"></span></button></div><div class="shortcut-list"><span>保存文档</span><kbd>Ctrl / ⌘ S</kbd><span>搜索所有文档</span><kbd>Ctrl / ⌘ K</kbd><span>新建文档</span><kbd>Ctrl / ⌘ Shift N</kbd><span>加粗 / 斜体 / 下划线</span><kbd>Ctrl / ⌘ B / I / U</kbd><span>插入内容块</span><kbd>/</kbd><span>选区链接</span><kbd>Ctrl / ⌘ K</kbd><span>待办清单</span><kbd>Ctrl / ⌘ Shift X</kbd><span>查找当前文档</span><kbd>Ctrl / ⌘ F</kbd><span>增加 / 减少缩进</span><kbd>Tab / Shift Tab</kbd><span>表格下一格 / 上一格</span><kbd>Tab / Shift Tab</kbd><span>正文焦点返回工具栏</span><kbd>Esc</kbd><span>撤销 / 重做</span><kbd>Ctrl / ⌘ Z / Shift Z</kbd><span>图片</span><span>直接粘贴或拖入编辑器</span></div><p class="dialog-note">支持富文本、LaTeX 公式、代码块、表格和待办清单；输入 / 可插入内容块。</p></div></div></dialog>
 
   <input id="asset-input" type="file" hidden><input id="import-input" type="file" accept="application/json,.json" hidden><input id="import-archive-input" type="file" accept="application/zip,.zip" hidden>
   <div id="toast" class="toast is-hidden" role="status" aria-live="polite"></div>

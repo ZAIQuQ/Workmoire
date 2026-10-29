@@ -71,6 +71,10 @@ def normalized_rich_content(value: object, markdown: str | None = None) -> str:
             if not isinstance(raw['textAlign'], str) or raw['textAlign'] not in {'left', 'center', 'right', 'justify'}:
                 raise ValueError('段落对齐方式无效')
             attrs['textAlign'] = raw['textAlign']
+        if kind in {'paragraph','heading'} and 'blockIndent' in raw:
+            if type(raw['blockIndent']) is not int or not 0 <= raw['blockIndent'] <= 8:
+                raise ValueError('段落缩进级别无效')
+            attrs['blockIndent'] = raw['blockIndent']
         if kind == 'heading':
             if type(raw.get('level')) is not int or not 1 <= raw['level'] <= 6:
                 raise ValueError('标题级别无效')

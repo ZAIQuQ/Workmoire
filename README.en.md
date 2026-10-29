@@ -10,7 +10,7 @@ Self-hosted academic notes and paper reading. Write rich documents, read PDFs in
 
 ## What it does
 
-- **Write** with rich text, math, images, checklists, and foldable code blocks. A compact single-row toolbar exposes document fonts and selection colors; a right-hand outline tracks headings. Focus mode hides the footer. Insert blocks with `/`, searchable in Chinese, pinyin initials, and English.
+- **Write** with rich text, math, images, checklists, and foldable code blocks. A compact single-row toolbar exposes document fonts and selection colors; a right-hand outline tracks headings. Focus mode hides the footer. Use Tab / Shift+Tab for indentation. Insert blocks with `/`, searchable in Chinese, pinyin initials, and English.
 - **Work with tables** that fit the document by default. Distribute columns evenly, or turn off fixed width to enable horizontal scrolling.
 - **Read papers** by manually uploading a PDF and optionally recording its source link. The server does not download papers. Embed the PDF reader directly in a document. Uploads show measured progress, and one AI analysis organizes publication, authors, labs and research fields, suggests up to two tags, and explains the motivation and contribution with an estimated wait.
 - **Organize** with colored catalogue tags, pin-side tag management, and document links. Create either a blank document or paper materials.
