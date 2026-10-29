@@ -27,6 +27,7 @@ FILE_RE = re.compile(r'^/files/([a-f0-9]{32})(?:\?inline=1)?$')
 PUBLISH_LOCK = threading.RLock()
 MAX_MEDIA = 256
 MAX_MEDIA_BYTES = 64 * 1024 * 1024
+PASSWORD_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 
 
 def b64(value: bytes) -> str:
@@ -35,6 +36,22 @@ def b64(value: bytes) -> str:
 
 def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def new_password_nonce() -> str:
+    # Existing unprefixed nonces retain their original password derivation.
+    return 'v2:' + secrets.token_urlsafe(32)
+
+
+def alphanumeric_password(key: bytes, nonce: str) -> str:
+    counter = 0
+    while True:
+        digest = hmac.new(key, f'password-v2:{nonce}:{counter}'.encode(), hashlib.sha256).digest()
+        # Reject the eight excess byte values instead of biasing modulo 62.
+        candidate = ''.join(PASSWORD_ALPHABET[byte % 62] for byte in digest if byte < 248)[:16]
+        if len(candidate) == 16 and all(any(check(char) for char in candidate) for check in (str.isupper, str.islower, str.isdigit)):
+            return candidate
+        counter += 1
 
 
 def password_hash(password: str) -> str:
@@ -127,6 +144,10 @@ class SharePublisher:
         if token_hash(b64(key)) != row['key_id']:
             raise ValueError('分享密钥已变化，请重新生成分享链接')
         token = b64(hmac.new(key, ('link-v1:'+row['link_nonce']).encode(), hashlib.sha256).digest())
+        if row['password_nonce'].startswith('v2:'):
+            return token, alphanumeric_password(key, row['password_nonce'])
+        if ':' in row['password_nonce']:
+            raise ValueError('分享密码格式不受此版本支持')
         digest = hmac.new(key, ('password-v1:'+row['password_nonce']).encode(), hashlib.sha256).digest()
         password = ('ABCDEFGHJKLMNPQRSTUVWXYZ'[digest[0]%24] + 'abcdefghjkmnpqrstuvwxyz'[digest[1]%22]
                     + '23456789'[digest[2]%8] + '!@#$%&*_-+'[digest[3]%10] + b64(digest[4:])[:24])
@@ -178,7 +199,7 @@ class SharePublisher:
         with self.locked(), closing(publication_connection(self.root, True)) as con:
             now = int(time.time()); key = (self.root/'publisher.key').read_bytes()
             record = {'id':secrets.token_hex(16), 'owner_item_id':item['id'], 'link_nonce':secrets.token_urlsafe(32),
-                      'password_nonce':secrets.token_urlsafe(32), 'key_id':token_hash(b64(key))}
+                      'password_nonce':new_password_nonce(), 'key_id':token_hash(b64(key))}
             token, password = self.credentials(record)
             assets = {}; copied = {}
             def local_id(value):
@@ -246,7 +267,7 @@ class SharePublisher:
                 if type(days) is not int or days not in DURATIONS: raise ValueError('分享有效期无效')
                 con.execute('UPDATE shares SET days=?,expires_at=?,revision=revision+1 WHERE id=?',(days,int(time.time())+days*86400 if days else None,share_id))
             elif action=='password':
-                updated=dict(row);updated['password_nonce']=secrets.token_urlsafe(32)
+                updated=dict(row);updated['password_nonce']=new_password_nonce()
                 _,password=self.credentials(updated)
                 con.execute('UPDATE shares SET password_nonce=?,password_hash=?,version=version+1,revision=revision+1 WHERE id=?',(updated['password_nonce'],password_hash(password),share_id))
             elif action=='revoke':

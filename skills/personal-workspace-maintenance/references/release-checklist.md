@@ -44,6 +44,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 - If a backup timer is enabled, check `systemctl list-timers`, the latest successful run, and the backup directory's free space.
 - Record the deployed commit and any cloud security-group or HTTPS requirement.
 - For sharing, verify both listeners and health endpoints, a dedicated public user/environment, read-only publication access, actual setgid inheritance with the publisher in the sharing group, and denied access to the publisher key/private database. Exercise password gates, all expiry options, reset/revoke/trash invalidation, persistent failure limits, scoped media/ranges and forbidden workspace routes. Test rich/PDF reading and dialogs at phone widths using synthetic documents; never publish private documents for a smoke check.
+- For sharing credential changes, verify the new character policy, fixed legacy derivation vectors, unchanged old passwords/links on upgrade and expiry edits, explicit reset/session invalidation, backup recovery, and exactly two copied lines for every expiry option.
 - Include sharing data in the actual scheduled backup job's environment. Run it after deployment, verify SQLite/archive integrity and a synthetic restore that preserves link/password/media while excluding reader sessions. Document the possibility of old backups reactivating later-revoked links.
 
 ## GitHub

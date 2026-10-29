@@ -167,3 +167,5 @@ changes belong in normal commit history.
 - Refined the sidebar brand/version alignment using explicit line boxes, a square mark and tabular version numerals. Checked the rendered header at desktop/tablet/mobile widths; removed the previous overflow beyond the sidebar content area.
 
 - Reworked focus mode around a compact header and collapsed formatting tools so content starts near the top. Reused title/mode/outline DOM controls and preserved document/PDF instances and reading anchors; added read-mode save visibility and narrow-screen/Escape regression coverage.
+
+- Simplified copied share credentials to two lines and changed new/reset passwords to sixteen alphanumeric characters with all three character classes. Versioned the password nonce to retain legacy credentials without a data migration; added legacy-vector, lifecycle, recovery and clipboard regression checks.

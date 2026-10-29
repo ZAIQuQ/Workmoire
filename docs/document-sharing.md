@@ -2,8 +2,11 @@
 
 Open a document and click **分享** at its upper right. The dialog provides the
 link, validity (1, 7, 30 days or permanent), and an automatically generated
-28-character password containing uppercase, lowercase, digits and symbols.
-The default validity is seven days. Generate the link, then use **复制链接和密码**.
+16-character alphanumeric password containing uppercase, lowercase and digits.
+New passwords contain no symbols.
+The default validity is seven days. Generate the link, then use **复制链接和密码**
+to copy exactly two lines: the share link and password. The copied text does not
+include expiry commentary.
 Unsaved or legacy documents are saved through the normal revision-checked flow
 first. A stale save prevents publication.
 
@@ -68,7 +71,13 @@ Public paths use a 43-character token with 256 bits of HMAC output derived from 
 private key and a fresh random nonce. No article ID, slug, title or sequential
 identifier is used. Only token hashes are stored; the public reader cannot
 recover the URL token or password from stored nonces without the publisher key.
-Passwords use salted scrypt verifiers and constant-time comparison.
+Passwords use salted scrypt verifiers and constant-time comparison. New password
+nonces carry a `v2:` prefix. HMAC output supplies an unbiased alphanumeric sample,
+with rejection until the 16-character password contains all three character
+classes. Unprefixed nonces retain the original 28-character derivation, so an
+upgrade or expiry change does not change a live password. Explicit resets use
+the new format and invalidate old reader sessions. Publisher software must
+support the nonce version to recover passwords after a restore.
 
 The public service exposes only its password gate, document/file routes, selected
 static assets and health endpoint. Title, body and media require password

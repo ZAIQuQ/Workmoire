@@ -342,3 +342,10 @@ boundary you can explicitly toggle code on when you want to continue it. Left or
 right at an active code boundary exits that typing format without adding spacer
 characters. Tab still changes paragraph indentation. Undo, native saves and
 composition input preserve both the original code and its surrounding text.
+
+## Copying share credentials
+
+**复制链接和密码** copies only the link and password, each on its own line. New
+shares and password resets generate 16 characters containing uppercase letters,
+lowercase letters and digits, without symbols. Existing passwords remain usable;
+choose **重置** to replace an older password with the new format.

@@ -1,5 +1,6 @@
 """Public sharing has its own credentials, data surface and revocation boundary."""
 import json
+import hashlib
 from pathlib import Path
 import re
 import tarfile
@@ -13,7 +14,7 @@ from unittest.mock import patch
 import test_documents as support
 import workspace_server as app
 from share_server import ShareHTTPServer, ShareAuth
-from share_store import SharePublisher, publication_connection, backup_publications
+from share_store import SharePublisher, publication_connection, backup_publications, b64, token_hash
 
 
 class SharingTests(unittest.TestCase):
@@ -52,8 +53,8 @@ class SharingTests(unittest.TestCase):
         for days in [1,7,30,0]:
             share=self.publish(item,days);token=share['path'].split('/')[-1]
             self.assertRegex(token,r'^[A-Za-z0-9_-]{43}$');self.assertNotEqual(token,str(item['id']))
-            self.assertGreaterEqual(len(share['password']),24)
-            for regex in [r'[A-Z]',r'[a-z]',r'[0-9]',r'[^A-Za-z0-9]']:self.assertRegex(share['password'],regex)
+            self.assertRegex(share['password'],r'^[A-Za-z0-9]{16}$')
+            for regex in [r'[A-Z]',r'[a-z]',r'[0-9]']:self.assertRegex(share['password'],regex)
             if days:self.assertLess(abs(share['expires_at']-time.time()-days*86400),3)
             else:self.assertIsNone(share['expires_at'])
         with publication_connection(self.root) as con:
@@ -66,6 +67,35 @@ class SharingTests(unittest.TestCase):
         self.request('/api/items/'+str(item['id']),'PUT',{**item,'content':'New private text','rich_content':None,'base_updated_at':item['updated_at']})
         self.assertNotIn('New private text',self.public_request(share['path']+'/document')[1].decode())
         self.assertEqual(self.request('/api/items/'+str(item['id'])+'/share','POST',{'days':2,'base_updated_at':item['updated_at']})[0],409)
+
+    def test_legacy_passwords_and_links_survive_until_explicit_password_reset(self):
+        key=bytes(range(32));(self.root/'publisher.key').write_bytes(key)
+        row={'key_id':token_hash(b64(key)),'link_nonce':'legacy-test-link','password_nonce':'legacy-test-nonce'}
+        token,password=self.publisher.credentials(row)
+        self.assertEqual(hashlib.sha256(password.encode()).hexdigest(),'868b98e495dd2291ef379f875d26e3c17641fb109ceffe1d1c444973ea626985')
+        self.assertEqual(token_hash(token),'ad962c094de8f6bc924850a4bc55e65b136bb1620a2df769580008c627b2e698')
+        item=self.create()
+        with patch('share_store.new_password_nonce',return_value='legacy-test-nonce'):
+            share=self.publish(item,0)
+        self.assertEqual(share['password'],password);self.assertEqual(self.unlock(share)[0],200)
+        recovered=SharePublisher(self.root).latest(item['id'])
+        self.assertEqual(recovered['password'],password);self.assertEqual(recovered['path'],share['path'])
+        changed=self.change(item,recovered,'expiry',days=7)
+        self.assertEqual(changed['password'],password);self.assertEqual(self.public_request(share['path']+'/document')[0],200)
+        reset=self.change(item,changed,'password')
+        self.assertRegex(reset['password'],r'^[A-Za-z0-9]{16}$');self.assertEqual(reset['path'],share['path'])
+        self.assertEqual(self.public_request(share['path']+'/document')[0],401)
+        self.assertEqual(self.unlock(share)[0],401);self.assertEqual(self.unlock(reset)[0],200)
+
+    def test_new_passwords_are_recoverable_alphanumeric_and_include_all_character_classes(self):
+        key=(self.root/'publisher.key').read_bytes();seen=set()
+        for index in range(64):
+            row={'key_id':token_hash(b64(key)),'link_nonce':'synthetic-link','password_nonce':'v2:synthetic-'+str(index)}
+            token,password=self.publisher.credentials(row)
+            self.assertRegex(password,r'^[A-Za-z0-9]{16}$')
+            for pattern in ['[A-Z]','[a-z]','[0-9]']:self.assertRegex(password,pattern)
+            self.assertEqual(self.publisher.credentials(row),(token,password));seen.add(password)
+        self.assertEqual(len(seen),64)
 
     def test_backup_restores_links_passwords_and_media_without_reader_sessions(self):
         source=self.fixture_file('synthetic.pdf',b'%PDF-1.4 backup bytes','application/pdf')

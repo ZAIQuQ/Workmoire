@@ -2,6 +2,20 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.10.1] — 2026-10-29
+
+- 「复制链接和密码」仅复制链接与密码两行，不再附带有效期说明；永久分享也不再显示重复的说明文字。
+- 新建或重置分享密码时生成 16 位数字、大小写字母组合，不含符号，并保证三类字符均存在。
+- 已有分享链接和旧密码保持兼容；修改有效期不会改变密码，主动重置后使用新格式。
+
+见[使用说明](docs/user-guide.md)与[分享说明](docs/document-sharing.md)。
+
+### English
+
+Copy only the share link and password. New and reset passwords use sixteen
+alphanumeric characters with uppercase, lowercase and digits. Existing links
+and legacy passwords remain valid until an explicit reset or regeneration.
+
 ## [1.10.0] — 2026-10-29
 
 ### 专注正文
