@@ -302,10 +302,18 @@ The main formatting toolbar stays on one row. At narrow widths, scroll it
 horizontally or tab to the next control; color, insertion and More menus remain
 inside the visible editor area. Hover/focus descriptions still identify controls.
 The title area uses less vertical space. The footer contains only **链接文档**
-and **上报 Bug**, using the same size and alignment. Focus mode hides the footer;
-exit focus to restore it. Opening a Bug report still uses a separate tab and
-preserves the current draft. On phone layouts, returning to the document list
+and **上报 Bug**, using the same size and alignment. Focus mode uses a 44px header
+with the document title, save status, mode switch and exit control. The title remains editable in writing mode. Formatting tools
+start collapsed; use **工具栏** to show the same toolbar when needed. Reading mode
+hides formatting controls and hides Save only when there are no pending changes.
+The full title area, word count, update time, auxiliary actions and footer return
+when you exit focus. The document outline remains available. Opening a Bug report
+still uses a separate tab and preserves the current draft. On phone layouts, returning to the document list
 keeps the reporting entry available.
+
+Switching focus preserves your title, current edits, selection, reading position
+and PDF zoom. Esc closes an open menu or compact outline first;
+press Esc again to leave focus. The exit button remains visible on narrow screens.
 
 ## Tab and indentation
 
@@ -318,7 +326,8 @@ row at the end. An unavailable indent/outdent at a boundary keeps editor focus.
 
 Composition events are left to the input method. **Esc** returns focus from the
 text surface to the paragraph-style selector, where Tab resumes normal toolbar
-navigation. Other fields and read-only views keep their normal keyboard behavior.
+navigation; in focus mode it exits focus after dismissing open menus. Other
+fields and read-only views keep their normal keyboard behavior.
 The More menu uses the same indentation commands. Native JSON, archives, history
 and shares preserve paragraph indentation. Markdown keeps the text; use a native
 export to retain paragraph layout. Lists and code retain their structural/text

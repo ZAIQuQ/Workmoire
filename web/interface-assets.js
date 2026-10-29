@@ -17,7 +17,7 @@ import {
   Underline, Strikethrough, Highlighter, ListOrdered, AlignLeft, AlignCenter, AlignRight,
   GripVertical, ArrowUp, ArrowDown, Copy, IndentIncrease, IndentDecrease, Subscript, Superscript, Eraser,
   ArrowUpRight, ArrowLeft, Link, Image, Trash2, Clock3, PanelRight,
-  Maximize2, Check, Plus, X, Bold, Italic, Code, ListTodo, List, Quote, Sigma,
+  Maximize2, Minimize2, PanelTop, Check, Plus, X, Bold, Italic, Code, ListTodo, List, Quote, Sigma,
   Variable, Table2, Omega, Minus, Undo2, Redo2, Pin, ChevronDown, ChevronLeft,
   ChevronRight, Ellipsis, FilePenLine, Lightbulb, Route, ClipboardCheck,
   Columns2, Eye, Download, Hash, NotebookPen, LockKeyhole, ArrowRight, Sun, Moon, Bookmark, Share2, Info, Bug
@@ -32,7 +32,7 @@ const icons = {
   document:FileText, book:BookOpen, relations:Network, search:Search,
   keyboard:Keyboard, menu:Menu, upload:Upload, arrow:ArrowUpRight,
   back:ArrowLeft, link:Link, image:Image, trash:Trash2, clock:Clock3,
-  spark:NotebookPen, panel:PanelRight, expand:Maximize2, check:Check,
+  spark:NotebookPen, panel:PanelRight, expand:Maximize2, collapse:Minimize2, toolbar:PanelTop, check:Check,
   plus:Plus, close:X, bold:Bold, italic:Italic, code:Code, task:ListTodo,
   list:List, quote:Quote, formula:Sigma, variable:Variable, table:Table2,
   symbols:Omega, minus:Minus, undo:Undo2, redo:Redo2, pin:Pin,

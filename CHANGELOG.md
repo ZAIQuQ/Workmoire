@@ -2,6 +2,25 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.10.0] — 2026-10-29
+
+### 专注正文
+
+- 专注模式将文档名、保存状态、编辑/阅读切换和退出入口合并到 44px 顶栏，收起大标题、字数与更新时间。
+- 编辑工具栏默认收起，可通过顶栏「工具栏」随时展开；阅读模式进一步隐藏编辑操作，存在未保存改动时仍保留保存入口。
+- 保留右侧目录，收起分享、整理、文档信息面板和底栏；正文更靠近页面顶部。
+- 标题仍可编辑，切换专注或读写模式时保留草稿、选区、阅读位置和原 PDF 实例及缩放状态。
+- 菜单展开时 Esc 先关闭菜单，再次按 Esc 退出专注；手机端保留可见的退出与目录入口。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+Focus mode uses a compact 44px header and keeps the document body near the top.
+Reveal formatting tools on demand; reading mode hides editing controls while
+retaining Save for unsaved changes. Reuse existing title, mode and outline controls
+without rebuilding document or PDF nodes, and preserve editing and reading state.
+
 ## [1.9.1] — 2026-10-29
 
 - 优化左上角品牌行：图标改为方形，统一项目名与版本按钮的高度和视觉中心。

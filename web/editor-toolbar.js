@@ -23,5 +23,5 @@ export function mountEditorToolbar(root,editor){
  }
  listen(input,'input',()=>{editor.setColor(input.value,{focus:false});summary.style.setProperty('--selection-color',input.value);});
  listen(colorMenu,'toggle',()=>{if(colorMenu.open)sync();});sync();
- return {sync,destroy(){hideTip();listeners.forEach(fn=>fn());tip.remove();}};
+ return {sync,hideTooltip:hideTip,destroy(){hideTip();listeners.forEach(fn=>fn());tip.remove();}};
 }

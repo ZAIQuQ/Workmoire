@@ -165,3 +165,5 @@ changes belong in normal commit history.
 - Refocused paper generation on technical reading notes at the owner’s request: omit unknown fields, classification explanations and review/process caveats; keep extraction coverage in the import UI. Added source-matched bilingual abstracts before the brief, retaining one model call and explicit insertion/save. Updated the template, renderers, tests, docs and timing calibration.
 
 - Refined the sidebar brand/version alignment using explicit line boxes, a square mark and tabular version numerals. Checked the rendered header at desktop/tablet/mobile widths; removed the previous overflow beyond the sidebar content area.
+
+- Reworked focus mode around a compact header and collapsed formatting tools so content starts near the top. Reused title/mode/outline DOM controls and preserved document/PDF instances and reading anchors; added read-mode save visibility and narrow-screen/Escape regression coverage.

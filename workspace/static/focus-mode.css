@@ -1,0 +1,43 @@
+/* Reuse the existing controls; focus mode changes layout, never document nodes. */
+.focus-title-slot, .focus-view-controls, .focus-tools-toggle { display: none; }
+.focus-mode .page-content { padding: 6px; }
+.focus-mode .editor-surface { border-radius: 12px; }
+.focus-mode .document-topline { height: 44px; min-height: 44px; padding: 0 16px; gap: 12px; }
+.focus-mode .document-title-block, .focus-mode .doc-inspector,
+.focus-mode #back-to-list, .focus-mode #assistant-content,
+.focus-mode #inspector-toggle, .focus-mode #share-document { display: none; }
+.focus-mode .focus-title-slot { display: flex; align-items: center; flex: 1; min-width: 0; order: 0; }
+.focus-mode .focus-title-slot .editor-title { min-height: 24px; max-height: 24px; padding: 0; font: 500 14px/24px var(--ui-font); letter-spacing: 0; white-space: nowrap; overflow: hidden; }
+.focus-mode .document-location { order: 1; flex: none; }
+.focus-mode .document-location > :not(#save-state) { display: none; }
+.focus-mode .document-location #save-state { font-size: 11px; }
+.focus-mode .document-actions { order: 2; gap: 5px; flex: none; }
+.focus-mode .focus-view-controls { display: flex; align-items: center; gap: 5px; order: 0; }
+.focus-mode .focus-view-controls .view-modes { margin: 0; padding: 1px; }
+.focus-mode .focus-view-controls .view-modes button { padding: 4px 7px; }
+.focus-mode .focus-tools-toggle { display: inline-flex; align-items: center; gap: 5px; order: 1; height: 28px; padding: 0 7px; font-size: 11px; border-radius: var(--radius-sm); }
+.focus-mode .focus-tools-toggle[aria-expanded="true"] { background: var(--surface); color: var(--ink); }
+.focus-mode #save-content { order: 2; height: 28px; min-height: 28px; margin: 0; padding: 0 9px; font-size: 11px; border-color: var(--line); background: var(--paper); color: var(--body); }
+.focus-mode #save-content kbd { display: none; }
+.focus-mode .document-editor[data-unsaved="true"] #save-content { background: var(--action); border-color: var(--action); color: white; }
+.focus-mode #focus-mode { display: inline-flex; order: 3; width: 28px; height: 28px; background: transparent; }
+.focus-mode #focus-mode:hover { background: var(--hover); }
+.focus-mode .document-editor[data-mode="read"] .focus-tools-toggle,
+.focus-mode .document-editor[data-mode="read"][data-unsaved="false"] #save-content { display: none; }
+.focus-mode .document-editor .editor-toolbar { margin: 0 8px; min-height: 40px; padding: 3px 8px; }
+.focus-mode .rich-editor-content { padding-top: 18px; }
+.focus-mode .rich-document .is-empty::before { content: none; }
+.focus-mode .outline-rail { padding-top: 16px; }
+@media(max-width:760px){
+ .focus-mode .page-content { padding: 0; }
+ .focus-mode .editor-surface { border-radius: 0; }
+ .focus-mode .document-topline { padding: 0 8px; gap: 6px; }
+ .focus-mode .focus-title-slot .editor-title { font-size: 12px; }
+ .focus-mode .document-actions, .focus-mode .focus-view-controls { gap: 3px; }
+ .focus-mode .focus-tools-toggle { width: 28px; padding: 0; justify-content: center; }
+ .focus-mode .focus-tools-toggle > span { display: none; }
+ .focus-mode .focus-view-controls .outline-toggle { font-size: 0; gap: 0; padding: 5px; }
+ .focus-mode .focus-view-controls .outline-toggle .icon { width: 15px; height: 15px; }
+ .focus-mode .focus-view-controls .view-modes button { padding: 4px 5px; }
+ .focus-mode #save-content { padding: 0 7px; }
+}
