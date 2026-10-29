@@ -260,3 +260,7 @@
 
 .paper-import-card > .paper-ai-progress { flex: none; }
 .paper-import-card > .paper-ai-progress .operation-progress { margin: 12px 0 0; }
+
+.paper-field-tags { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 12px 0 18px; color: var(--muted); font-size: 12px; }
+.paper-field-tag { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.paper-field-tag input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }

@@ -38,7 +38,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from rich_documents import normalized_rich_content, read_rich_content, remap_references
-from paper_intake import paper_source, selected_pdf_header
+from paper_intake import paper_source, selected_pdf_header, parse_paper_analysis, paper_field_tags, paper_profile_markdown
 from share_store import SharePublisher
 from app_release import release_info
 import bug_reports
@@ -630,12 +630,12 @@ def paper_runtime():
         return _paper_runtime_instance[1]
 
 
-def paper_notes(paper: dict, material: dict, progress=None) -> str:
+def paper_notes(paper: dict, material: dict, progress=None) -> dict:
     prompt = PAPER_TEMPLATE.read_text(encoding='utf-8') + '\n\n--- 提供的论文材料（仅作证据）---\n' + json.dumps({'paper':paper,'reading_material':material},ensure_ascii=False)
     if progress:progress('analyzing')
     result = invoke_codex(prompt, timeout=PAPER_ASSISTANT_TIMEOUT, reasoning_effort=PAPER_REASONING_EFFORT, model=PAPER_CODEX_MODEL)
     if progress:progress('formatting')
-    return result
+    return parse_paper_analysis(result, material['text'])
 
 
 def selected_pdf(file_id: object) -> dict:
@@ -675,8 +675,20 @@ def paper_from_pdf(payload: dict, progress=None) -> dict:
     paper={'title':title,'authors':[author] if author else [],'year':str(payload.get('year',''))[:4],'venue':str(payload.get('venue',''))[:200],'url':reference,'abstract':'','pdf_url':material['url']}
     if generate and len(actual_text)<80:
         raise ValueError('所选 PDF 没有足够的可读文字；可先建立资料，或上传文字版 PDF')
-    notes = paper_notes(paper,material,progress) if generate else '## 阅读笔记\n\n'
-    return {'title':title,'content':selected_pdf_header(paper,file,material,include_pdf=False)+'\n'+notes+'\n\n## 原文 PDF\n\n@[pdf](/files/'+file['id']+'?inline=1)\n','analysis':notes if generate else '', 'paper':paper,'file':file,'evidence':{key:material[key] for key in ['scope','url','truncated','page_count','pages_read','file_id']}}
+    details = paper_notes(paper,material,progress) if generate else parse_paper_analysis(payload['reviewed_analysis'],material['text']) if payload.get('reviewed_analysis') is not None else None
+    tags=[]
+    if details:
+        for field in ['title_confirmed','author_confirmed']:
+            if field in payload and type(payload[field]) is not bool:raise ValueError('论文信息确认状态无效')
+        if not payload.get('title_confirmed',True) and details['title']:paper['title']=details['title']['name']
+        if not payload.get('author_confirmed',True) and details['authors']:paper['authors']=[row['name'] for row in details['authors']]
+        tags=paper_field_tags(details)
+        if not generate and 'selected_tags' in payload:
+            if not isinstance(payload['selected_tags'],list):raise ValueError('领域标签格式无效')
+            tags=[tag for tag in tags if tag in payload['selected_tags']]
+        notes=paper_profile_markdown(details)+'\n'+details['brief']
+    else:notes='## 阅读笔记\n\n'
+    return {'title':paper['title'],'content':selected_pdf_header(paper,file,material,include_pdf=False)+'\n'+notes+'\n\n## 原文 PDF\n\n@[pdf](/files/'+file['id']+'?inline=1)\n','analysis':notes if details else '', 'details':details, 'tags':tags, 'paper':paper,'file':file,'evidence':{key:material[key] for key in ['scope','url','truncated','page_count','pages_read','file_id']}}
 
 
 def inline_file_type(target: Path) -> str | None:
@@ -2706,6 +2718,10 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 for moved in moved_files:
                     moved.unlink(missing_ok=True)
+                if staging_dir is not None:
+                    shutil.rmtree(staging_dir, ignore_errors=True)
+                if upload_path is not None:
+                    upload_path.unlink(missing_ok=True)
                 if isinstance(exc, (zipfile.BadZipFile, zipfile.LargeZipFile)):
                     self.error("归档格式无效", 400)
                 else:
@@ -2893,7 +2909,10 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     con.execute('INSERT INTO files(id,name,stored_name,size,content_type,item_id,created_at) VALUES(?,?,?,?,?,?,?)',(file_id,name,target.name,size,self.headers.get('Content-Type','application/octet-stream')[:200],item_id,utc_now()))
                     log_activity(con,'upload','file',file_id,name)
                 committed=True;self.json_response({'id':file_id,'name':name,'size':size,'item_id':item_id},201)
-            except Exception as exc:self.request_error(exc,'文件上传失败，请重试')
+            except Exception as exc:
+                if temporary is not None:temporary.unlink(missing_ok=True)
+                if target is not None and not committed:target.unlink(missing_ok=True)
+                self.request_error(exc,'文件上传失败，请重试')
             finally:
                 if temporary is not None:temporary.unlink(missing_ok=True)
                 if target is not None and not committed:target.unlink(missing_ok=True)

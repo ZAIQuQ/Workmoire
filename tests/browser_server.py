@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import workspace_server as app
 import app_release
+from paper_fixtures import analysis_fixture
 from share_server import ShareHTTPServer
 
 
@@ -30,7 +31,8 @@ def main():
         app.SHARE_DATA_DIR=str(Path(scratch)/'sharing');app.SHARE_PUBLIC_URL='http://127.0.0.1:8766';app.SHARE_PORT=8766
         app_release.fetch_latest=lambda:{"tag_name":"v"+app_release.local_release()["version"],"body":"Synthetic release notes"}
         app.init_db()
-        app.invoke_codex=lambda prompt,timeout=None,**options:'## 研究问题\n\n如何把阅读与独立思考联系起来？\n\n## 方法与贡献\n\n以所选 PDF 的文字为依据。\n\n## 下一步\n\n- [ ] 阅读原文并核对实验。'
+        synthetic_brief='## 研究问题\n\n如何把阅读与独立思考联系起来？\n\n## 方法与贡献\n\n以所选 PDF 的文字为依据。\n\n## 下一步\n\n- [ ] 阅读原文并核对实验。'
+        app.invoke_codex=lambda prompt,timeout=None,**options:analysis_fixture(synthetic_brief,profile='PROFILE_FIXTURE' in prompt) if '提供的论文材料（仅作证据）' in prompt else synthetic_brief
 
         content='''## 一个问题
 

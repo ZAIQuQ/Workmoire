@@ -12,7 +12,7 @@ Self-hosted academic notes and paper reading. Write rich documents, read PDFs in
 
 - **Write** with rich text, math, images, checklists, and foldable code blocks. Choose a document-wide font and use selection colors and common formatting directly from the toolbar. The `/` menu accepts Chinese, pinyin initials, and English queries. A right-hand outline lets you jump between headings and tracks your reading position.
 - **Work with tables** that fit the document by default. Distribute columns evenly, or turn off fixed width to enable horizontal scrolling.
-- **Read papers** by manually uploading a PDF and optionally recording its source link. The server does not download papers. Embed the PDF reader directly in a document. Uploads show measured progress, and concise AI briefs explain motivation and contribution with an estimated wait.
+- **Read papers** by manually uploading a PDF and optionally recording its source link. The server does not download papers. Embed the PDF reader directly in a document. Uploads show measured progress, and one AI analysis organizes publication, authors, labs and research fields, suggests up to two tags, and explains the motivation and contribution with an estimated wait.
 - **Organize** with colored catalogue tags, pin-side tag management, and document links. Create either a blank document or paper materials.
 - **Share** a read-only snapshot with a strong password and a 1-day, 7-day, 30-day, or permanent lifetime. Reset the password or revoke access at any time.
 - **Keep your work** with local drafts, save-conflict detection, version history, recoverable trash, and JSON / full-archive import and export.

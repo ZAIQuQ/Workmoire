@@ -2,6 +2,27 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.7.0] — 2026-10-29
+
+### 论文档案与领域标签
+
+- 论文导入以手动上传 PDF 为唯一入口，来源链接置于上传区下方且可留空。
+- 同一次 AI 分析整理标题、作者、发表情况、作者单位、通讯作者与实验室，并保留聚焦动机与卖点的速读摘要。
+- 事实须有已提供 PDF 的原文依据；未知发表状态和团队明确标为待核实，不凭姓名或 arXiv 链接猜测，不重新抓取网页。
+- 自动归纳一级、二级研究领域，并在预览中生成 1–2 个默认选中的彩色标签；保存前可取消，正常保存后显示在文档目录。
+- 修改标题、作者或补填来源链接会保留已生成的分析，放入编辑器时统一整合；不重复调用 AI。
+- 上传与归档导入失败的临时文件在返回错误前完成清理。
+
+见[使用说明](docs/user-guide.md)与[论文导入说明](docs/paper-intake.md)。
+
+### English
+
+A single analysis produces an evidence-grounded paper profile and a concise brief.
+Manual PDF upload remains required and the source link optional. Publication,
+author, correspondence and lab facts need supporting excerpts; inferred research
+fields produce up to two selectable tags. Edits retain the analysis, and tags
+persist only with the normal document save.
+
 ## [1.6.1] — 2026-10-29
 
 ### 手动上传 PDF 与长论文解析修复

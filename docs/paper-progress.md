@@ -2,9 +2,10 @@
 
 Paper analysis uses the versioned [brief template](../prompts/paper-brief.md),
 with `gpt-6.1-sol` and `medium` reasoning by default. The model request has a
-150-second limit. The usual output is 400–700 Chinese characters: one sentence,
+150-second limit. One request produces an evidence-grounded profile and a 400–700-character brief: one sentence,
 motivation, the core method/differentiator, and the strongest evidence/limitations.
-Missing or partial evidence is disclosed. Research proposals and reproduction
+Publication, author, lab and field facts are validated separately from the brief;
+unknown or partial evidence is disclosed. No second call is used for tagging. Research proposals and reproduction
 plans are no longer part of this quick summary. General document assistance keeps
 its separate model/reasoning/timeout configuration.
 

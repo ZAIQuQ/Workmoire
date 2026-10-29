@@ -151,3 +151,5 @@ changes belong in normal commit history.
 - Changed paper intake to manual PDF uploads at the owner's request to avoid source-site crawler blocking. Retired server-side URL download/lookup paths and editor import controls, preserved stored attachments/source links, and added no-network regressions for old clients plus manual upload/analysis/replacement checks.
 
 - Diagnosed a valid long PDF rejected at the extraction character cap: PDF.js requires an Error argument when cancelling its text stream. Added a synthetic long-document regression, bounded page markers, specific extraction messages and separate upload/extraction failure states. User-supplied diagnostic files stay outside repository fixtures and logs.
+
+- Added a single-call structured paper profile with source-excerpt validation, explicit correspondence evidence and selectable primary/secondary field tags. Preserved manual PDF-only intake and review/save boundaries; metadata/source edits reuse the reviewed result. Extended synthetic model/browser checks and corrected upload cleanup ordering observed during regression verification.

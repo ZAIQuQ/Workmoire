@@ -1,4 +1,5 @@
 import json
+from paper_fixtures import analysis_fixture
 import os
 from pathlib import Path
 import tempfile
@@ -61,7 +62,7 @@ class PaperProgressHttpTests(unittest.TestCase):
         self.fixture_file('chosen.pdf',b'%PDF-1.4 synthetic','application/pdf')
         payload={'file_id':'a'*32,'title':'Synthetic paper','text':'Evidence from the selected PDF. '*20,'page_count':1,'pages_read':1,'truncated':False,'generate':True,'background':True}
         release=threading.Event()
-        def slow(*args,**kwargs):release.wait(3);return '## 一句话看懂\n\nSynthetic brief.'
+        def slow(*args,**kwargs):release.wait(3);return analysis_fixture('## 一句话看懂\n\nSynthetic brief.')
         with patch.object(app,'invoke_codex',side_effect=slow):
             status,body,_=self.request('/api/papers/draft','POST',payload);self.assertEqual(status,202);job=json.loads(body)
             try:

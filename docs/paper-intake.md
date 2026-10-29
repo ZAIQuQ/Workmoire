@@ -66,3 +66,26 @@ preparation/generation, and ordinary handling of legacy kinds.
 Paper summaries use the versioned brief template with medium reasoning. Upload
 bytes and extracted pages are measured; AI progress and remaining time are
 explicit estimates learned from recent durations. See [progress and timing](paper-progress.md).
+
+## Profiles and field labels
+
+One medium-reasoning call returns structured publication, author, affiliation,
+correspondence, lab and field information together with the concise brief. Facts
+retain supporting excerpts found in the selected PDF text; correspondence can
+use an explicit matching footnote marker. Unsupported facts become unknown. An
+arXiv URL alone does not prove publication status, and a famous author or their
+university alone does not identify a lab. No source page is fetched. Publication
+information describes the supplied version, not a verified latest status.
+
+Research fields are explicitly classified from the paper's subject, with a short
+reason and supporting excerpt. Primary and secondary field names become at most
+two distinct tags, in addition to the protected `论文` tag. The preview selects
+them by default; the user may deselect either. They enter the unsaved document
+on insertion and the catalogue only on normal save. No tag or document is
+created during analysis. Replacing the PDF clears its facts and suggestions.
+
+The model can correct PDF metadata titles/authors unless the user edited those
+fields. Subsequent title/author/source changes keep the result; insertion
+revalidates the reviewed analysis and composes the document without another AI
+call. Malformed structured output gives an explicit retry error. Raw model JSON
+is not rendered as the final document.

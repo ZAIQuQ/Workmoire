@@ -1,4 +1,5 @@
 """Rich-document persistence, migrations, portable references, and paper evidence."""
+from paper_fixtures import analysis_fixture
 import copy
 import gzip
 import os
@@ -252,14 +253,14 @@ class ReadingMaterialTests(unittest.TestCase):
     def test_paper_dossiers_use_the_brief_template_and_preserve_source_limitations(self):
         paper={'title':'Synthetic paper','url':'https://example.org/paper','abstract':'Abstract'}
         material={'scope':'partial_pdf_text','url':'/files/'+'a'*32,'text':'Bounded PDF text','truncated':True}
-        with patch.object(app,'invoke_codex',return_value='## 研究问题\n\nSynthetic') as invoke:
+        with patch.object(app,'invoke_codex',return_value=analysis_fixture('## 研究问题\n\nSynthetic')) as invoke:
             result=app.paper_notes(paper,material)
         self.assertEqual(invoke.call_args.kwargs['reasoning_effort'],app.PAPER_REASONING_EFFORT)
         self.assertEqual(app.PAPER_REASONING_EFFORT,'medium')
         self.assertEqual(invoke.call_args.kwargs['model'],'gpt-6.1-sol')
         self.assertEqual(invoke.call_args.kwargs['timeout'],150)
         self.assertIn('partial_pdf_text',invoke.call_args.args[0]);self.assertIn('一句话看懂',invoke.call_args.args[0]);self.assertIn('400–700',invoke.call_args.args[0])
-        self.assertEqual(result,'## 研究问题\n\nSynthetic')
+        self.assertEqual(result['brief'],'## 研究问题\n\nSynthetic')
 
 
 if __name__=='__main__':unittest.main()

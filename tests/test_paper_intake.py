@@ -1,4 +1,5 @@
 """Two creation kinds and selected-PDF precedence with recoverable attachments."""
+from paper_fixtures import analysis_fixture
 import json
 import unittest
 from unittest.mock import patch
@@ -33,7 +34,7 @@ class PaperIntakeHttpTests(unittest.TestCase):
             status,body,_=self.request('/api/papers/prepare','POST',payload)
             self.assertEqual(status,200);prepared=json.loads(body);self.assertEqual(prepared['pdf_origin'],'uploaded');self.assertEqual(prepared['file']['id'],'a'*32)
             evidence='UPLOADED_PDF_SELECTED: this is the only text used in the paper analysis. '*5
-            with patch.object(app,'invoke_codex',return_value='## 核心问题\n\n从指定 PDF 提取。') as invoke:
+            with patch.object(app,'invoke_codex',return_value=analysis_fixture('## 核心问题\n\n从指定 PDF 提取。')) as invoke:
                 status,body,_=self.request('/api/papers/draft','POST',{**payload,'title':'Chosen paper','author':'PDF Author','text':evidence,'pages_read':1,'page_count':1,'truncated':False})
                 self.assertEqual(status,200);draft=json.loads(body);self.assertEqual(draft['evidence']['file_id'],'a'*32);self.assertIn(evidence,invoke.call_args.args[0]);self.assertEqual(invoke.call_args.kwargs['reasoning_effort'],app.PAPER_REASONING_EFFORT)
                 self.assertIn('/files/'+'a'*32,draft['content']);self.assertLess(draft['content'].index('## 核心问题'),draft['content'].index('## 原文 PDF'));self.assertIn('## 核心问题',draft['analysis']);self.assertNotIn('other-paper.pdf',draft['content'])

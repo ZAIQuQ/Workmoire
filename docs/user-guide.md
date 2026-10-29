@@ -169,8 +169,13 @@ up to 80 pages / 60,000 characters, with a bounded loading task. Optional Codex
 analysis uses those extracted words, never a substitute HTML article or another
 PDF. Textless/scanned PDFs can be archived and read without invented analysis.
 
-Confirm the title/author and optionally generate reading notes, then insert into
-the editor and save. Only the final selected file is associated with the saved
+Optionally run **AI 分析论文** to organize publication, authors, affiliations,
+correspondence, labs and two research-field levels along with the concise brief.
+Unsupported facts are marked for verification. The preview suggests one or two
+field tags, selected by default; deselect any you do not want. Confirm the
+title/author, insert into the editor, then save. Tags appear in the catalogue
+after saving. Editing the title/author or optional source link retains the
+analysis; replacing the PDF invalidates it. Only the final selected file is associated with the saved
 document. Abandoned/replaced temporary imports move to recoverable attachment
 trash. See [paper intake behavior](paper-intake.md).
 
