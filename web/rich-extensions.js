@@ -87,6 +87,20 @@ function mathExtension(name,inline,callbacks){
   });
 }
 
+function latexPreviewIsMarkdown(source){
+ const value=String(source||'');
+ const markdownSyntax=/```[\s\S]*```|(^|\n)\s*\*\*[^\n]+\*\*|(^|\n)\s*#{1,6}\s|(^|\n)\s*[-*+]\s|(^|\n)\s*\|[^\n]+\|\s*\n\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)+\|?(?:\n|$)|(?<!\\)\$[^$\n]+\$(?!\$)/m.test(value);
+ if(markdownSyntax)return true;
+ // Plain prose has no Markdown marker, but it must still be rendered as
+ // paragraphs. Keep clear TeX commands and equation structure in KaTeX.
+ if(/\\[A-Za-z]+/.test(value))return false;
+ const words=(value.match(/[A-Za-z][A-Za-z'-]*/g)||[]).length;
+ const hasSentencePunctuation=/[.!?](?:\s|$)/.test(value);
+ const hasParagraphBreak=/\n\s*\n/.test(value);
+ const hasEquationStructure=/[\^_{}=]/.test(value);
+ return words>=4&&(hasSentencePunctuation||hasParagraphBreak||!hasEquationStructure);
+}
+
 function latexBlockExtension(callbacks={}){
  return Node.create({
   name:'latexBlock',group:'block',atom:true,isolating:true,selectable:true,draggable:true,
@@ -110,7 +124,7 @@ function latexBlockExtension(callbacks={}){
    body.append(textarea,rendered);const footer=document.createElement('div');footer.className='latex-block-footer';footer.innerHTML='<span class="latex-tex-mark" aria-hidden="true">TeX</span><span>TeX is supported</span>';head.append(tabs,count,copy);dom.append(head,body,footer);
    let nodeSource=node.attrs.source||'',mode=editor.isEditable?'write':'preview';
    const setNodeSource=value=>{const pos=getPos?.();if(typeof pos!=='number'||!editor.isEditable)return;editor.view.dispatch(editor.state.tr.setNodeMarkup(pos,undefined,{...node.attrs,source:value}));};
-   const paint=()=>{if(textarea.value!==nodeSource)textarea.value=nodeSource;textarea.readOnly=!editor.isEditable;count.textContent=nodeSource.length+' 字符';const markdownLike=/```[\s\S]*```|(^|\n)\s*\*\*[^\n]+\*\*|(^|\n)\s*#{1,6}\s|(^|\n)\s*[-*+]\s|(^|\n)\s*\|[^\n]+\|\s*\n\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)+\|?\s*(?:\n|$)|(?<!\\)\$[^$\n]+\$(?!\$)/m.test(nodeSource);rendered.innerHTML=markdownLike?renderPreview(nodeSource):mathHTML(nodeSource,true);rendered.dataset.previewKind=markdownLike?'markdown':'latex';textarea.hidden=mode!=='write';rendered.hidden=mode!=='preview';write.setAttribute('aria-selected',String(mode==='write'));previewTab.setAttribute('aria-selected',String(mode==='preview'));copy.hidden=editor.isEditable;dom.dataset.mode=mode;};
+   const paint=()=>{if(textarea.value!==nodeSource)textarea.value=nodeSource;textarea.readOnly=!editor.isEditable;count.textContent=nodeSource.length+' 字符';const markdownLike=latexPreviewIsMarkdown(nodeSource);rendered.innerHTML=markdownLike?renderPreview(nodeSource):mathHTML(nodeSource,true);rendered.dataset.previewKind=markdownLike?'markdown':'latex';textarea.hidden=mode!=='write';rendered.hidden=mode!=='preview';write.setAttribute('aria-selected',String(mode==='write'));previewTab.setAttribute('aria-selected',String(mode==='preview'));copy.hidden=editor.isEditable;dom.dataset.mode=mode;};
    const setMode=value=>{mode=value;paint();if(mode==='write'&&editor.isEditable)textarea.focus();};
    copy.onclick=async event=>{event.preventDefault();event.stopPropagation();try{await callbacks.copy?.(nodeSource);copy.textContent='已复制';setTimeout(()=>{if(copy.isConnected)copy.textContent='复制 LaTeX';},1200);}catch{copy.textContent='复制失败';}};
    write.onclick=event=>{event.preventDefault();event.stopPropagation();setMode('write');};previewTab.onclick=event=>{event.preventDefault();event.stopPropagation();setMode('preview');requestAnimationFrame(paint);};previewTab.onpointerup=event=>{event.preventDefault();event.stopPropagation();setMode('preview');};head.addEventListener('click',event=>{const button=event.target.closest('button');if(button===write||button===previewTab){event.preventDefault();event.stopPropagation();setMode(button===write?'write':'preview');requestAnimationFrame(paint);}},true);textarea.oninput=()=>{nodeSource=textarea.value;setNodeSource(nodeSource);paint();};textarea.onkeydown=event=>{if(event.key==='Tab'){if(!editor.isEditable)return;event.preventDefault();const start=textarea.selectionStart;textarea.setRangeText('  ',start,textarea.selectionEnd,'end');nodeSource=textarea.value;setNodeSource(nodeSource);paint();}};

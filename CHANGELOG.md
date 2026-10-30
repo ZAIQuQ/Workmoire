@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.7] — 2026-10-31
+
+- 修复 LaTeX 块将没有 Markdown 标记的英文段落误判为整块数学公式的问题；纯文本回复现在按段落预览，保留空格、换行和正常字体。
+- 保留明确 TeX 命令、环境和公式结构的 KaTeX 渲染，并继续支持 OpenReview 风格的 Markdown、表格、行内公式和代码块。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Fix LaTeX blocks misclassifying plain English paragraphs without Markdown markers as one large math expression. Prose now previews with normal spacing, paragraphs, and text faces.
+- Keep KaTeX for clear TeX commands, environments, and equation structure while retaining Markdown, tables, inline math, and code-fence support for OpenReview-style replies.
+
 ## [1.15.6] — 2026-10-31
 
 - 修复颜色工具栏在打开菜单或自定义取色器后丢失正文选区的问题；预设色、自定义色和恢复默认颜色都会作用于原选中文字。
