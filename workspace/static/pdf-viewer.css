@@ -45,3 +45,12 @@ input, select { border: 1px solid var(--border); background: #fff; border-radius
   .pdf-toolbar input { width: 34px; }
   .pdf-toolbar select { max-width: 85px; }
 }
+.pdf-citation-highlight { position: absolute; z-index: 6; pointer-events: none; background: #f5d76a66; outline: 1px solid #bf8d2340; border-radius: 2px; }
+#pdf-citation-notice { position: absolute; top: 48px; left: 12px; right: 12px; z-index: 15; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--paper); color: var(--body); font-size: 12px; }
+#pdf-citation-notice[hidden],.pdf-quote-tools [hidden] { display: none; }
+.pdf-cropping #pdf-container { touch-action: none; }
+.pdf-cropping .page,.pdf-cropping .textLayer { cursor: crosshair; user-select: none; }
+.pdf-crop-box { position: absolute; z-index: 9; pointer-events: none; border: 2px solid var(--accent); background: #315db61a; }
+#pdf-return-notes { flex: none; width: 28px; padding: 4px; }
+#pdf-crop-insert { background: var(--action); color: white; }
+@media(max-width:360px){#pdf-copy-quote{display:none}.pdf-quote-tools button{padding:0 6px}}

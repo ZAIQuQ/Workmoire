@@ -748,6 +748,9 @@ def as_item_summary(row: sqlite3.Row) -> dict:
 
 
 REVISION_FIELDS = ("kind", "title", "summary", "content", "rich_content", "tags", "status", "priority", "due_date", "entry_date", "parent_id", "pinned")
+AUTOSAVE_HISTORY_SECONDS = 300
+# Content-free, bounded hints; a restart conservatively creates a new checkpoint.
+AUTOSAVE_CHECKPOINTS: dict[tuple[str,int], tuple[float,str]] = {}
 
 
 def record_revision(con: sqlite3.Connection, row: sqlite3.Row) -> None:
@@ -3131,8 +3134,13 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             try:
                 item_id = int(path.rsplit("/", 1)[1])
                 raw_data = parse_json(self)
+                automatic = raw_data.get('autosave', False)
+                if type(automatic) is not bool:
+                    raise ValueError('自动保存设置无效')
                 data = self.normalized_item(raw_data)
                 base_updated_at = str(raw_data.get("base_updated_at", "")).strip()
+                if automatic and not base_updated_at:
+                    raise ValueError('自动保存需要当前文档版本')
                 with closing(open_db()) as con, con:
                     # Version check and write must share the same RESERVED lock;
                     # otherwise two stale clients can both pass the check.
@@ -3160,7 +3168,12 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                         self.validate_parent(con, data["parent_id"], item_id)
                         if data["parent_id"] != exists["parent_id"]:
                             con.execute("DELETE FROM item_trash_meta WHERE item_id=?", (item_id,))
-                        record_revision(con, exists)
+                        checkpoint_key=(str(DB_PATH),item_id)
+                        checkpoint=AUTOSAVE_CHECKPOINTS.get(checkpoint_key)
+                        now=time.monotonic()
+                        coalesce=automatic and checkpoint and checkpoint[1]==exists['updated_at'] and 0<=now-checkpoint[0]<AUTOSAVE_HISTORY_SECONDS
+                        if not coalesce:
+                            record_revision(con, exists)
                         stamp = utc_now()
                         con.execute(
                             "UPDATE items SET kind=?,title=?,summary=?,content=?,rich_content=?,tags=?,status=?,priority=?,due_date=?,entry_date=?,parent_id=?,pinned=?,updated_at=? WHERE id=?",
@@ -3168,8 +3181,16 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                         )
                         log_activity(con, "update", "item", item_id, data["title"])
                         row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+                        if automatic:
+                            AUTOSAVE_CHECKPOINTS[checkpoint_key]=(checkpoint[0] if coalesce else now,stamp)
+                            while len(AUTOSAVE_CHECKPOINTS)>512:
+                                AUTOSAVE_CHECKPOINTS.pop(next(iter(AUTOSAVE_CHECKPOINTS)))
+                        else:
+                            AUTOSAVE_CHECKPOINTS.pop(checkpoint_key,None)
                     else:
                         row = exists
+                        if not automatic:
+                            AUTOSAVE_CHECKPOINTS.pop((str(DB_PATH),item_id),None)
                 self.json_response({"item": as_item(row)})
             except Exception as exc:
                 self.request_error(exc)

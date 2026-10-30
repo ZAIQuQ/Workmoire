@@ -8,6 +8,7 @@
 - 同一文档有多份 PDF 时，在原文上方选择附件。来源只使用已上传附件；外部 PDF 链接继续提示手动上传。
 - 手机使用 **原文 / 笔记** 切换。两侧保留各自的状态；插入引用后自动切到笔记。
 - 点击 **退出阅读台**，或在没有展开菜单时按 Esc，返回原来的文档布局。
+- 焦点在 PDF 内时，Ctrl/Cmd+S 保存当前笔记，Ctrl/Cmd+F 查找原文；Ctrl/Cmd+Shift+Enter 在原文与笔记之间切换。Esc 先取消框选或关闭搜索，再退出阅读台。
 - 本机记住 PDF 页码、缩放、笔记阅读位置和栏宽。PDF 按附件及阅读场景保存状态，阅读台与普通内嵌阅读互不覆盖；重新识别到不同 PDF 指纹时忽略旧位置。这些偏好不会修改文档或进入分享快照。
 
 ## 引用与回到原文
@@ -19,7 +20,15 @@
 
 使用 **复制引用** 可复制包含来源链接的 Markdown，粘贴到已有 idea 或其他文档后继续编辑。一次引用最多 12,000 字。扫描 PDF 没有可选择文字时仍可阅读，文字引用需要 PDF 自身具有文本层。
 
-首版支持页码回跳。精确文字高亮定位、框选图片与批量标注整理留待后续迭代。
+新引用保存起始页的选区位置和 PDF 指纹，点击后定位到原文并短暂高亮；多页摘录标明页码范围，回跳到起始页。旧引用仍按页码打开。PDF 指纹不符时只打开引用页并提示核对，避免错误高亮。精确定位最多记录起始页的 32 个文字区域。
+
+## 图表与公式框选
+
+点击原文底部 **框选图表**，在同一页内拖动选择区域。确认 **插入笔记** 后才会生成并上传 PNG，取消不会留下附件。截图从 PDF 重新渲染，保留清晰度；单张限制为 400 万像素、最长边 3072px、12 MB。
+
+图片与来源链接作为一次编辑插入笔记，可整体撤销。点击来源可回到对应区域；复制、导出和分享仍使用原来的附件机制。上传期间继续编辑时，插入点会跟随文档变化，保留新的文字和光标；中文输入尚未确认时等待输入完成。
+
+默认需正常保存；如果开启了[可选自动保存](autosave.md)，确认插入后的内容按该设置保存。未确认的选区不会自动上传。
 
 ## 保存、导出与分享
 
@@ -37,8 +46,14 @@ the ordinary embedded viewer, as well as note position and split width.
 Select PDF text and choose **引用到笔记** to insert a source quotation after the
 current note block. It remains an unsaved edit until normal Save. Page citations
 reopen the source at the cited page. **复制引用** copies Markdown for use in an
-idea or another note. The first version supports page navigation; exact text
-highlighting and image-region excerpts are future work.
+idea or another note. New citations retain bounded selection geometry and a PDF
+fingerprint for precise, temporary highlighting; legacy citations keep page
+navigation. A mismatched fingerprint displays a notice instead of highlighting.
+
+Choose **框选图表**, drag within a page, then explicitly confirm insertion to
+render and upload a bounded PNG with its source citation. Cancellation creates
+no attachment. The image and citation undo together. PDF-focused save, search,
+Escape and source/notes keyboard navigation work without recreating the viewer.
 
 References survive history and exports; archives remap file IDs without losing
 page numbers. Shares use scoped attachment copies and retain all existing access

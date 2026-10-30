@@ -49,8 +49,7 @@ class DocumentHttpTests(unittest.TestCase):
         with response:
             return response.status, response.read(), dict(response.headers)
 
-    def fixture_file(self, name, raw, content_type):
-        file_id = 'a' * 32
+    def fixture_file(self, name, raw, content_type, file_id='a'*32):
         target = app.FILES_DIR / (file_id + Path(name).suffix)
         target.write_bytes(raw)
         with app.open_db() as con:

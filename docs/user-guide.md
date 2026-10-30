@@ -29,8 +29,10 @@ Reports cannot be edited or deleted through the interface/API. See
 For uploaded papers, open **阅读台** to read the PDF beside these same rich-text
 notes. Select source text and use **引用到笔记**, or **复制引用** for another
 document. Citations retain page numbers and stay unsaved until normal Save.
-See the [reading desk guide](reading-desk.md) for resizing, phone tabs, local
-reading positions and shared citations.
+See the [reading desk guide](reading-desk.md) for resizing, phone tabs, exact
+source highlighting, image-region excerpts and shared citations. Enable
+[optional autosave](autosave.md) from the arrow beside Save when desired; new
+documents still require their first explicit save.
 
 Click in a table to reveal **每列等宽** (equal columns) and **固定宽度** (fixed
 width) in the table toolbar. Fixed width is on by default, including for older

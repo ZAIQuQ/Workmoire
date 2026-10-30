@@ -13,7 +13,7 @@ from unittest.mock import patch
 import test_documents as support
 import workspace_server as app
 import paper_tools
-from rich_documents import normalized_rich_content, safe_url, remap_references
+from rich_documents import normalized_rich_content, safe_url, remap_references, pdf_fragment
 
 
 def native(text='Native text'):
@@ -51,6 +51,42 @@ class RichDocumentTests(unittest.TestCase):
         for invalid in ['#page=0','#page=-1','#page=10001','#page=1&url=https://example.org','#other=3']:
             with self.assertRaises(ValueError):safe_url(source+'?inline=1'+invalid)
         with self.assertRaises(ValueError):safe_url(href,media=True)
+
+    def test_precise_pdf_anchors_validate_bounds_and_survive_native_archives(self):
+        fragment='page=3&rect=100,200,3000,400;100,700,2000,400&fp='+'a'*32
+        source=self.fixture_file('anchored.pdf',b'%PDF-1.4 source anchor','application/pdf')
+        href=source+'?inline=1#'+fragment
+        self.assertEqual(pdf_fragment(fragment),fragment);self.assertEqual(safe_url(href),href)
+        rich={'version':1,'document':{'type':'doc','content':[{'type':'paragraph','content':[{'type':'text','text':'Precise source','marks':[{'type':'link','attrs':{'href':href}}]}]}]}}
+        item=self.create(content='[Source]('+href+')',rich=rich)
+        with zipfile.ZipFile(io.BytesIO(self.request('/api/export-archive')[1])) as archive:
+            manifest=json.loads(archive.read('manifest.json'));self.assertIn(fragment,manifest['items'][0]['content']);self.assertIn(fragment,json.dumps(manifest['items'][0]['rich_content']))
+        _,mapped=remap_references(item['content'],normalized_rich_content(rich),{}, {source.rsplit('/',1)[1]:'b'*32})
+        self.assertIn('/files/'+'b'*32+'?inline=1#'+fragment,mapped)
+        for rect in ['1,2,0,4','9990,1,20,1','1,9999,1,2','1,,2,3','1,2,3','1,2,3,4,5','1,2,3,4;'*33,'-1,2,3,4','0,0,10001,1']:
+            invalid='page=1&rect='+rect+'&fp='+'a'*32
+            self.assertIsNone(pdf_fragment(invalid))
+            with self.assertRaises(ValueError):safe_url(source+'#'+invalid)
+        for fragment in ['page=3&rect=1,2,3,4','page=3&fp='+'a'*32,'page=3&rect=1,2,3,4&fp=wrong']:
+            self.assertIsNone(pdf_fragment(fragment))
+
+    def test_autosave_coalesces_checkpoints_but_preserves_manual_and_concurrent_versions(self):
+        item=self.create(content='Original',rich=native('Original'));original=item.copy()
+        def update(text,automatic=True):
+            nonlocal item
+            status,body,_=self.request('/api/items/'+str(item['id']),'PUT',{**item,'content':text,'rich_content':native(text),'base_updated_at':item['updated_at'],'autosave':automatic})
+            self.assertEqual(status,200,body);item=json.loads(body)['item']
+        def revisions():return json.loads(self.request('/api/items/'+str(item['id'])+'/revisions')[1])['revisions']
+        update('Auto one');update('Auto two');self.assertEqual(len(revisions()),1)
+        update('Manual checkpoint',False);self.assertEqual(len(revisions()),2)
+        update('New autosave cluster');self.assertEqual(len(revisions()),3)
+        with patch.object(app,'AUTOSAVE_HISTORY_SECONDS',0):update('Later checkpoint')
+        self.assertEqual(len(revisions()),4)
+        status,_,_=self.request('/api/items/'+str(item['id']),'PUT',{**original,'base_updated_at':original['updated_at'],'autosave':True})
+        self.assertEqual(status,409);self.assertEqual(len(revisions()),4)
+        for flag in [None,0,1,'true',{}]:self.assertEqual(self.request('/api/items/'+str(item['id']),'PUT',{**item,'base_updated_at':item['updated_at'],'autosave':flag})[0],400)
+        self.assertEqual(self.request('/api/items/'+str(item['id']),'PUT',{**item,'base_updated_at':'','autosave':True})[0],400)
+        self.assertEqual(json.loads(self.request('/api/items/'+str(item['id']))[1])['item']['content'],'Later checkpoint')
 
     def test_native_styles_tables_and_history_survive_save_and_restore(self):
         first = self.create()
@@ -200,8 +236,10 @@ class RichDocumentTests(unittest.TestCase):
 
     def test_complete_archive_remaps_native_and_markdown_attachment_ids(self):
         path = self.fixture_file('synthetic.pdf',b'%PDF-1.4\nsynthetic archive fixture','application/pdf')
+        fragment='#page=1&rect=100,200,3000,500&fp='+'b'*32
         document = {'version':1,'document':{'type':'doc','content':[{'type':'pdf','attrs':{'src':path+'?inline=1','title':'Synthetic PDF'}}, {'type':'codeBlock','attrs':{'language':'python','collapsed':True},'content':[{'type':'text','text':'print(123)'}]}]}}
-        first = self.create(content='@[pdf]('+path+'?inline=1)',rich=document)
+        document['document']['content'].append({'type':'paragraph','content':[{'type':'text','text':'Source','marks':[{'type':'link','attrs':{'href':path+'?inline=1'+fragment,'target':'_blank','rel':'noopener noreferrer nofollow'}}]}]})
+        first = self.create(content='@[pdf]('+path+'?inline=1)\n\n[Source]('+path+'?inline=1'+fragment+')',rich=document)
         with app.open_db() as con:con.execute('UPDATE files SET item_id=?',(first['id'],))
         archive = self.request('/api/export-archive')[1]
         with zipfile.ZipFile(io.BytesIO(archive)) as reader:
@@ -218,8 +256,9 @@ class RichDocumentTests(unittest.TestCase):
         self.assertNotEqual(files[0]['id'],'a'*32)
         expected='/files/'+files[0]['id']+'?inline=1'
         self.assertEqual(restored['rich_content']['document']['content'][0]['attrs']['src'],expected)
-        self.assertEqual(restored['content'],'@[pdf]('+expected+')')
+        self.assertEqual(restored['content'],'@[pdf]('+expected+')\n\n[Source]('+expected+fragment+')')
         self.assertEqual(restored['rich_content']['document']['content'][1], document['document']['content'][1])
+        self.assertEqual(restored['rich_content']['document']['content'][2]['content'][0]['marks'][0]['attrs']['href'],expected+fragment)
 
     def test_additive_migration_preserves_existing_content_and_is_repeatable(self):
         item=self.create(rich='')

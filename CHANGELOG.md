@@ -2,6 +2,25 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.13.0] — 2026-10-30
+
+- 补齐 PDF 焦点下的保存、查找、Esc 和 Ctrl/Cmd+Shift+Enter 原文/笔记切换。
+- 新文字引用保留选区和 PDF 指纹，点击后精确定位并短暂高亮；旧页码引用保持可用，指纹不符时提示核对。
+- 新增图表与公式框选，确认后上传清晰 PNG，与来源引用一起插入和撤销；取消不创建附件，上传期间保留输入与光标。
+- 新增可选自动保存，默认关闭；首次手动保存后，停笔约 2 秒保存。支持有界重试、断网恢复、输入法等待和版本冲突暂停。
+- 自动保存合并约 5 分钟内的历史检查点，有变化的手动保存独立留存；已分享快照不会随自动保存更新。
+- 精确引用和截图支持历史、导出、归档与分享，继续使用受控附件副本和现有访问权限。
+
+见[使用说明](docs/user-guide.md)、[阅读台](docs/reading-desk.md)、[自动保存](docs/autosave.md)及[后续待办](docs/iteration-backlog.md)。
+
+### English
+
+Add PDF-focused keyboard navigation, fingerprint-checked source highlights and
+confirmed image-region excerpts. Introduce opt-in autosave with first-save
+control, bounded retries, IME/upload waits, conflict pauses and coalesced history.
+Preserve in-flight edits and keep published snapshots unchanged. Citations and
+captured figures retain their source through archives and scoped sharing.
+
 ## [1.12.0] — 2026-10-29
 
 - 新增论文阅读台：PDF 与现有富文本笔记并排，支持拖动或键盘调整栏宽；手机通过「原文 / 笔记」切换。

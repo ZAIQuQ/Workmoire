@@ -1,0 +1,13 @@
+.save-controls { display: inline-flex; position: relative; flex: none; align-items: stretch; gap: 0; }
+.save-controls #save-content { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.save-options-toggle { display: flex; align-items: center; justify-content: center; width: 25px; padding: 0; background: var(--action); color: white; border-left: 1px solid #ffffff26; border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+.save-options-toggle .icon { width: 13px; height: 13px; }
+.save-options-menu { position: absolute; top: calc(100% + 7px); right: 0; z-index: 40; width: 244px; max-width: calc(100vw - 24px); padding: 13px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow); color: var(--body); }
+.save-options-menu label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.save-options-menu input { margin: 0; }
+.save-options-menu p { margin: 10px 0 0; font-size: 11px; line-height: 1.7; color: var(--muted); white-space: normal; }
+.focus-mode .save-controls { order: 2; }
+.focus-mode .save-controls #save-content { order: 0; }
+.focus-mode .save-options-toggle { width: 22px; background: var(--paper); border: 1px solid var(--line); border-left: 0; color: var(--body); }
+.focus-mode .document-editor[data-unsaved="true"] .save-options-toggle { background: var(--action); border-color: var(--action); color: white; }
+.focus-mode .document-editor[data-mode="read"][data-unsaved="false"] .save-controls { display: none; }

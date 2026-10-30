@@ -19,7 +19,7 @@ import threading
 import time
 from urllib.parse import urlsplit
 
-from rich_documents import read_rich_content
+from rich_documents import read_rich_content, pdf_fragment
 
 DURATIONS = {1, 7, 30, 0}
 TOKEN_RE = re.compile(r'^[A-Za-z0-9_-]{43}$')
@@ -226,7 +226,7 @@ class SharePublisher:
                         assets[file_id] = secrets.token_hex(16)
                         copied[file_id] = self._copy_file(file_rows[file_id], files_dir)
                     fragment=urlsplit(str(value)).fragment
-                    page='#'+fragment if not media and re.fullmatch(r'page=[1-9][0-9]{0,4}',fragment) and int(fragment[5:])<=10000 else ''
+                    page='#'+fragment if not media and pdf_fragment(fragment) else ''
                     return 'share-file:'+assets[file_id]+page
                 parsed = urlsplit(str(value or ''))
                 if parsed.netloc and parsed.netloc == urlsplit(owner_origin).netloc: return None
@@ -345,8 +345,8 @@ def shared_document(row, token: str) -> dict:
         if isinstance(value,dict):
             result={}
             for key,child in value.items():
-                match=re.fullmatch(r'share-file:([a-f0-9]{32})(#page=[1-9][0-9]{0,4})?',child) if key in {'src','href'} and isinstance(child,str) else None
-                result[key]='/s/'+token+'/files/'+match[1]+'?inline=1'+(match[2] or '') if match else rewrite(child)
+                match=re.fullmatch(r'share-file:([a-f0-9]{32})(?:#(.+))?',child) if key in {'src','href'} and isinstance(child,str) else None
+                result[key]='/s/'+token+'/files/'+match[1]+'?inline=1'+('#'+match[2] if match[2] and pdf_fragment(match[2]) else '') if match else rewrite(child)
             return result
         if isinstance(value,list): return [rewrite(child) for child in value]
         return value

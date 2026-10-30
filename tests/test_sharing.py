@@ -219,6 +219,19 @@ class SharingTests(unittest.TestCase):
             self.assertEqual(self.public_request(href.split('#')[0])[0],200)
             self.change(item,share,'revoke');self.assertEqual(self.public_request(href.split('#')[0])[0],404)
 
+    def test_precise_citation_geometry_survives_scoped_sharing_with_an_image_excerpt(self):
+        source=self.fixture_file('original.pdf',b'%PDF-1.4 original bytes','application/pdf')
+        image=self.fixture_file('excerpt.png',b'\x89PNG\r\n\x1a\nsynthetic image bytes','image/png',file_id='b'*32)
+        fragment='page=2&rect=200,300,4000,2500&fp='+'a'*32
+        item=self.create(nodes=[{'type':'image','attrs':{'src':image+'?inline=1','alt':'Excerpt'}},{'type':'paragraph','content':[{'type':'text','text':'Source page 2','marks':[{'type':'link','attrs':{'href':source+'?inline=1#'+fragment}}]}]}])
+        share=self.publish(item);self.assertEqual(self.unlock(share)[0],200)
+        document=json.loads(self.public_request(share['path']+'/document')[1])['rich_content']['document']['content']
+        media=document[0]['attrs']['src'];link=document[1]['content'][0]['marks'][0]['attrs']['href']
+        self.assertTrue(link.endswith('#'+fragment));self.assertTrue(media.startswith(share['path']+'/files/'));self.assertTrue(link.startswith(share['path']+'/files/'))
+        self.assertEqual(self.public_request(media)[0],200);self.assertEqual(self.public_request(link.split('#')[0])[0],200)
+        reset=self.change(item,share,'password')
+        self.assertEqual(self.public_request(media)[0],401);self.assertEqual(self.public_request(link.split('#')[0])[0],401);self.assertEqual(self.unlock(reset)[0],200)
+
     def test_expiry_password_reset_and_revocation_apply_to_existing_sessions(self):
         item=self.create();share=self.publish(item);self.assertEqual(self.unlock(share)[0],200)
         reset=self.change(item,share,'password');self.assertNotEqual(reset['password'],share['password']);self.assertEqual(reset['path'],share['path']);self.assertEqual(self.public_request(share['path']+'/document')[0],401)

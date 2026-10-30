@@ -10,7 +10,7 @@ function gate(message='',needsPassword=false){
 async function read(){
  const response=await fetch('/s/'+match[1]+'/document',{credentials:'same-origin',cache:'no-store'});const data=await response.json();
  if(!response.ok){gate(response.status===401?'':data.error||'分享暂时不可用',response.status===401);return;}
- const module='/static/vendor/editor.js?v=20261029-reading-desk';await import(module);
+ const module='/static/vendor/editor.js?v=20261030-reading-tools';await import(module);
  editor?.destroy();$('#share-gate').hidden=true;$('#share-article').hidden=false;$('#shared-title').textContent=data.title;document.title=data.title+' · 文档分享';
  $('#shared-version').textContent='分享于 '+new Date(data.created_at*1000).toLocaleDateString('zh-CN');
  editor=window.WorkmoireEditor.mount($('#shared-content'),{richContent:data.rich_content,editable:false,copy:async text=>{try{await navigator.clipboard.writeText(text);}catch{const input=document.createElement('textarea');input.value=text;document.body.append(input);input.select();document.execCommand('copy');input.remove();}}});editor.setEditable(false);editor.view.dom.setAttribute('role','document');editor.view.dom.setAttribute('aria-label','分享的文档正文');

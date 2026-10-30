@@ -21,14 +21,33 @@ NODES = set(CHILDREN) | INLINE | BLOCKS
 MARKS = {'bold', 'italic', 'strike', 'underline', 'code', 'link', 'highlight', 'textStyle', 'subscript', 'superscript'}
 
 
+def pdf_fragment(value: object) -> str | None:
+    if not isinstance(value,str) or len(value)>1200:
+        return None
+    match=re.fullmatch(r'page=([1-9][0-9]{0,4})(?:&rect=([0-9,;]+)&fp=([a-f0-9]{32,64}))?',value)
+    if not match or int(match[1])>10000:
+        return None
+    if match[2]:
+        rectangles=match[2].split(';')
+        if len(rectangles)>32:
+            return None
+        for rectangle in rectangles:
+            parts=rectangle.split(',')
+            if len(parts)!=4 or any(not part or len(part)>5 for part in parts):
+                return None
+            x,y,width,height=map(int,parts)
+            if min(x,y)<0 or min(width,height)<1 or x+width>10000 or y+height>10000:
+                return None
+    return value
+
+
 def safe_url(value: object, media: bool = False) -> str:
     if not isinstance(value, str) or len(value) > 3000 or re.search(r'[\x00-\x20\x7f]', value):
         raise ValueError('文档链接格式无效')
     if re.fullmatch(r'/files/[a-f0-9]{32}(?:\?inline=1)?', value):
         return value
-    if not media and re.fullmatch(r'/files/[a-f0-9]{32}(?:\?inline=1)?#page=([1-9][0-9]{0,4})', value):
-        if int(value.rsplit('=',1)[1]) <= 10000:
-            return value
+    if not media and re.fullmatch(r'/files/[a-f0-9]{32}(?:\?inline=1)?#[^#]+', value) and pdf_fragment(value.split('#',1)[1]):
+        return value
     if not media and re.fullmatch(r'#[\w-]+', value):
         return value
     parsed = urlsplit(value)

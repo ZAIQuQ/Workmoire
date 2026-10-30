@@ -1,6 +1,6 @@
-import {pdfSource,pdfCitation,pdfViewerURL} from './pdf-source.js';
+import {pdfSource,pdfCitation,pdfViewerURL,pdfFragment,parsePDFAnchor} from './pdf-source.js';
 
-export function createPaperDesk({root,editor,getItem,toggle,getFocus,setFocus,setWrite,copy,notify}){
+export function createPaperDesk({root,editor,getItem,toggle,getFocus,setFocus,setWrite,copy,notify,save,capture}){
  const layout=root.querySelector('.document-content-layout'),writing=root.querySelector('.writing-area'),scroll=editor.view.dom.closest('.rich-editor-scroll');
  const pane=document.createElement('section');pane.className='paper-source-pane';pane.setAttribute('aria-label','论文原文');pane.hidden=true;
  pane.innerHTML='<div class="paper-source-heading"><span>原文</span><select aria-label="选择论文 PDF"></select><span class="paper-source-caption"></span></div><div class="paper-source-view"><p class="paper-source-empty">在正文中插入已上传的 PDF 后，可在这里阅读。</p></div>';
@@ -74,7 +74,7 @@ export function createPaperDesk({root,editor,getItem,toggle,getFocus,setFocus,se
  function openCitation(citation){
   if(!citation.privateFile)return false;const known=sources.find(s=>s.path===citation.path);
   selected=known||{...citation,title:'引用来源 PDF'};toggle.hidden=false;
-  if(!active)setActive(true,citation.page);else showSource(citation.page);if(narrow.matches)changeTab('source');return true;
+  if(!active)setActive(true,citation);else showSource(citation);if(narrow.matches)changeTab('source');return true;
  }
  function onUpdate({transaction}){
   let changedSource=false;
@@ -95,12 +95,28 @@ export function createPaperDesk({root,editor,getItem,toggle,getFocus,setFocus,se
  listen(tabs,'click',event=>{const button=event.target.closest('[data-desk-tab]');if(button)changeTab(button.dataset.deskTab);});
  listen(narrow,'change',()=>{updateMobile();if(active)requestAnimationFrame(()=>restoreNotes(anchor));});
  listen(scroll,'scroll',scheduleSave,{passive:true});listen(window,'pagehide',saveView);
- listen(window,'message',event=>{
-  const data=event.data;if(!active||!frame||event.origin!==location.origin||event.source!==frame.contentWindow||data?.type!=='workmoire:pdf-quote'||data.source!==selected?.path)return;
+ let capturePending=false;const captureIds=new Set();
+ listen(window,'message',async event=>{
+  const data=event.data;if(!active||!frame||event.origin!==location.origin||event.source!==frame.contentWindow||!data||data.source!==selected?.path)return;
+  if(data.type==='workmoire:pdf-command'){
+   if(document.querySelector('dialog[open]'))return;
+   if(data.action==='save')save?.();
+   if(data.action==='notes'){if(narrow.matches)changeTab('notes');if(editor.tiptap.isEditable)editor.focus();else{scroll.tabIndex=-1;scroll.focus({preventScroll:true});}}
+   if(data.action==='exit')document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+   return;
+  }
+  if(data.type==='workmoire:pdf-capture'){
+   const target=frame,anchor=parsePDFAnchor(pdfFragment(data));
+   if(capturePending||typeof data.requestId!=='string'||!/^crop-[0-9]+-[0-9]+$/.test(data.requestId)||captureIds.has(data.requestId)||!anchor?.rects||anchor.rects.length!==1||!(data.blob instanceof Blob)||data.blob.type!=='image/png'||data.blob.size>12*1024*1024)return;
+   capturePending=true;captureIds.add(data.requestId);if(captureIds.size>32)captureIds.delete(captureIds.values().next().value);let ok=false;
+   try{setWrite();if(narrow.matches)changeTab('notes');ok=Boolean(await capture?.({...data,...anchor,source:selected.src,title:selected.title||'PDF 原文'}));}catch(error){notify(error.message||'截图插入失败，请重试。',true);}finally{capturePending=false;if(!destroyed&&target.isConnected)target.contentWindow.postMessage({type:'workmoire:pdf-capture-result',requestId:data.requestId,ok},location.origin);}
+   return;
+  }
+  if(data.type!=='workmoire:pdf-quote'||!parsePDFAnchor(pdfFragment(data)))return;
   if(typeof data.text!=='string'||!data.text.trim()||data.text.length>12000||!Number.isInteger(data.page)||data.page<1||data.page>10000||!Number.isInteger(data.endPage)||data.endPage<data.page||data.endPage>10000)return;
   const source=selected.src,pages=data.endPage>data.page?data.page+'–'+data.endPage:String(data.page),title=selected.title||'PDF 原文';
   if(data.action==='copy'){
-   const escape=value=>value.replace(/([\\`*_[\]<>])/g,'\\$1');copy(data.text.trim().split(/\n/).map(line=>'> '+escape(line)).join('\n')+'\n\n['+escape(title)+' · 第 '+pages+' 页]('+source+'#page='+data.page+')');return;
+   const escape=value=>value.replace(/([\\`*_[\]<>])/g,'\\$1');copy(data.text.trim().split(/\n/).map(line=>'> '+escape(line)).join('\n')+'\n\n['+escape(title)+' · 第 '+pages+' 页]('+source+pdfFragment(data)+')');return;
   }
   if(data.action!=='insert')return;
   if(editor.isComposing()){notify('请先完成中文输入，再插入引用。',true);return;}
@@ -108,9 +124,10 @@ export function createPaperDesk({root,editor,getItem,toggle,getFocus,setFocus,se
   if(editor.insertPDFQuote({...data,source,title}))notify('已引用到笔记，保存后生效。');
  });
  listen(document,'keydown',event=>{
+  if(active&&!event.isComposing&&(event.ctrlKey||event.metaKey)&&event.shiftKey&&event.key==='Enter'&&!document.querySelector('dialog[open]')){event.preventDefault();event.stopImmediatePropagation();if(narrow.matches)changeTab('source');frame?.focus();frame?.contentWindow?.document.querySelector('#pdf-container')?.focus();return;}
   if(event.key!=='Escape'||event.isComposing||!active)return;
   if(drag){event.preventDefault();event.stopImmediatePropagation();finishDrag(false);return;}
-  if(document.querySelector('dialog[open],.insert-menu[open],.document-body[data-outline-open="true"][data-outline-compact="true"]'))return;
+  if(document.querySelector('dialog[open],.insert-menu[open],.save-options-menu:not([hidden]),.document-body[data-outline-open="true"][data-outline-compact="true"]'))return;
   event.preventDefault();event.stopImmediatePropagation();setActive(false);toggle.focus({preventScroll:true});
  },{capture:true});
  editor.tiptap.on('update',onUpdate);cleanups.push(()=>editor.tiptap.off('update',onUpdate));scan();
