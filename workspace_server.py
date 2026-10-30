@@ -215,8 +215,16 @@ def open_db() -> sqlite3.Connection:
     return con
 
 
+def init_document_creations(con: sqlite3.Connection) -> None:
+    # Keep tombstones after deletion so a delayed retry cannot recreate a note.
+    con.execute('''CREATE TABLE IF NOT EXISTS document_creations(
+        key_hash TEXT PRIMARY KEY, item_id INTEGER NOT NULL, created_at TEXT NOT NULL
+    )''')
+
+
 def init_db() -> None:
     con = open_db()
+    init_document_creations(con)
     con.executescript(
         """
         PRAGMA journal_mode=WAL;
@@ -2867,16 +2875,41 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if not user:
                 return
             try:
-                data = self.normalized_item(parse_json(self))
+                raw_data = parse_json(self)
+                creation_key = raw_data.get('creation_key')
+                automatic = raw_data.get('autosave', False)
+                if type(automatic) is not bool:
+                    raise ValueError('自动保存设置无效')
+                if creation_key is not None and (not isinstance(creation_key,str) or not re.fullmatch(r'[a-f0-9]{32}',creation_key)):
+                    raise ValueError('新建文档请求标识无效')
+                if automatic and creation_key is None:
+                    raise ValueError('自动新建需要请求标识')
+                key_hash = hashlib.sha256(creation_key.encode()).hexdigest() if creation_key else None
+                data = self.normalized_item(raw_data)
                 stamp = utc_now()
                 with closing(open_db()) as con, con:
                     con.execute("BEGIN IMMEDIATE")
+                    if key_hash:
+                        previous = con.execute('SELECT item_id,created_at FROM document_creations WHERE key_hash=?',(key_hash,)).fetchone()
+                        if previous:
+                            row = con.execute("SELECT * FROM items WHERE id=? AND deleted_at=''",(previous['item_id'],)).fetchone()
+                            con.commit()  # Release the writer lock before a potentially slow replay response.
+                            if not row:
+                                self.error('此前创建的文档已删除，请复制草稿后另建文档',410)
+                                return
+                            if row['updated_at'] != previous['created_at']:
+                                self.json_response({'error':'此前创建的文档已有新版本，请先处理同步冲突','item':as_item(row),'creation_revision':previous['created_at']},409)
+                                return
+                            self.json_response({'item':as_item(row),'replayed':True})
+                            return
                     self.validate_parent(con, data["parent_id"])
                     cursor = con.execute(
                         "INSERT INTO items(kind,title,summary,content,rich_content,tags,status,priority,due_date,entry_date,parent_id,pinned,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         (data["kind"], data["title"], data["summary"], data["content"], data["rich_content"], data["tags"], data["status"], data["priority"], data["due_date"], data["entry_date"], data["parent_id"], data["pinned"], "", stamp, stamp),
                     )
                     item_id = cursor.lastrowid
+                    if key_hash:
+                        con.execute('INSERT INTO document_creations VALUES(?,?,?)',(key_hash,item_id,stamp))
                     log_activity(con, "create", "item", item_id, data["title"])
                     row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
                 self.json_response({"item": as_item(row)}, 201)

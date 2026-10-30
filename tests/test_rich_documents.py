@@ -88,6 +88,35 @@ class RichDocumentTests(unittest.TestCase):
         self.assertEqual(self.request('/api/items/'+str(item['id']),'PUT',{**item,'base_updated_at':'','autosave':True})[0],400)
         self.assertEqual(json.loads(self.request('/api/items/'+str(item['id']))[1])['item']['content'],'Later checkpoint')
 
+    def test_new_document_creation_retries_are_idempotent_and_do_not_overwrite_newer_versions(self):
+        payload={'kind':'note','title':'Synthetic automatic note','content':'First text','rich_content':native('First text'),'creation_key':'c'*32,'autosave':True}
+        status,body,_=self.request('/api/items','POST',payload);self.assertEqual(status,201,body);item=json.loads(body)['item']
+        status,body,_=self.request('/api/items','POST',{**payload,'content':'Unacknowledged newer text','rich_content':native('Unacknowledged newer text')})
+        self.assertEqual(status,200,body);retry=json.loads(body);self.assertTrue(retry['replayed']);self.assertEqual(retry['item']['id'],item['id']);self.assertEqual(retry['item']['content'],'First text')
+        changed={**item,'content':'Other tab text','rich_content':native('Other tab text'),'base_updated_at':item['updated_at']}
+        self.assertEqual(self.request('/api/items/'+str(item['id']),'PUT',changed)[0],200)
+        status,body,_=self.request('/api/items','POST',payload);self.assertEqual(status,409);self.assertEqual(json.loads(body)['creation_revision'],item['updated_at'])
+        self.assertEqual(json.loads(body)['item']['content'],'Other tab text')
+        with app.open_db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM items').fetchone()[0],1)
+            key_hash=con.execute('SELECT key_hash FROM document_creations').fetchone()[0];self.assertNotEqual(key_hash,payload['creation_key'])
+        self.assertNotIn('document_creations',self.request('/api/export')[1].decode())
+        self.assertEqual(self.request('/api/items','POST',payload,anonymous=True)[0],401)
+        self.assertEqual(self.request('/api/items/'+str(item['id']),'DELETE')[0],200)
+        self.assertEqual(self.request('/api/items','POST',payload)[0],410)
+
+    def test_creation_keys_validate_before_writes_and_migration_is_additive(self):
+        original=self.create()
+        with app.open_db() as con:
+            con.execute('DROP TABLE document_creations');before=[tuple(row) for row in con.execute('SELECT * FROM items')]
+            app.init_document_creations(con);app.init_document_creations(con)
+            self.assertEqual([tuple(row) for row in con.execute('SELECT * FROM items')],before)
+            self.assertEqual(con.execute('PRAGMA integrity_check').fetchone()[0],'ok')
+        for value in ['',True,1,[],{},'invalid','a'*31,'A'*32]:
+            self.assertEqual(self.request('/api/items','POST',{'kind':'note','title':'Invalid creation key','creation_key':value})[0],400)
+        self.assertEqual(self.request('/api/items','POST',{'kind':'note','title':'Missing key','autosave':True})[0],400)
+        self.assertEqual(json.loads(self.request('/api/items/'+str(original['id']))[1])['item']['title'],original['title'])
+
     def test_native_styles_tables_and_history_survive_save_and_restore(self):
         first = self.create()
         self.assertEqual(first['rich_content']['document']['content'][1]['content'][0]['marks'], [{'type': 'bold'}, {'type': 'underline'}])

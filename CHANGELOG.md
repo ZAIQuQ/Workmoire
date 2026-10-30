@@ -2,6 +2,24 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.14.0] — 2026-10-30
+
+- 自动保存默认开启：新文档输入内容后也会自动建立，停笔约 2 秒同步，连续输入约每 10 秒保存一次；空白占位不入库。
+- 同步异常在右上角持续显示，区分网络、服务、登录、冲突与内容校验，并明确建议暂时停止编辑。
+- 输入和重试不会清除失败提醒；只有当前内容确认同步成功后才消失。网络恢复后继续重试，服务故障退避至最多每分钟一次。
+- 保留本机草稿与复制入口；草稿也失败时准确提示。正文可在附件上传期间继续同步，提醒不遮挡草稿恢复和冲突操作。
+- 新建请求去重，避免响应丢失后的重复文档；已有修改或删除的创建请求会进入冲突处理，保留当前草稿。
+
+见[使用说明](docs/user-guide.md)与[后台自动保存](docs/autosave.md)。
+
+### English
+
+Enable background autosave by default, including meaningful new documents.
+Keep actionable sync-failure notices visible until current changes are confirmed
+saved, distinguish failure causes, and retry transient outages with capped
+backoff. Preserve drafts, continue text sync during uploads, and use idempotent
+creation requests without overwriting newer or deleted notes.
+
 ## [1.13.0] — 2026-10-30
 
 - 补齐 PDF 焦点下的保存、查找、Esc 和 Ctrl/Cmd+Shift+Enter 原文/笔记切换。
