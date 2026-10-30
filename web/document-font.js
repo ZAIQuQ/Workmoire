@@ -3,7 +3,8 @@ import {Plugin,PluginKey} from '@tiptap/pm/state';
 import {Step,StepResult,StepMap} from '@tiptap/pm/transform';
 
 export const documentFontKey=new PluginKey('workmoireDocumentFont');
-export const validBodyFont=value=>['sans','serif','mono'].includes(value)?value:'sans';
+export const BODY_FONT_VALUES=['system','sans','serif','inter','mono'];
+export const validBodyFont=value=>BODY_FONT_VALUES.includes(value)?value:'sans';
 // Keep font history separate from document markup: changing the root's attributes
 // makes ProseMirror rebuild all node views, including an open PDF iframe.
 export class DocumentFontStep extends Step {

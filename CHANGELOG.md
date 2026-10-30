@@ -2,6 +2,20 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.6] — 2026-10-31
+
+- 修复颜色工具栏在打开菜单或自定义取色器后丢失正文选区的问题；预设色、自定义色和恢复默认颜色都会作用于原选中文字。
+- 工具栏增加统一行间距，可对当前段落或选中的段落/标题设置默认、1.0、1.15、1.5、1.75 和 2.0，并随原生文档、历史、导入导出和分享保存。
+- 字体选择改用更直观的本地字体名称，增加系统默认与 Inter，并保留 Noto Sans SC、Noto Serif SC 和 Maple Mono；代码、公式和 PDF 字体继续独立。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Preserve the selected text when opening the color menu or native color picker, so preset, custom, and reset colors apply to the intended selection.
+- Add paragraph line-spacing controls for default, 1.0, 1.15, 1.5, 1.75, and 2.0, preserved through native documents, history, imports/exports, and sharing.
+- Replace abstract font labels with local font names, add System Default and Inter, and keep Noto Sans SC, Noto Serif SC, and Maple Mono available while code, math, and PDF faces remain independent.
+
 ## [1.15.5] — 2026-10-30
 
 - 为版本说明补充统一的「使用说明」入口，保证 About 面板在每个发布版本中都能直接跳转用户指南。

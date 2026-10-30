@@ -58,13 +58,18 @@ changes use normal undo, save, history and native export/share boundaries.
 Press Escape during a column drag to cancel. Markdown export keeps the table
 text; use JSON/full archives to preserve widths and the fixed/free mode.
 
-Choose **字体** in the toolbar to use sans, serif or monospaced text throughout
-one document. The default sans face is unchanged. Serif uses locally bundled
-Noto Serif SC; mono uses Maple Mono with the existing Chinese fallback. The
-choice applies in editing, reading and shared snapshots and supports undo/redo.
-It is stored with the native document, including local drafts, saved history and
-JSON/full archives; Markdown export does not carry document fonts. Code, formula
-faces and interface typography retain their own styles.
+Choose **字体** in the toolbar to set the whole document to **Noto Sans SC ·
+中文黑体**, **Noto Serif SC · 中文宋体**, **Inter · 英文界面**, **系统默认**, or
+**Maple Mono · 代码**. The choice applies in editing, reading and shared
+snapshots and supports undo/redo. It is stored with the native document,
+including local drafts, saved history and JSON/full archives; Markdown export
+does not carry document fonts. Code, formula faces and interface typography
+retain their own styles.
+
+Use **行间距** to apply a consistent spacing to the current paragraph or all
+selected paragraphs and headings. Choose default, 1.0, 1.15, 1.5, 1.75, or
+2.0. The setting is stored with the native document and follows save, history,
+export, import, and sharing.
 
 Select text, then use the toolbar's **A** color button for a preset or custom
 color. **默认颜色** removes only the selected text's explicit color. Bold,

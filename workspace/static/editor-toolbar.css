@@ -13,7 +13,8 @@
 .body-font-control > span { display: none; }
 .body-font-control { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; padding: 0 5px; border-radius: var(--radius-sm); }
 .body-font-control:focus-within { background: var(--surface); }
-.editor-toolbar .body-font-control select { width: 75px; max-width: 100%; }
+.editor-toolbar .body-font-control select { width: 155px; max-width: 100%; }
+.editor-toolbar #line-height { width: 92px; }
 .editor-toolbar #heading-tool { width: 70px; margin: 0 4px; }
 .editor-toolbar .insert-menu[open] { z-index: 20; }
 .text-color-menu summary { min-height: 30px; padding: 4px 7px; gap: 3px; }
@@ -37,7 +38,8 @@
  .toolbar-row > button { min-width: 28px; height: 29px; }
  .toolbar-row .toolbar-divider { margin: 0 2px; }
  .body-font-control { padding: 0 3px; gap: 3px; }
- .editor-toolbar .body-font-control select { width: 66px; }
+ .editor-toolbar .body-font-control select { width: 132px; }
+ .editor-toolbar #line-height { width: 82px; }
  .editor-toolbar #heading-tool { width: 58px; margin: 0 2px; }
  .toolbar-row .toolbar-space { min-width: 4px; }
 }

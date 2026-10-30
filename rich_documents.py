@@ -86,7 +86,7 @@ def normalized_rich_content(value: object, markdown: str | None = None) -> str:
             raise ValueError('文档属性格式无效')
         attrs = {}
         if kind == 'doc' and raw.get('bodyFont') is not None:
-            if raw['bodyFont'] not in ('sans', 'serif', 'mono'):
+            if not isinstance(raw['bodyFont'], str) or raw['bodyFont'] not in ('system', 'sans', 'serif', 'inter', 'mono'):
                 raise ValueError('正文字体无效')
             attrs['bodyFont'] = raw['bodyFont']
         if kind in {'paragraph', 'heading'} and raw.get('textAlign') is not None:
@@ -97,6 +97,10 @@ def normalized_rich_content(value: object, markdown: str | None = None) -> str:
             if type(raw['blockIndent']) is not int or not 0 <= raw['blockIndent'] <= 8:
                 raise ValueError('段落缩进级别无效')
             attrs['blockIndent'] = raw['blockIndent']
+        if kind in {'paragraph','heading'} and raw.get('lineHeight') is not None:
+            if not isinstance(raw['lineHeight'], str) or raw['lineHeight'] not in {'default', '1', '1.15', '1.5', '1.75', '2'}:
+                raise ValueError('行间距无效')
+            attrs['lineHeight'] = raw['lineHeight']
         if kind == 'heading':
             if type(raw.get('level')) is not int or not 1 <= raw['level'] <= 6:
                 raise ValueError('标题级别无效')

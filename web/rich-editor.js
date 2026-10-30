@@ -3,6 +3,7 @@ import {InlineCode} from './inline-code.js';
 import {guardCompositionShortcuts} from './composition-guard.js';
 import {DocumentTable,equalizeColumns,toggleTableWidth,selectedTable} from './document-table.js';
 import {DocumentFontStep,documentFontExtension,documentFontKey,validBodyFont} from './document-font.js';
+import {applyLineHeight,lineHeightExtension,validLineHeight} from './line-height.js';
 import {Editor, Extension} from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import {Markdown} from '@tiptap/markdown';
@@ -119,7 +120,7 @@ export function mountRichEditor(host,options={}){
   element:contentHost,
   content:initialNative||options.content||'',contentType:initialNative?'json':'markdown',editable:options.editable!==false,enableContentCheck:true,
   extensions:[
-   StarterKit.configure({code:false,codeBlock:false,link:false}),InlineCode,SafeLink,blockIndentExtension,documentFontExtension(initialFont),
+   StarterKit.configure({code:false,codeBlock:false,link:false}),InlineCode,SafeLink,blockIndentExtension,lineHeightExtension,documentFontExtension(initialFont),
    Markdown.configure({marked:safeMarkdownParser(),markedOptions:{gfm:true,breaks:true},indentation:{style:'space',size:2}}),
    TableKit.configure({table:false}),DocumentTable,TaskList,TaskItem.configure({nested:true,HTMLAttributes:{'data-type':'taskItem'},a11y:{checkboxLabel:node=>'切换待办：'+(node.textContent||'空白任务')}}),
    TextAlign.configure({types:['heading','paragraph']}),TextStyle,Color,Highlight.configure({multicolor:true}),Subscript,Superscript,
@@ -201,6 +202,7 @@ export function mountRichEditor(host,options={}){
  const outside=event=>{if(!slash.contains(event.target)&&!editor.view.dom.contains(event.target))hideSlash();if(!blockMenu.contains(event.target)&&!event.target.closest('.rich-block-handle'))blockMenu.hidden=true;};document.addEventListener('mousedown',outside);cleanup.push(()=>document.removeEventListener('mousedown',outside));
  const reflow=()=>{hideSlash();blockMenu.hidden=true;};scroll.addEventListener('scroll',reflow);window.addEventListener('resize',reflow);cleanup.push(()=>window.removeEventListener('resize',reflow));
  function createBookmark(){const reservation={mark:editor.state.selection.getBookmark(),release(){reservations.delete(reservation);}};reservations.add(reservation);return reservation;}
+ function restoreBookmark(reservation,focus=true){if(!reservation||!reservations.has(reservation))return false;try{const selection=reservation.mark.resolve(editor.state.doc);editor.view.dispatch(editor.state.tr.setSelection(selection));reservation.release();if(focus)editor.view.focus();return true;}catch{reservation.release();return false;}}
  function insertAtReservation(value,reservation){
   let chain=editor.chain().focus();if(reservation&&reservations.has(reservation)){try{const selection=reservation.mark.resolve(editor.state.doc);chain=chain.command(({tr})=>{tr.setSelection(selection);return true;});}catch{}reservation.release();}
   const result=chain.insertContent(value).run();
@@ -311,7 +313,10 @@ export function mountRichEditor(host,options={}){
   setHeading:level=>level?editor.chain().focus().setHeading({level:Number(level)}).run():editor.chain().focus().setParagraph().run(),
   tableFixedWidth:()=>selectedTable(editor)?.node.attrs.fixedWidth!==false,
   bodyFont,
-  setBodyFont(value){if(!editor.isEditable||!['sans','serif','mono'].includes(value)||bodyFont()===value)return;editor.view.dispatch(closeHistory(editor.state.tr).step(new DocumentFontStep(value,bodyFont())));editor.view.dispatch(closeHistory(editor.state.tr));},
+  setBodyFont(value){if(!editor.isEditable||!['system','sans','serif','inter','mono'].includes(value)||bodyFont()===value)return;editor.view.dispatch(closeHistory(editor.state.tr).step(new DocumentFontStep(value,bodyFont())));editor.view.dispatch(closeHistory(editor.state.tr));},
+  lineHeight:()=>{const name=editor.state.selection.$from.parent.type.name;return ['paragraph','heading'].includes(name)?validLineHeight(editor.state.selection.$from.parent.attrs.lineHeight):'default';},
+  setLineHeight(value,bookmark){return applyLineHeight(editor,value,bookmark);},
+  restoreBookmark,
   setColor(color,{focus=true}={}){const chain=editor.chain();if(focus)chain.focus();return color?chain.setColor(color).run():chain.unsetColor().run();},
   focus:()=>editor.commands.focus(),undo:()=>editor.commands.undo(),redo:()=>editor.commands.redo(),
   showFind,measure:()=>{},
