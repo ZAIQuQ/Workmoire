@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.4] — 2026-10-30
+
+- 修正创建请求响应丢失后的自动保存重放：客户端会立即把响应期间继续输入的正文补写到已去重文档。
+
+见[后台自动保存](docs/autosave.md)。
+
+### English
+
+After an uncertain automatic creation response, immediately replay the latest
+local edits against the deduplicated document so input made during recovery is
+not delayed or lost.
+
 ## [1.15.3] — 2026-10-30
 
 - 分享页 LaTeX 块保留只读 Write 标签和「复制 LaTeX」按钮，接收者可以复制原始源码。

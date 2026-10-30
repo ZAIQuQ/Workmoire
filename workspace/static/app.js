@@ -258,8 +258,12 @@ async function performSaveDocument({automatic=false}={}){
   if(!current.id){current.creation_key=current.creation_key||newCreationKey();current.creation_attempted=true;requestedCreationKey=current.creation_key;writeDraft();}
   const version=state.changes,pendingFiles=[...state.pendingFiles],pendingLinks=[...state.pendingLinks];state.saving=true;$("#save-content").disabled=true;updateSaveState();
   try{
-    const result=current.id?await api("/api/items/"+current.id,{method:"PUT",signal:AbortSignal.timeout(30000),body:JSON.stringify({...data,base_updated_at:current.updated_at,autosave:automatic})}):await api("/api/items",{method:"POST",signal:AbortSignal.timeout(30000),body:JSON.stringify({...data,creation_key:current.creation_key,autosave:automatic})});
+    let result=current.id?await api("/api/items/"+current.id,{method:"PUT",signal:AbortSignal.timeout(30000),body:JSON.stringify({...data,base_updated_at:current.updated_at,autosave:automatic})}):await api("/api/items",{method:"POST",signal:AbortSignal.timeout(30000),body:JSON.stringify({...data,creation_key:current.creation_key,autosave:automatic})});
     if(state.current!==current){outcome={status:"abandoned"};return outcome;}
+    if(result.replayed&&state.changes!==version){
+      Object.assign(current,result.item);const latest=snapshot(collect());
+      result=await api("/api/items/"+current.id,{method:"PUT",signal:AbortSignal.timeout(30000),body:JSON.stringify({...latest,base_updated_at:result.item.updated_at,autosave:true})});
+    }
     const live=snapshot(collect());Object.assign(current,result.item);if(state.changes!==version||result.replayed)Object.assign(current,live,{kind:result.item.kind});else{for(const [id,key] of [["edit-title","title"],["edit-summary","summary"],["edit-status","status"],["edit-due","due_date"]])if($("#"+id))$("#"+id).value=result.item[key]||"";}delete current.creation_key;delete current.creation_attempted;fitTitle();state.baseline=snapshot(result.item);state.editor.markBaseline(result.item);
     const failures=[];
     for(const id of pendingFiles){try{await api("/api/files/"+id,{method:"PATCH",body:JSON.stringify({item_id:current.id})});state.pendingFiles=state.pendingFiles.filter(x=>x!==id);}catch{failures.push("附件关联");}}

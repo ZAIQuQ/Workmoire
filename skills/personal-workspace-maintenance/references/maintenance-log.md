@@ -187,3 +187,5 @@ changes belong in normal commit history.
 - 2026-10-30: Added a native LaTeX Write/Preview block and read-only outlines for focus/shared reading. Validation now preserves heading levels, preventing successful saves from remaining dirty; release checks cover LaTeX bounds, TeX rendering and outline cleanup.
 
 - 2026-10-30: Added the requested `/latex` native block and broadened document outlines for focus/shared readers. Tests now cover renderer state, read-only sharing, long headings and collapse cleanup.
+
+- 2026-10-30: Added immediate follow-up PUT after a deduplicated create replay when local input changed during the lost response. This preserves the newest body before autosave reports success.
