@@ -61,7 +61,7 @@ export function createDocumentOutline({editor,body,rail,toggle}){
  listen(list,'click',event=>{
   const button=event.target.closest('[data-outline-index]');if(!button)return;
   refresh();geometry();const index=Number(button.dataset.outlineIndex),position=positions.find(p=>p.index===index);if(!position)return;
-  const keyboard=event.detail===0;setExpanded(false,keyboard);
+  const keyboard=event.detail===0;setExpanded(compact?false:true,keyboard);
   scroll.scrollTo({top:Math.max(0,position.top-24),behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});setActive(index);
  });
  listen(scroll,'scroll',()=>{if(!scrollFrame)scrollFrame=requestAnimationFrame(updateActive);},{passive:true});

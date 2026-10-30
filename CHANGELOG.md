@@ -2,6 +2,16 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.9] — 2026-10-31
+
+- 修复专注模式下点击右侧目录标题后目录自动收起的问题；桌面专注模式会保持目录展开并继续阅读，窄屏目录仍在跳转后收起以避免遮挡正文。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Keep the desktop focus-mode outline open after navigating to a heading. Compact phone outlines still close after navigation so they do not cover the document.
+
 ## [1.15.8] — 2026-10-31
 
 - 每个正文和标题块左侧的块操作手柄增加段落样式选择，可直接切换正文与标题 1–6，并支持标题升降级。
