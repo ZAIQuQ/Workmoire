@@ -83,6 +83,8 @@
 .rich-block-handle { display: flex; align-items: center; gap: 0; padding: 2px; border-radius: var(--radius-sm); background: var(--paper); }
 .rich-block-handle button { display: grid; place-items: center; width: 22px; height: 25px; border-radius: var(--radius-xs); color: #8c959f; padding: 2px; }
 .rich-block-handle button:hover { color: var(--body); background: var(--hover); }
+.rich-block-handle .block-style-select { width: 35px; height: 25px; padding: 0 2px; border: 0; border-radius: var(--radius-xs); background: transparent; color: #8c959f; font: 10px/1 var(--ui-font); cursor: pointer; }
+.rich-block-handle .block-style-select:hover, .rich-block-handle .block-style-select:focus { color: var(--body); background: var(--hover); outline: none; }
 .rich-block-handle [data-drag-handle] { cursor: grab; }
 .rich-block-handle .icon { width: 16px; height: 16px; }
 .rich-bubble-menu { position: fixed; visibility: hidden; width: max-content; display: flex; align-items: center; gap: 2px; padding: 4px; background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow); z-index: 80; }

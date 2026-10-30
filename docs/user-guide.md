@@ -78,6 +78,11 @@ links and clearing text formatting are directly available. **更多** contains
 only subscript, superscript and list indentation. Hover or keyboard-focus a
 control to see its function and any shortcut.
 
+Each paragraph or heading also has a compact style selector in its left block
+handle. Choose **正文** or **H1**–**H6** to promote, demote, or return the block
+to body text. The change keeps the text and paragraph attributes, participates
+in undo and save history, and updates the outline and shared document.
+
 The document body has an independent outline on its right in editing, reading,
 and focus modes. Headings 1–6 appear with their hierarchy; selecting an entry
 scrolls only the document, while the current section follows scrolling. Heading

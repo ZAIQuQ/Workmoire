@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.8] — 2026-10-31
+
+- 每个正文和标题块左侧的块操作手柄增加段落样式选择，可直接切换正文与标题 1–6，并支持标题升降级。
+- 段落样式切换进入撤销、保存、历史、目录和分享链路，保留原有正文内容与段落格式。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Add a paragraph-style selector to every body and heading block handle, allowing direct conversion between body text and heading levels 1–6.
+- Style changes participate in undo, save, history, outline, and sharing while preserving the block content and existing paragraph formatting.
+
 ## [1.15.7] — 2026-10-31
 
 - 修复 LaTeX 块将没有 Markdown 标记的英文段落误判为整块数学公式的问题；纯文本回复现在按段落预览，保留空格、换行和正常字体。

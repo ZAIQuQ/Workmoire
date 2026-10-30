@@ -63,7 +63,7 @@ function findText(doc,query){
 }
 
 export function mountRichEditor(host,options={}){
- let editor,ready=false,destroyed=false,markdownCache='',cachedDoc=null,baselineDoc=null,baselineMarkdown=options.baseline?.content??options.content??'',slashRange=null,slashIndex=0,slashItems=[],blockTarget=null,updateFrame=0,blurTimer=0,compositionTimer=0;
+ let editor,ready=false,destroyed=false,markdownCache='',cachedDoc=null,baselineDoc=null,baselineMarkdown=options.baseline?.content??options.content??'',slashRange=null,slashIndex=0,slashItems=[],blockTarget=null,blockHandle=null,updateFrame=0,blurTimer=0,compositionTimer=0;
  const reservations=new Set(),owned=[],cleanup=[],diagnostics={markdownSerializations:0,documentUpdates:0};
  const make=(tag,cls,parent=host)=>{const node=document.createElement(tag);node.className=cls;parent.append(node);return node;};
  const scroll=make('div','rich-editor-scroll');const contentHost=make('div','rich-editor-content',scroll);
@@ -130,10 +130,14 @@ export function mountRichEditor(host,options={}){
    DragHandle.configure({render(){
     const handle=document.createElement('div');handle.className='rich-block-handle';handle.setAttribute('aria-label','内容块操作');
     const add=button('add-block','在下方插入内容','plus'),grip=button('block-menu','拖动或管理内容块','grip');grip.dataset.dragHandle='';
+    const styleSelect=document.createElement('select');styleSelect.className='block-style-select';styleSelect.setAttribute('aria-label','段落样式');styleSelect.dataset.tooltip='段落样式 · 正文或标题';
+    for(const [value,label] of [['0','正文'],['1','H1'],['2','H2'],['3','H3'],['4','H4'],['5','H5'],['6','H6']]){const option=document.createElement('option');option.value=value;option.textContent=label;styleSelect.append(option);}
+    const syncStyle=(node)=>{const textblock=node&&['paragraph','heading'].includes(node.type.name);styleSelect.hidden=!textblock;if(textblock){styleSelect.value=node.type.name==='heading'?String(node.attrs.level):'0';styleSelect.title=node.type.name==='heading'?'段落样式 · 标题 '+node.attrs.level:'段落样式 · 正文';styleSelect.setAttribute('aria-label',node.type.name==='heading'?'段落样式：标题 '+node.attrs.level:'段落样式：正文');}};
     add.onmousedown=event=>{event.preventDefault();event.stopPropagation();};add.onclick=event=>{event.preventDefault();event.stopPropagation();if(blockTarget){const at=blockTarget.pos+blockTarget.node.nodeSize;editor.chain().focus().insertContentAt(at,{type:'paragraph',content:[{type:'text',text:'/'}]}).setTextSelection(at+2).run();}};
     grip.onclick=event=>{event.preventDefault();event.stopPropagation();if(blockTarget&&editor.isEditable){blockMenu.hidden=false;positionMenu(blockMenu,grip.getBoundingClientRect(),240);}};
-    handle.append(add,grip);return handle;
-   },onElementDragStart:()=>editor.view.dispatch(closeHistory(editor.state.tr)),onElementDragEnd:()=>editor.view.dispatch(closeHistory(editor.state.tr)),nested:false,dragImageProperties:['color','background-color','font-size','font-family','padding'],onNodeChange:({node,pos})=>{blockTarget=node?{node,pos}:null;},computePositionConfig:{placement:'left-start',strategy:'absolute'}}),
+    styleSelect.addEventListener('mousedown',event=>event.stopPropagation());styleSelect.addEventListener('click',event=>event.stopPropagation());styleSelect.addEventListener('change',event=>{if(!editor.isEditable||!blockTarget)return;const node=editor.state.doc.nodeAt(blockTarget.pos);if(!node||!['paragraph','heading'].includes(node.type.name))return;const value=event.target.value,nextType=value==='0'?editor.schema.nodes.paragraph:editor.schema.nodes.heading;if(!nextType)return;const attrs={...node.attrs};if(value==='0')delete attrs.level;else attrs.level=Number(value);const tr=editor.state.tr.setNodeMarkup(blockTarget.pos,nextType,attrs,node.marks).scrollIntoView();editor.view.dispatch(tr);editor.view.focus();});
+    blockHandle={sync:syncStyle};syncStyle(null);handle.append(add,styleSelect,grip);return handle;
+   },onElementDragStart:()=>editor.view.dispatch(closeHistory(editor.state.tr)),onElementDragEnd:()=>editor.view.dispatch(closeHistory(editor.state.tr)),nested:false,dragImageProperties:['color','background-color','font-size','font-family','padding'],onNodeChange:({node,pos})=>{blockTarget=node?{node,pos}:null;blockHandle?.sync(node);},computePositionConfig:{placement:'left-start',strategy:'absolute'}}),
   ],
   editorProps:{
    attributes:state=>({'data-body-font':documentFontKey.getState(state)||'sans',class:'rich-document prose','aria-label':'文档正文','aria-multiline':'true',role:'textbox',spellcheck:'false'}),
