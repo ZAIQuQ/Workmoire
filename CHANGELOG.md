@@ -2,6 +2,19 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.3] — 2026-10-30
+
+- 分享页 LaTeX 块保留只读 Write 标签和「复制 LaTeX」按钮，接收者可以复制原始源码。
+- LaTeX Preview 兼容 OpenReview 风格的 Markdown 正文、加粗和 fenced code；检测到这类内容时使用安全 Markdown 预览，不再交给 KaTeX 造成空白或异常。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+Shared LaTeX blocks keep a read-only Write tab with a Copy LaTeX action.
+Preview detects OpenReview-style Markdown prose and fenced code and uses the
+safe local Markdown renderer instead of producing a blank or invalid TeX view.
+
 ## [1.15.2] — 2026-10-30
 
 - 已生成的分享链接现在会随文档的每次已保存改动自动更新，链接、密码、有效期和密码保护状态保持不变；未保存草稿不会公开。

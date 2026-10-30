@@ -36,7 +36,10 @@ meaningful new documents. Sync failures remain visible at the upper right with
 a recommendation to pause editing until recovery is confirmed.
 
 Type `/latex` to insert a LaTeX block. **Write** edits the source and shows the
-character count; **Preview** renders the supported TeX syntax. Shared readers
+character count; **Preview** renders the supported TeX syntax. OpenReview-style
+Markdown prose and fenced code inside the source use a safe Markdown fallback
+so the block remains readable instead of becoming blank. Shared readers can
+switch to the read-only Write tab and copy the original LaTeX source. They also
 see the rendered result and a right-hand document outline. In focus mode the
 outline is wider and can be collapsed from the same directory control.
 

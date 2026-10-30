@@ -2,7 +2,7 @@ import {Node, Extension, mergeAttributes, InputRule} from '@tiptap/core';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import {Marked, Lexer} from 'marked';
-import {safeMedia, mathHTML} from './markdown-preview.js';
+import {safeMedia, mathHTML, renderPreview} from './markdown-preview.js';
 
 const icon = name => window.WorkmoireIcons.render(name);
 export function safeLink(value) {
@@ -87,7 +87,7 @@ function mathExtension(name,inline,callbacks){
   });
 }
 
-function latexBlockExtension(){
+function latexBlockExtension(callbacks={}){
  return Node.create({
   name:'latexBlock',group:'block',atom:true,isolating:true,selectable:true,draggable:true,
   addAttributes(){return {source:{default:'',parseHTML:el=>el.getAttribute('data-source')||''}};},
@@ -104,15 +104,16 @@ function latexBlockExtension(){
    const dom=document.createElement('div');dom.className='latex-block';dom.contentEditable='false';dom.dataset.type='latexBlock';
    const head=document.createElement('div');head.className='latex-block-head';const tabs=document.createElement('div');tabs.className='latex-block-tabs';
    const write=document.createElement('button'),previewTab=document.createElement('button');for(const [button,label] of [[write,'Write'],[previewTab,'Preview']]){button.type='button';button.textContent=label;button.setAttribute('role','tab');button.setAttribute('aria-label',label+' LaTeX');tabs.append(button);}
-   const count=document.createElement('span');count.className='latex-char-count';const body=document.createElement('div');body.className='latex-block-body';
+   const count=document.createElement('span');count.className='latex-char-count';const copy=document.createElement('button');copy.type='button';copy.className='latex-copy';copy.textContent='复制 LaTeX';copy.setAttribute('aria-label','复制 LaTeX 源码');const body=document.createElement('div');body.className='latex-block-body';
    const textarea=document.createElement('textarea');textarea.className='latex-source';textarea.spellcheck=false;textarea.wrap='off';textarea.setAttribute('aria-label','LaTeX 源码');
    const rendered=document.createElement('div');rendered.className='latex-preview';rendered.setAttribute('aria-label','LaTeX 预览');rendered.setAttribute('role','img');
-   body.append(textarea,rendered);const footer=document.createElement('div');footer.className='latex-block-footer';footer.innerHTML='<span class="latex-tex-mark" aria-hidden="true">TeX</span><span>TeX is supported</span>';head.append(tabs,count);dom.append(head,body,footer);
+   body.append(textarea,rendered);const footer=document.createElement('div');footer.className='latex-block-footer';footer.innerHTML='<span class="latex-tex-mark" aria-hidden="true">TeX</span><span>TeX is supported</span>';head.append(tabs,count,copy);dom.append(head,body,footer);
    let nodeSource=node.attrs.source||'',mode=editor.isEditable?'write':'preview';
    const setNodeSource=value=>{const pos=getPos?.();if(typeof pos!=='number'||!editor.isEditable)return;editor.view.dispatch(editor.state.tr.setNodeMarkup(pos,undefined,{...node.attrs,source:value}));};
-   const paint=()=>{if(textarea.value!==nodeSource)textarea.value=nodeSource;count.textContent=nodeSource.length+' 字符';rendered.innerHTML=mathHTML(nodeSource,true);textarea.hidden=mode!=='write';rendered.hidden=mode!=='preview';write.setAttribute('aria-selected',String(mode==='write'));previewTab.setAttribute('aria-selected',String(mode==='preview'));write.disabled=!editor.isEditable;dom.dataset.mode=mode;};
+   const paint=()=>{if(textarea.value!==nodeSource)textarea.value=nodeSource;textarea.readOnly=!editor.isEditable;count.textContent=nodeSource.length+' 字符';const markdownLike=/```[\s\S]*```|(^|\n)\s*\*\*[^\n]+\*\*|(^|\n)\s*#{1,6}\s|(^|\n)\s*[-*+]\s/m.test(nodeSource);rendered.innerHTML=markdownLike?renderPreview(nodeSource):mathHTML(nodeSource,true);rendered.dataset.previewKind=markdownLike?'markdown':'latex';textarea.hidden=mode!=='write';rendered.hidden=mode!=='preview';write.setAttribute('aria-selected',String(mode==='write'));previewTab.setAttribute('aria-selected',String(mode==='preview'));copy.hidden=editor.isEditable;dom.dataset.mode=mode;};
    const setMode=value=>{mode=value;paint();if(mode==='write'&&editor.isEditable)textarea.focus();};
-   write.onclick=event=>{event.preventDefault();event.stopPropagation();setMode('write');};previewTab.onclick=event=>{event.preventDefault();event.stopPropagation();setMode('preview');requestAnimationFrame(paint);};previewTab.onpointerup=event=>{event.preventDefault();event.stopPropagation();setMode('preview');};head.addEventListener('click',event=>{const button=event.target.closest('button');if(button===write||button===previewTab){event.preventDefault();event.stopPropagation();setMode(button===write?'write':'preview');requestAnimationFrame(paint);}},true);textarea.oninput=()=>{nodeSource=textarea.value;setNodeSource(nodeSource);paint();};textarea.onkeydown=event=>{if(event.key==='Tab'){event.preventDefault();const start=textarea.selectionStart;textarea.setRangeText('  ',start,textarea.selectionEnd,'end');nodeSource=textarea.value;setNodeSource(nodeSource);paint();}};
+   copy.onclick=async event=>{event.preventDefault();event.stopPropagation();try{await callbacks.copy?.(nodeSource);copy.textContent='已复制';setTimeout(()=>{if(copy.isConnected)copy.textContent='复制 LaTeX';},1200);}catch{copy.textContent='复制失败';}};
+   write.onclick=event=>{event.preventDefault();event.stopPropagation();setMode('write');};previewTab.onclick=event=>{event.preventDefault();event.stopPropagation();setMode('preview');requestAnimationFrame(paint);};previewTab.onpointerup=event=>{event.preventDefault();event.stopPropagation();setMode('preview');};head.addEventListener('click',event=>{const button=event.target.closest('button');if(button===write||button===previewTab){event.preventDefault();event.stopPropagation();setMode(button===write?'write':'preview');requestAnimationFrame(paint);}},true);textarea.oninput=()=>{nodeSource=textarea.value;setNodeSource(nodeSource);paint();};textarea.onkeydown=event=>{if(event.key==='Tab'){if(!editor.isEditable)return;event.preventDefault();const start=textarea.selectionStart;textarea.setRangeText('  ',start,textarea.selectionEnd,'end');nodeSource=textarea.value;setNodeSource(nodeSource);paint();}};
    head.onmousedown=event=>{if(event.target.closest('button'))event.preventDefault();};paint();
    return {dom,update(next){if(next.type!==node.type)return false;node=next;nodeSource=next.attrs.source||'';if(!editor.isEditable)mode='preview';paint();return true;},stopEvent:event=>head.contains(event.target)||textarea.contains(event.target),ignoreMutation:()=>true};
   };
@@ -170,4 +171,4 @@ function documentReference(callbacks){
     };},
   });
 }
-export function researchNodes(callbacks){return [mathExtension('inlineMath',true,callbacks),mathExtension('blockMath',false,callbacks),latexBlockExtension(),pdfExtension(callbacks),documentReference(callbacks),SafeImage];}
+export function researchNodes(callbacks){return [mathExtension('inlineMath',true,callbacks),mathExtension('blockMath',false,callbacks),latexBlockExtension(callbacks),pdfExtension(callbacks),documentReference(callbacks),SafeImage];}

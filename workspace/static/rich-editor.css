@@ -51,16 +51,21 @@
 .latex-block-tabs button { min-width: 70px; padding: 7px 12px; border-radius: var(--radius-sm); color: #756d63; font: 500 12px/1.2 var(--ui-font); }
 .latex-block-tabs button[aria-selected="true"] { background: #fffdf8; color: #3b5f71; box-shadow: 0 1px 2px #5c4f3a14; }
 .latex-char-count { color: #8a8176; font: 11px/1.4 var(--mono-font); font-variant-numeric: tabular-nums; }
+.latex-copy { display: none; margin-left: auto; padding: 5px 8px; border: 1px solid #d8cfc2; border-radius: var(--radius-sm); background: #fffdf8; color: #526f7b; font-size: 11px; }
+.latex-copy:hover { background: #f0eadf; }
+.rich-editor-shell[data-editable="false"] .latex-copy { display: inline-flex; }
+.rich-editor-shell[data-editable="false"] .latex-block-head .latex-char-count { margin-left: auto; }
 .latex-block-body { min-height: 150px; }
 .latex-source { display: block; width: 100%; min-height: 180px; resize: vertical; padding: 18px 20px; border: 0; outline: 0; background: #fffdf8; color: #34363c; font: 14px/1.8 var(--code-font); tab-size: 2; white-space: pre; }
 .latex-source:focus { box-shadow: inset 0 0 0 2px #6c9bab; }
 .latex-preview { min-height: 180px; padding: 30px 20px; overflow: auto; background: #fffdf8; }
+.latex-preview[data-preview-kind="markdown"] { padding: 22px 24px; text-align: left; }
+.latex-preview[data-preview-kind="markdown"] .prose { max-width: none; font: 14px/1.8 var(--ui-font); }
+.latex-preview[data-preview-kind="markdown"] .code-block { margin: 1em 0; text-align: left; }
 .latex-preview .katex-display { margin: 0; overflow-x: auto; overflow-y: hidden; }
 .latex-block-footer { display: flex; align-items: center; gap: 7px; min-height: 34px; padding: 5px 12px; border-top: 1px solid #e8e0d5; color: #526f7b; font-size: 12px; }
 .latex-tex-mark { display: inline-grid; place-items: center; min-width: 27px; height: 21px; border: 1px solid #526f7b; border-radius: 3px; color: #384e59; font: 600 10px/1 var(--mono-font); }
 .latex-block [hidden] { display: none !important; }
-.rich-editor-shell[data-editable="false"] .latex-block-tabs button:first-child { display: none; }
-.rich-editor-shell[data-editable="false"] .latex-block-head { justify-content: flex-end; }
 @media(max-width:600px){.latex-source{min-height:140px;padding:14px;font-size:13px}.latex-preview{min-height:140px;padding:24px 12px}.latex-block-tabs button{min-width:62px}}
 .rich-editor-shell[data-editable="true"] .native-inline-math:hover, .rich-editor-shell[data-editable="true"] .native-block-math:hover { background: var(--surface); }
 .rich-editor-shell[data-editable="true"] .native-block-math:hover { border-color: var(--line); }

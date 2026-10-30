@@ -63,6 +63,8 @@ controls. Local reading positions are not published.
 
 Use `/latex` in a normal note to insert a source-editable LaTeX block. Write mode
 accepts the local TeX/KaTeX syntax supported by the renderer; Preview shows the
-rendered result. The block keeps its source and character count through normal
-save, history and export. Shared readers receive the rendered block and the
-right-hand outline, but no editing controls.
+rendered result. Markdown prose and fenced code are detected and shown through
+the safe Markdown fallback, which is useful for OpenReview-style response text.
+The block keeps its source and character count through normal save, history and
+export. Shared readers receive the rendered block, can open the read-only Write
+tab and copy the source, and see the right-hand outline without editing.

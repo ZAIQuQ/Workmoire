@@ -104,7 +104,7 @@ export function mountRichEditor(host,options={}){
  function hideFind(){findbar.hidden=true;findQuery='';findInput.value='';editor.view.dispatch(editor.state.tr.setMeta(findKey,true));editor.commands.focus();}
 
  const codeBlocks=createCodeBlocks({lowlight,copy:options.copy});cleanup.push(codeBlocks.destroy);
- const callbacks={math:openMath,openDocument:id=>options.openDocument?.(id)};
+ const callbacks={math:openMath,openDocument:id=>options.openDocument?.(id),copy:options.copy};
  const NativeKeys=Extension.create({name:'workmoireKeys',addKeyboardShortcuts(){return {
   'Mod-Shift-x':()=>editor.commands.toggleTaskList(),
   'Mod-Shift-h':()=>editor.commands.toggleHighlight({color:'#fff2a8'}),
@@ -303,7 +303,7 @@ export function mountRichEditor(host,options={}){
   },
   insertAttachment(file,reservation){insertAtReservation({type:'paragraph',content:[{type:'text',text:file.name,marks:[{type:'link',attrs:{href:'/files/'+file.id,target:'_blank',rel:'noopener noreferrer nofollow'}}]}]},reservation);},
   replacePDFSource(original,file){let tr=editor.state.tr;editor.state.doc.descendants((node,pos)=>{if(node.type.name==='pdf'&&new URL(node.attrs.src,location.origin).href===new URL(original,location.origin).href)tr=tr.setNodeMarkup(pos,undefined,{...node.attrs,src:'/files/'+file.id+'?inline=1',title:file.name||node.attrs.title});});if(tr.docChanged)editor.view.dispatch(tr);},
-  setEditable(value){editor.setEditable(value,false);host.dataset.editable=String(value);if(!value)editor.view.dispatch(editor.state.tr.setMeta('bubbleMenu','hide'));hideSlash();blockMenu.hidden=true;codeBlocks.refresh();for(const checkbox of host.querySelectorAll('li[data-type="taskItem"] input'))checkbox.disabled=!value;for(const block of host.querySelectorAll('.latex-block')){const source=block.querySelector('.latex-source'),preview=block.querySelector('.latex-preview'),write=block.querySelector('.latex-block-tabs button');if(!value){block.dataset.mode='preview';if(source)source.hidden=true;if(preview)preview.hidden=false;if(write)write.disabled=true;}}},
+  setEditable(value){editor.setEditable(value,false);host.dataset.editable=String(value);if(!value)editor.view.dispatch(editor.state.tr.setMeta('bubbleMenu','hide'));hideSlash();blockMenu.hidden=true;codeBlocks.refresh();for(const checkbox of host.querySelectorAll('li[data-type="taskItem"] input'))checkbox.disabled=!value;for(const block of host.querySelectorAll('.latex-block')){const source=block.querySelector('.latex-source'),preview=block.querySelector('.latex-preview');if(!value){block.dataset.mode='preview';if(source)source.hidden=true;if(preview)preview.hidden=false;}}},
   outline(){const headings=[];editor.state.doc.descendants((node,pos)=>{if(node.type.name==='heading')headings.push({level:node.attrs.level,title:node.textContent,pos});});return headings;},
   jump(pos){const node=editor.view.nodeDOM(pos);if(node instanceof HTMLElement)node.scrollIntoView({behavior:'smooth',block:'start'});if(editor.isEditable)editor.chain().focus().setTextSelection(Math.min(pos+1,editor.state.doc.content.size)).run();},
   active:isActive,command:run,
