@@ -70,20 +70,20 @@ class RichDocumentTests(unittest.TestCase):
         for fragment in ['page=3&rect=1,2,3,4','page=3&fp='+'a'*32,'page=3&rect=1,2,3,4&fp=wrong']:
             self.assertIsNone(pdf_fragment(fragment))
 
-    def test_autosave_coalesces_checkpoints_but_preserves_manual_and_concurrent_versions(self):
+    def test_every_changed_autosave_and_manual_save_creates_a_revertable_history_version(self):
         item=self.create(content='Original',rich=native('Original'));original=item.copy()
         def update(text,automatic=True):
             nonlocal item
             status,body,_=self.request('/api/items/'+str(item['id']),'PUT',{**item,'content':text,'rich_content':native(text),'base_updated_at':item['updated_at'],'autosave':automatic})
             self.assertEqual(status,200,body);item=json.loads(body)['item']
         def revisions():return json.loads(self.request('/api/items/'+str(item['id'])+'/revisions')[1])['revisions']
-        update('Auto one');update('Auto two');self.assertEqual(len(revisions()),1)
-        update('Manual checkpoint',False);self.assertEqual(len(revisions()),2)
-        update('New autosave cluster');self.assertEqual(len(revisions()),3)
-        with patch.object(app,'AUTOSAVE_HISTORY_SECONDS',0):update('Later checkpoint')
-        self.assertEqual(len(revisions()),4)
+        update('Auto one');update('Auto two');self.assertEqual(len(revisions()),2)
+        update('Manual checkpoint',False);self.assertEqual(len(revisions()),3)
+        update('New autosave cluster');self.assertEqual(len(revisions()),4)
+        update('Later checkpoint')
+        self.assertEqual(len(revisions()),5)
         status,_,_=self.request('/api/items/'+str(item['id']),'PUT',{**original,'base_updated_at':original['updated_at'],'autosave':True})
-        self.assertEqual(status,409);self.assertEqual(len(revisions()),4)
+        self.assertEqual(status,409);self.assertEqual(len(revisions()),5)
         for flag in [None,0,1,'true',{}]:self.assertEqual(self.request('/api/items/'+str(item['id']),'PUT',{**item,'base_updated_at':item['updated_at'],'autosave':flag})[0],400)
         self.assertEqual(self.request('/api/items/'+str(item['id']),'PUT',{**item,'base_updated_at':'','autosave':True})[0],400)
         self.assertEqual(json.loads(self.request('/api/items/'+str(item['id']))[1])['item']['content'],'Later checkpoint')

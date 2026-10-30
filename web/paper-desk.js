@@ -127,7 +127,7 @@ export function createPaperDesk({root,editor,getItem,toggle,getFocus,setFocus,se
   if(active&&!event.isComposing&&(event.ctrlKey||event.metaKey)&&event.shiftKey&&event.key==='Enter'&&!document.querySelector('dialog[open]')){event.preventDefault();event.stopImmediatePropagation();if(narrow.matches)changeTab('source');frame?.focus();frame?.contentWindow?.document.querySelector('#pdf-container')?.focus();return;}
   if(event.key!=='Escape'||event.isComposing||!active)return;
   if(drag){event.preventDefault();event.stopImmediatePropagation();finishDrag(false);return;}
-  if(document.querySelector('dialog[open],.insert-menu[open],.save-options-menu:not([hidden]),.document-body[data-outline-open="true"][data-outline-compact="true"]'))return;
+  if(document.querySelector('dialog[open],.insert-menu[open],.document-body[data-outline-open="true"][data-outline-compact="true"]'))return;
   event.preventDefault();event.stopImmediatePropagation();setActive(false);toggle.focus({preventScroll:true});
  },{capture:true});
  editor.tiptap.on('update',onUpdate);cleanups.push(()=>editor.tiptap.off('update',onUpdate));scan();

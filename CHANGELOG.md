@@ -2,12 +2,44 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.1] — 2026-10-30
+
+- 自动保存永久开启，移除保存按钮下的开关；已有文档和有实际内容的新文档统一后台同步，停笔约 3 秒保存。
+- 每次有实际改动的自动保存或手动保存都会生成历史版本；无变化不会重复记录。
+- 历史版本面板增加正文新增/删除行预览、保存时间和指定版本恢复入口。
+
+见[使用说明](docs/user-guide.md)与[后台自动保存](docs/autosave.md)。
+
+### English
+
+Make autosave permanently enabled and remove its toggle. Existing and meaningful
+new documents sync in the background after about three seconds of idle input.
+Every changed automatic or manual save creates a restorable history version;
+unchanged saves create none. History now previews line changes and provides a
+version restore action.
+
+## [1.15.1] — 2026-10-30
+
+- 自动保存永久开启，移除保存按钮下的开关；已有文档和有实际内容的新文档统一后台同步，停笔约 3 秒保存。
+- 每次有实际改动的自动保存或手动保存都会生成历史版本；无变化不会重复记录。
+- 历史版本面板增加正文新增/删除行预览、保存时间和指定版本恢复入口。
+
+见[后台自动保存](docs/autosave.md)。
+
+### English
+
+Make autosave permanently enabled and remove its toggle. Existing and meaningful
+new documents sync in the background after about three seconds of idle input.
+Every changed automatic or manual save creates a restorable history version;
+unchanged saves create none. History previews line changes and provides restore.
+
 ## [1.15.0] — 2026-10-30
 
 - 输入 `/latex` 插入米色 LaTeX 块，提供 Write / Preview 标签、字符数、TeX is supported 提示和受控 TeX/KaTeX 预览；正常、阅读和分享模式保留对应只读状态。
 - 专注模式下右侧目录增宽到 280px，长标题更少换行，并新增目录收起/展开入口；退出专注模式后恢复普通目录布局。
 - 分享阅读页增加右侧只读目录，手机端可切换显示；目录跟随标题更新并支持点击定位。
 - 修复自动保存版本校验中标题节点级别丢失导致的“保存后仍未保存”状态。
+- 自动保存不再提供关闭开关，停笔约 3 秒固定同步；每次有实际改动的自动/手动保存都生成可查看、可回退历史。
 
 见[使用说明](docs/user-guide.md)与[阅读台指南](docs/reading-desk.md)。
 

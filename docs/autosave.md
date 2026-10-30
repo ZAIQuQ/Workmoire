@@ -1,6 +1,6 @@
 # 后台自动保存 · Background autosave
 
-自动保存默认开启，无需先手动保存。停笔约 2 秒同步当前文档；连续输入时约每 10 秒也会尝试保存。只有输入了标题、正文或插入内容块的新文档才会自动建立，空白占位不会入库。
+自动保存永久开启，用户界面不提供关闭开关。停笔约 3 秒同步当前文档；连续输入也按 3 秒防抖同步。只有输入了标题、正文或插入内容块的新文档才会自动建立，空白占位不会入库。
 
 ## 异常提醒
 
@@ -22,16 +22,16 @@
 - 中文输入法尚未确认或标签修改进行中时等待完成；正文可以在附件上传期间继续同步，附件完成后再同步其引用。
 - 保存请求最多等待 30 秒。新建使用稳定请求标识，响应丢失后的重试不会重复创建；如果此前创建的文档已被修改或删除，会提示处理，避免覆盖或重新创建。
 - 未插入的 AI 预览、未确认的 PDF 框选不会自动保存。已有分享继续保持主动生成时的快照。
-- 连续自动保存约每 5 分钟保留一个历史检查点；有改动的手动保存独立留存，沿用最近 100 个版本的上限。
-- 如需手动模式，可以在 **保存** 右侧的设置中暂停自动保存。升级首次采用默认开启策略，之后在当前浏览器选择的暂停状态会保留。
+- 每次自动保存或手动保存只要确实存在改动，就会留下一个可回退历史版本；没有变化不会重复记录。打开文档信息中的历史版本，可以看到新增/删除正文行、保存时间，并恢复指定版本。历史沿用最近 100 个版本的上限。
+- 保存按钮仍可手动立即同步；它与后台自动保存使用同一版本校验和历史记录。界面不提供关闭自动保存的选项。
 
 新建请求标识只作为私有运行记录保存，不进入文档导出或分享。私有整库备份保留该记录；删除后的请求记录继续防止迟到重试重新创建文档。
 
 ## English
 
-Autosave is on by default for existing and meaningful new documents. It saves
-after about two seconds of idle input and also flushes sustained typing roughly
-every ten seconds. Empty placeholders are not created.
+Autosave is always on. The interface has no disable switch. It saves after
+about three seconds of idle input, including meaningful new documents, while
+empty placeholders are not created.
 
 A persistent notice at the upper right explains network, service, login,
 conflict or validation failures and recommends pausing edits. Typing, retrying
@@ -43,5 +43,4 @@ Retries back off to at most once per minute. Requests are serialized and
 revision-checked; IME and tag changes are respected, while text can synchronize
 during uploads. Stable creation identifiers prevent duplicate documents after
 lost responses and reject replay over a modified or deleted document. The
-private request ledger is excluded from exports and sharing. Autosave can be
-paused from Save settings; shared snapshots remain explicit.
+private request ledger is excluded from exports and sharing. Autosave cannot be disabled from the interface; shared snapshots remain explicit. Every changed automatic or manual save creates a restorable history version, while unchanged saves create none.

@@ -1,8 +1,8 @@
-const preferenceKey='workmoire:autosave:v2';
 const retryDelays=[2000,5000,15000,30000,60000];
 const permanent=new Set(['conflict','auth','validation']);
 export function createAutosave({getState,save,probe,preserveDraft,onStatus}){
- let enabled=true;try{enabled=localStorage.getItem(preferenceKey)!=='false';}catch{}
+ // Synthetic browser fixtures may opt into manual-save isolation; production has no switch.
+ const enabled=globalThis.__WORKMOIRE_TEST_MANUAL_SAVE__!==true
  let timer=0,phase='idle',attempts=0,blocked='',revision=0,fault=null,pendingSince=0;
  const emit=()=>onStatus?.({enabled,phase,blocked,fault});
  const actionable=()=>{const s=getState();return enabled&&s.authenticated&&s.current&&(s.current.id||s.canCreate||s.current.creation_attempted)&&s.dirty;};
@@ -41,12 +41,11 @@ export function createAutosave({getState,save,probe,preserveDraft,onStatus}){
   if(permanent.has(blocked))return;
   if(navigator.onLine===false){offline();return;}
   if(fault){if(!timer&&phase!=='saving')queue(2000);else emit();return;}
-  if(!actionable()){pendingSince=0;return;}if(!pendingSince)pendingSince=Date.now();queue(Math.min(2000,Math.max(0,10000-(Date.now()-pendingSince))));
+  if(!actionable()){pendingSince=0;return;}pendingSince=Date.now();queue(3000);
  }
- function setEnabled(value,persist=true){enabled=Boolean(value);clearTimeout(timer);timer=0;if(persist)try{localStorage.setItem(preferenceKey,String(enabled));}catch{}if(!enabled&&phase==='waiting')phase='idle';emit();if(enabled)changed();}
+ function setEnabled(){emit();}
  window.addEventListener('offline',offline);
  window.addEventListener('online',()=>{if(enabled&&!permanent.has(blocked)){blocked='';attempts=0;queue(0);}});
- window.addEventListener('storage',event=>{if(event.key===preferenceKey)setEnabled(event.newValue!=='false',false);});
  return {
   snapshot:()=>({enabled,phase,blocked,fault}),setEnabled,changed,
   retry(){if(!permanent.has(blocked)){blocked='';attempts=0;queue(0);}},
@@ -74,16 +73,8 @@ export function mountSyncWarning({controller,getState,save,copyDraft,login,resol
  window.addEventListener('resize',position);sync();return {sync};
 }
 
-export function mountSaveControls({root,controller,save}){
+export function mountSaveControls({root,controller}){
  const button=root.querySelector('#save-content'),controls=document.createElement('div');controls.className='save-controls';button.before(controls);controls.append(button);
- const toggle=document.createElement('button');toggle.type='button';toggle.id='save-options';toggle.className='save-options-toggle';toggle.setAttribute('aria-label','保存设置');toggle.title='保存设置';toggle.setAttribute('aria-expanded','false');toggle.innerHTML=window.WorkmoireIcons.render('chevron');
- const menu=document.createElement('div');menu.className='save-options-menu';menu.hidden=true;menu.innerHTML='<label><input id="autosave-enabled" type="checkbox"><span>自动保存</span></label><p>有改动时在后台自动保存，新文档也会自动建立。同步异常会在右上角持续提醒。</p>';
- controls.append(toggle,menu);const input=menu.querySelector('input');
- function close(){menu.hidden=true;toggle.setAttribute('aria-expanded','false');}
- function sync(){const status=controller.snapshot();input.checked=status.enabled;controls.dataset.autosave=String(status.enabled);toggle.title=status.enabled?'保存设置 · 自动保存已开启':'保存设置 · 手动保存';}
- toggle.onmousedown=event=>event.preventDefault();toggle.onclick=()=>{const open=menu.hidden;menu.hidden=!open;toggle.setAttribute('aria-expanded',String(open));sync();};
- input.onchange=()=>{controller.setEnabled(input.checked);sync();};
- const outside=event=>{if(!controls.contains(event.target))close();},escape=event=>{if(event.key==='Escape'&&!event.isComposing&&!menu.hidden){event.preventDefault();event.stopImmediatePropagation();close();toggle.focus({preventScroll:true});}};
- document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape,true);window.addEventListener('blur',close);sync();
- return {sync,destroy(){document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape,true);window.removeEventListener('blur',close);}};
+ function sync(){const status=controller.snapshot();controls.dataset.syncPhase=status.phase;button.title=status.fault?'保存失败，右上角查看同步状态':'手动保存';}
+ sync();return {sync,destroy(){}};
 }
