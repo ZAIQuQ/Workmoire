@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 MAX_RICH_BYTES = 2 * 1024 * 1024
 MAX_RICH_NODES = 30000
-BLOCKS = {'paragraph', 'heading', 'blockquote', 'codeBlock', 'bulletList', 'orderedList', 'taskList', 'table', 'horizontalRule', 'image', 'blockMath', 'pdf'}
+BLOCKS = {'paragraph', 'heading', 'blockquote', 'codeBlock', 'bulletList', 'orderedList', 'taskList', 'table', 'horizontalRule', 'image', 'blockMath', 'latexBlock', 'pdf'}
 INLINE = {'text', 'hardBreak', 'inlineMath', 'documentLink'}
 CHILDREN = {
     'doc': BLOCKS, 'paragraph': INLINE, 'heading': INLINE, 'blockquote': BLOCKS,
@@ -101,6 +101,11 @@ def normalized_rich_content(value: object, markdown: str | None = None) -> str:
             if type(raw.get('level')) is not int or not 1 <= raw['level'] <= 6:
                 raise ValueError('标题级别无效')
             attrs['level'] = raw['level']
+        if kind == 'latexBlock':
+            source = raw.get('source', '')
+            if not isinstance(source, str) or len(source) > 50000:
+                raise ValueError('LaTeX 内容无效或过长')
+            attrs['source'] = source
         if kind == 'codeBlock':
             language = raw.get('language')
             if language is not None and (not isinstance(language, str) or not re.fullmatch(r'[\w+#.-]{0,40}', language)):

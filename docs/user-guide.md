@@ -35,6 +35,11 @@ source highlighting, image-region excerpts and shared citations.
 meaningful new documents. Sync failures remain visible at the upper right with
 a recommendation to pause editing until recovery is confirmed.
 
+Type `/latex` to insert a LaTeX block. **Write** edits the source and shows the
+character count; **Preview** renders the supported TeX syntax. Shared readers
+see the rendered result and a right-hand document outline. In focus mode the
+outline is wider and can be collapsed from the same directory control.
+
 Click in a table to reveal **每列等宽** (equal columns) and **固定宽度** (fixed
 width) in the table toolbar. Fixed width is on by default, including for older
 tables without a mode setting: the table fits the body, text wraps inside cells,

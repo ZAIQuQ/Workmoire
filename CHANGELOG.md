@@ -2,6 +2,23 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.0] — 2026-10-30
+
+- 输入 `/latex` 插入米色 LaTeX 块，提供 Write / Preview 标签、字符数、TeX is supported 提示和受控 TeX/KaTeX 预览；正常、阅读和分享模式保留对应只读状态。
+- 专注模式下右侧目录增宽到 280px，长标题更少换行，并新增目录收起/展开入口；退出专注模式后恢复普通目录布局。
+- 分享阅读页增加右侧只读目录，手机端可切换显示；目录跟随标题更新并支持点击定位。
+- 修复自动保存版本校验中标题节点级别丢失导致的“保存后仍未保存”状态。
+
+见[使用说明](docs/user-guide.md)与[阅读台指南](docs/reading-desk.md)。
+
+### English
+
+Add a warm Overleaf-like `/latex` block with Write / Preview, character count,
+TeX support copy and controlled TeX/KaTeX rendering. Widen and collapse the
+focus-mode outline, and add a read-only outline to shared readers with a mobile
+toggle. Preserve heading levels during rich-document validation so successful
+saves do not remain dirty.
+
 ## [1.14.1] — 2026-10-30
 
 - 调整离线恢复回归测试，等待实际草稿写入完成后再验证内容，适配即时离线提醒与防抖保存各自的时序。

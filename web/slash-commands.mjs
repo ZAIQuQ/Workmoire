@@ -11,7 +11,8 @@ export const slashCommands = [
   // ddm is the user's preferred shortcut; dmk is also accepted as the initials of 代码块.
   {id:'code',label:'代码块',description:'语法高亮与语言切换',icon:'code',shortcut:'ddm',aliases:['ddm','dmk','dm','code','codeblock','code block','代码','daima','daimakuai','python','javascript']},
   {id:'table',label:'表格',description:'可直接编辑、调整列宽',icon:'table',shortcut:'bg',aliases:['bg','table','grid','biaoge']},
-  {id:'formula',label:'公式',description:'LaTeX 块级公式',icon:'formula',shortcut:'gs',aliases:['gs','kjgs','gsk','math','latex','tex','formula','equation','block math','数学公式','块级公式','gongshi','kuaijigongshi']},
+  {id:'formula',label:'公式',description:'LaTeX 单条公式',icon:'formula',shortcut:'gs',aliases:['gs','kjgs','gsk','math','formula','equation','block math','数学公式','块级公式','gongshi','kuaijigongshi']},
+  {id:'latex',label:'LaTeX 块',description:'仿 Overleaf 的 LaTeX 编辑与预览',icon:'formula',shortcut:'latex',aliases:['latex','tex editor','tex block','overleaf','latex block','latex块','tex块','latexkuai']},
   {id:'inline-math',label:'行内公式',description:'在段落中插入公式',icon:'variable',shortcut:'hngs',aliases:['hngs','inline math','inline formula','inline equation','行内','hangneigongshi']},
   {id:'image',label:'图片',description:'上传、粘贴或使用链接',icon:'image',shortcut:'tp',aliases:['tp','image','img','photo','picture','插图','tupian']},
   {id:'pdf',label:'PDF',description:'在文档内阅读原文',icon:'book',shortcut:'pdf',aliases:['pdf','lw','yw','paper','论文','原文','pdf阅读器','lunwen','yuanwen']},

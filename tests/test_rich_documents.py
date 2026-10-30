@@ -337,6 +337,18 @@ class RichDocumentTests(unittest.TestCase):
             self.assertEqual(status,400)
         with app.open_db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM items').fetchone()[0],0)
 
+    def test_latex_blocks_validate_source_and_survive_roundtrips(self):
+        source='\\begin{aligned}\\nF(x)&=x^2\\n\\end{aligned}'
+        rich={'version':1,'document':{'type':'doc','content':[{'type':'latexBlock','attrs':{'source':source}}]}}
+        item=self.create(title='LaTeX block',content=':::latex\n'+source+'\n:::',rich=rich)
+        self.assertEqual(json.loads(self.request('/api/items/'+str(item['id']))[1])['item']['rich_content']['document']['content'][0]['attrs']['source'],source)
+        exported=json.loads(self.request('/api/export')[1]);self.assertIn(':::latex',exported['items'][0]['content']);self.assertEqual(exported['items'][0]['rich_content']['document']['content'][0]['attrs']['source'],source)
+        with zipfile.ZipFile(io.BytesIO(self.request('/api/export-archive')[1])) as archive:self.assertEqual(json.loads(archive.read('manifest.json'))['items'][0]['rich_content']['document']['content'][0]['attrs']['source'],source)
+        for value in ['x'*50001,123,None]:
+            invalid={'version':1,'document':{'type':'doc','content':[{'type':'latexBlock','attrs':{'source':value}}]}}
+            self.assertEqual(self.request('/api/items','POST',{'kind':'note','title':'invalid latex','rich_content':invalid})[0],400)
+
+
 
 class ReadingMaterialTests(unittest.TestCase):
     def test_public_article_text_keeps_sections_math_and_evidence_scope(self):

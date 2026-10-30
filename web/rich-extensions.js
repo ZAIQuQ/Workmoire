@@ -87,6 +87,39 @@ function mathExtension(name,inline,callbacks){
   });
 }
 
+function latexBlockExtension(){
+ return Node.create({
+  name:'latexBlock',group:'block',atom:true,isolating:true,selectable:true,draggable:true,
+  addAttributes(){return {source:{default:'',parseHTML:el=>el.getAttribute('data-source')||''}};},
+  parseHTML(){return [{tag:'div[data-type="latexBlock"]'}];},
+  renderHTML({node}){return ['div',{'data-type':'latexBlock','data-source':node.attrs.source||'',class:'latex-block'}];},
+  markdownTokenName:'latexBlock',
+  markdownTokenizer:{name:'latexBlock',level:'block',start:source=>source.search(/^:::latex[ \t]*$/m),tokenize(source){
+   const match=/^:::latex[ \t]*\n([\s\S]*?)\n:::[ \t]*(?:\n|$)/.exec(source);
+   if(match)return {type:'latexBlock',raw:match[0],source:match[1]};
+  }},
+  parseMarkdown:token=>({type:'latexBlock',attrs:{source:String(token.source||'')}}),
+  renderMarkdown:node=>':::latex\n'+String(node.attrs?.source||'')+'\n:::',
+  addNodeView(){return ({node,getPos,editor})=>{
+   const dom=document.createElement('div');dom.className='latex-block';dom.contentEditable='false';dom.dataset.type='latexBlock';
+   const head=document.createElement('div');head.className='latex-block-head';const tabs=document.createElement('div');tabs.className='latex-block-tabs';
+   const write=document.createElement('button'),previewTab=document.createElement('button');for(const [button,label] of [[write,'Write'],[previewTab,'Preview']]){button.type='button';button.textContent=label;button.setAttribute('role','tab');button.setAttribute('aria-label',label+' LaTeX');tabs.append(button);}
+   const count=document.createElement('span');count.className='latex-char-count';const body=document.createElement('div');body.className='latex-block-body';
+   const textarea=document.createElement('textarea');textarea.className='latex-source';textarea.spellcheck=false;textarea.wrap='off';textarea.setAttribute('aria-label','LaTeX 源码');
+   const rendered=document.createElement('div');rendered.className='latex-preview';rendered.setAttribute('aria-label','LaTeX 预览');rendered.setAttribute('role','img');
+   body.append(textarea,rendered);const footer=document.createElement('div');footer.className='latex-block-footer';footer.innerHTML='<span class="latex-tex-mark" aria-hidden="true">TeX</span><span>TeX is supported</span>';head.append(tabs,count);dom.append(head,body,footer);
+   let nodeSource=node.attrs.source||'',mode=editor.isEditable?'write':'preview';
+   const setNodeSource=value=>{const pos=getPos?.();if(typeof pos!=='number'||!editor.isEditable)return;editor.view.dispatch(editor.state.tr.setNodeMarkup(pos,undefined,{...node.attrs,source:value}));};
+   const paint=()=>{if(textarea.value!==nodeSource)textarea.value=nodeSource;count.textContent=nodeSource.length+' 字符';rendered.innerHTML=mathHTML(nodeSource,true);textarea.hidden=mode!=='write';rendered.hidden=mode!=='preview';write.setAttribute('aria-selected',String(mode==='write'));previewTab.setAttribute('aria-selected',String(mode==='preview'));write.disabled=!editor.isEditable;dom.dataset.mode=mode;};
+   const setMode=value=>{mode=value;paint();if(mode==='write'&&editor.isEditable)textarea.focus();};
+   write.onclick=event=>{event.preventDefault();event.stopPropagation();setMode('write');};previewTab.onclick=event=>{event.preventDefault();event.stopPropagation();setMode('preview');requestAnimationFrame(paint);};previewTab.onpointerup=event=>{event.preventDefault();event.stopPropagation();setMode('preview');};head.addEventListener('click',event=>{const button=event.target.closest('button');if(button===write||button===previewTab){event.preventDefault();event.stopPropagation();setMode(button===write?'write':'preview');requestAnimationFrame(paint);}},true);textarea.oninput=()=>{nodeSource=textarea.value;setNodeSource(nodeSource);paint();};textarea.onkeydown=event=>{if(event.key==='Tab'){event.preventDefault();const start=textarea.selectionStart;textarea.setRangeText('  ',start,textarea.selectionEnd,'end');nodeSource=textarea.value;setNodeSource(nodeSource);paint();}};
+   head.onmousedown=event=>{if(event.target.closest('button'))event.preventDefault();};paint();
+   return {dom,update(next){if(next.type!==node.type)return false;node=next;nodeSource=next.attrs.source||'';if(!editor.isEditable)mode='preview';paint();return true;},stopEvent:event=>head.contains(event.target)||textarea.contains(event.target),ignoreMutation:()=>true};
+  };
+ },
+ });
+}
+
 function pdfExtension(callbacks){
   return Node.create({
     name:'pdf',group:'block',atom:true,draggable:true,isolating:true,selectable:true,
@@ -137,4 +170,4 @@ function documentReference(callbacks){
     };},
   });
 }
-export function researchNodes(callbacks){return [mathExtension('inlineMath',true,callbacks),mathExtension('blockMath',false,callbacks),pdfExtension(callbacks),documentReference(callbacks),SafeImage];}
+export function researchNodes(callbacks){return [mathExtension('inlineMath',true,callbacks),mathExtension('blockMath',false,callbacks),latexBlockExtension(),pdfExtension(callbacks),documentReference(callbacks),SafeImage];}

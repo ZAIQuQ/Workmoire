@@ -21,3 +21,11 @@
 .document-body[data-outline-compact="true"][data-outline-open="false"] > .outline-rail { display: none; }
 .document-body[data-outline-compact="true"] .outline-close { display: grid; }
 @media(min-width:1800px){.outline-rail{flex-basis:224px;width:224px;padding-right:20px}}
+/* Focus mode has spare width; keep long headings readable and allow the rail to disappear. */
+.focus-mode .outline-rail { flex-basis: 280px; width: 280px; padding-left: 22px; padding-right: 22px; }
+.focus-mode .outline-navigation button { -webkit-line-clamp: 3; font-size: 12px; line-height: 1.6; }
+.focus-mode .outline-heading { margin-bottom: 16px; }
+.focus-mode .document-body[data-outline-collapsed="true"] > .outline-rail { display: none; }
+.focus-mode .document-body[data-outline-collapsed="false"] .outline-close { display: grid; }
+.focus-mode #outline-toggle { display: inline-flex; }
+@media(max-width:760px){.focus-mode .outline-rail{width:min(280px,calc(100% - 32px));flex-basis:auto}}

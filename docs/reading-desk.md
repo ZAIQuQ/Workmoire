@@ -58,3 +58,11 @@ Escape and source/notes keyboard navigation work without recreating the viewer.
 References survive history and exports; archives remap file IDs without losing
 page numbers. Shares use scoped attachment copies and retain all existing access
 controls. Local reading positions are not published.
+
+## Related blocks and shared reading
+
+Use `/latex` in a normal note to insert a source-editable LaTeX block. Write mode
+accepts the local TeX/KaTeX syntax supported by the renderer; Preview shows the
+rendered result. The block keeps its source and character count through normal
+save, history and export. Shared readers receive the rendered block and the
+right-hand outline, but no editing controls.

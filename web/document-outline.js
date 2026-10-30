@@ -3,7 +3,7 @@ export function createDocumentOutline({editor,body,rail,toggle}){
  const scroll=editor.view.dom.closest('.rich-editor-scroll'),doc=editor.view.dom;
  rail.setAttribute('aria-label','文档目录');rail.innerHTML='<div class="outline-heading"><strong>目录</strong><button type="button" class="icon-button outline-close" aria-label="收起目录">'+window.WorkmoireIcons.render('close')+'</button></div><nav class="outline-navigation" aria-label="章节导航"><ol></ol></nav><p class="outline-empty">将段落设为标题 1–6，目录会自动显示。</p>';
  const nav=rail.querySelector('nav'),list=rail.querySelector('ol'),empty=rail.querySelector('.outline-empty'),close=rail.querySelector('.outline-close');
- let entries=[],positions=[],active=-1,compact=false,expanded=false,destroyed=false,refreshTimer=0,geometryFrame=0,scrollFrame=0;
+ let entries=[],positions=[],active=-1,compact=false,expanded=false,collapsed=false,destroyed=false,refreshTimer=0,geometryFrame=0,scrollFrame=0;
  const cleanup=[];
  const listen=(target,type,handler,options)=>{target.addEventListener(type,handler,options);cleanup.push(()=>target.removeEventListener(type,handler,options));};
  function setActive(index){
@@ -46,9 +46,9 @@ export function createDocumentOutline({editor,body,rail,toggle}){
  }
  function update(){clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,120);}
  function setExpanded(value,returnFocus=false){
-  expanded=compact&&value;body.dataset.outlineOpen=String(expanded);toggle.setAttribute('aria-expanded',String(!compact||expanded));toggle.title=expanded?'收起目录':'展开目录';toggle.setAttribute('aria-label',expanded?'收起文档目录':'展开文档目录');
-  rail.inert=compact&&!expanded;rail.setAttribute('aria-hidden',String(compact&&!expanded));
-  if(returnFocus&&compact)toggle.focus({preventScroll:true});
+  const collapsible=compact||document.body.classList.contains('focus-mode');expanded=collapsible?Boolean(value):true;collapsed=collapsible&&!expanded;body.dataset.outlineOpen=String(expanded);body.dataset.outlineCollapsed=String(collapsed);toggle.hidden=!collapsible;toggle.setAttribute('aria-expanded',String(expanded));toggle.title=collapsed?'展开目录':'收起目录';toggle.setAttribute('aria-label',collapsed?'展开文档目录':'收起文档目录');
+  rail.inert=collapsible&&!expanded;rail.setAttribute('aria-hidden',String(collapsible&&!expanded));
+  if(returnFocus&&collapsible)toggle.focus({preventScroll:true});
   if(expanded)scheduleGeometry();
  }
  function resize(){
@@ -72,5 +72,5 @@ export function createDocumentOutline({editor,body,rail,toggle}){
  const content=new ResizeObserver(scheduleGeometry);content.observe(doc);content.observe(scroll);
  const appearance=new MutationObserver(scheduleGeometry);appearance.observe(doc,{attributes:true,attributeFilter:['data-body-font']});
  refresh();resize();
- return {refresh,destroy(){destroyed=true;clearTimeout(refreshTimer);cancelAnimationFrame(geometryFrame);cancelAnimationFrame(scrollFrame);layout.disconnect();content.disconnect();appearance.disconnect();cleanup.forEach(fn=>fn());entries=[];positions=[];}};
+ return {refresh,resize,collapse(value){setExpanded(!value,true);},destroy(){destroyed=true;clearTimeout(refreshTimer);cancelAnimationFrame(geometryFrame);cancelAnimationFrame(scrollFrame);layout.disconnect();content.disconnect();appearance.disconnect();cleanup.forEach(fn=>fn());entries=[];positions=[];}};
 }

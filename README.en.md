@@ -11,6 +11,7 @@ Self-hosted academic notes and paper reading. Write rich documents, read PDFs in
 ## What it does
 
 - **Write** with rich text, math, images, checklists, inline code, and foldable code blocks. A compact single-row toolbar exposes document fonts and selection colors; a right-hand outline tracks headings. Focus mode keeps a compact header, with formatting tools available on demand. Use Tab / Shift+Tab for indentation. Insert blocks with `/`, searchable in Chinese, pinyin initials, and English.
+- **Write LaTeX** with `/latex`: a warm Overleaf-like block provides Write / Preview tabs, a character count, and a visible TeX support footer. It renders read-only in reading and shared views.
 - **Work with tables** that fit the document by default. Distribute columns evenly, or turn off fixed width to enable horizontal scrolling.
 - **Read and write together** in the [paper reading desk](docs/reading-desk.md): keep PDF and notes side by side, navigate exact source quotations, capture figures or equations, and retain reading positions and keyboard navigation. Phones switch between Original and Notes.
 - **Read papers** by manually uploading a PDF and optionally recording its source link. The server does not download papers. Embed the PDF reader directly in a document. Uploads show measured progress, and one AI analysis organizes publication, authors, labs and research fields, suggests up to two tags, and presents bilingual abstracts plus concise insights and technical explanations with an estimated wait.

@@ -17,3 +17,15 @@
 .share-page .rich-block-handle, .share-page .rich-bubble-menu, .share-page .native-node-delete { display: none !important; }
 .share-page .rich-editor-shell { display: block; }
 @media(max-width:600px){.share-brand{padding:18px 20px}.share-article{margin:0;border-radius:0;border:0}.share-article>header{padding:28px 24px 0}.share-article h1{font-size:24px}.share-page .rich-editor-content{padding:20px 24px 40px}.share-gate{padding:24px}}
+.share-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.share-outline-toggle { display: none; flex: none; padding: 6px 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); color: var(--body); font-size: 12px; }
+.share-reading-layout { display: grid; grid-template-columns: minmax(0,1fr) 224px; min-height: 420px; }
+.share-reading-layout > .rich-editor-shell { min-width: 0; }
+.share-outline { min-width: 0; padding: 26px 14px 20px 18px; border-left: 1px solid var(--line); background: var(--paper); }
+.share-outline-heading { margin: 0 5px 12px; color: var(--muted); font-size: 12px; font-weight: 500; }
+.share-outline-nav { max-height: calc(100vh - 230px); overflow: auto; }
+.share-outline-nav ol { display: grid; gap: 3px; list-style: none; padding: 0; margin: 0; }
+.share-outline-nav button { display: block; width: 100%; padding: 7px 8px 7px calc(8px + var(--outline-indent,0px)); border: 0; border-left: 2px solid transparent; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: transparent; color: var(--muted); text-align: left; font: 12px/1.65 var(--ui-font); overflow-wrap: anywhere; }
+.share-outline-nav button:hover,.share-outline-nav button[aria-current="location"] { background: var(--surface); color: var(--accent); }
+.share-outline-nav button[aria-current="location"] { border-left-color: var(--accent); }
+@media(max-width:760px){.share-title-row{align-items:center}.share-outline-toggle{display:block}.share-reading-layout{display:block}.share-outline{display:none;padding:14px 24px;border:0;border-bottom:1px solid var(--line)}.share-article[data-outline-open="true"] .share-outline{display:block}.share-outline-nav{max-height:220px}.share-article>header{padding-bottom:12px}}

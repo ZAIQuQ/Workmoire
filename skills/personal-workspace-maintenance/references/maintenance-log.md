@@ -183,3 +183,7 @@ changes belong in normal commit history.
 - 2026-10-30: Made autosave default-on, including meaningful new notes, with persistent sync-failure notices and capped recovery retries. Added a private creation-key ledger that deduplicates uncertain POST responses and rejects replay after later edits or deletion. Replayed responses preserve newer local input; conflict drafts bind to the known document revision. Recorded migration, notice, storage-failure and background-write checks.
 
 - 2026-10-30: Cloud regression exposed an assertion equating immediate offline feedback with completed draft storage. Wait for the actual local draft before checking recovery; retain debounced serialization so offline typing stays incremental.
+
+- 2026-10-30: Added a native LaTeX Write/Preview block and read-only outlines for focus/shared reading. Validation now preserves heading levels, preventing successful saves from remaining dirty; release checks cover LaTeX bounds, TeX rendering and outline cleanup.
+
+- 2026-10-30: Added the requested `/latex` native block and broadened document outlines for focus/shared readers. Tests now cover renderer state, read-only sharing, long headings and collapse cleanup.
