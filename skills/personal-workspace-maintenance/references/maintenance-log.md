@@ -181,3 +181,5 @@ changes belong in normal commit history.
 - 2026-10-30: Added PDF-focused shortcuts, bounded geometry/fingerprint anchors and confirmed image excerpts. Added opt-in autosave with explicit first save, serialized revision checks, IME/upload waits, retry/conflict handling and content-free checkpoint hints. Updated the skill, release checklist and reading/autosave guides; image uploads preserve mapped selection while input continues.
 
 - 2026-10-30: Made autosave default-on, including meaningful new notes, with persistent sync-failure notices and capped recovery retries. Added a private creation-key ledger that deduplicates uncertain POST responses and rejects replay after later edits or deletion. Replayed responses preserve newer local input; conflict drafts bind to the known document revision. Recorded migration, notice, storage-failure and background-write checks.
+
+- 2026-10-30: Cloud regression exposed an assertion equating immediate offline feedback with completed draft storage. Wait for the actual local draft before checking recovery; retain debounced serialization so offline typing stays incremental.

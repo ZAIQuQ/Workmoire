@@ -2,6 +2,19 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.14.1] — 2026-10-30
+
+- 调整离线恢复回归测试，等待实际草稿写入完成后再验证内容，适配即时离线提醒与防抖保存各自的时序。
+- 保持 v1.14.0 的默认后台保存与持续异常提醒，离线输入继续避免逐键序列化全文。
+
+见[使用说明](docs/user-guide.md)与[后台自动保存](docs/autosave.md)。
+
+### English
+
+Verify actual local-draft persistence independently of immediate offline
+feedback. Preserve default background saving, persistent failure notices and
+debounced serialization during offline typing.
+
 ## [1.14.0] — 2026-10-30
 
 - 自动保存默认开启：新文档输入内容后也会自动建立，停笔约 2 秒同步，连续输入约每 10 秒保存一次；空白占位不入库。
