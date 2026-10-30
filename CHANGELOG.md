@@ -2,6 +2,20 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.5] — 2026-10-30
+
+- 为版本说明补充统一的「使用说明」入口，保证 About 面板在每个发布版本中都能直接跳转用户指南。
+- 分享页 LaTeX 块保留只读 Write 标签和「复制 LaTeX」按钮，接收者可以复制原始源码。
+- LaTeX Preview 识别 Markdown 表格、行内公式、粗体和代码围栏，OpenReview 回复可以直接预览。
+
+见[使用说明](docs/user-guide.md)与[后台自动保存](docs/autosave.md)。
+
+### English
+
+Shared LaTeX blocks keep a read-only Write tab with a Copy LaTeX action.
+Preview detects OpenReview-style Markdown prose, tables, inline math and fenced
+code and uses the safe local Markdown renderer instead of producing a blank view.
+
 ## [1.15.4] — 2026-10-30
 
 - 修正创建请求响应丢失后的自动保存重放：客户端会立即把响应期间继续输入的正文补写到已去重文档。
@@ -17,6 +31,7 @@ not delayed or lost.
 ## [1.15.3] — 2026-10-30
 
 - 分享页 LaTeX 块保留只读 Write 标签和「复制 LaTeX」按钮，接收者可以复制原始源码。
+- LaTeX Preview 现在识别 Markdown 表格、行内公式、粗体和代码围栏，OpenReview 回复可以直接预览。
 - LaTeX Preview 兼容 OpenReview 风格的 Markdown 正文、加粗和 fenced code；检测到这类内容时使用安全 Markdown 预览，不再交给 KaTeX 造成空白或异常。
 
 见[使用说明](docs/user-guide.md)。
