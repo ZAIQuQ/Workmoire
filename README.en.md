@@ -16,7 +16,7 @@ Self-hosted academic notes and paper reading. Write rich documents, read PDFs in
 - **Read and write together** in the [paper reading desk](docs/reading-desk.md): keep PDF and notes side by side, navigate exact source quotations, capture figures or equations, and retain reading positions and keyboard navigation. Phones switch between Original and Notes.
 - **Read papers** by manually uploading a PDF and optionally recording its source link. The server does not download papers. Embed the PDF reader directly in a document. Uploads show measured progress, and one AI analysis organizes publication, authors, labs and research fields, suggests up to two tags, and presents bilingual abstracts plus concise insights and technical explanations with an estimated wait.
 - **Organize** with colored catalogue tags, pin-side tag management, and document links. Create either a blank document or paper materials.
-- **Share** a read-only snapshot with password protection on by default, or turn it off to share a direct link. Passwords use 16 alphanumeric characters. Choose a 1-day, 7-day, 30-day, or permanent lifetime; toggle protection, reset the password or revoke access on the same link.
+- **Share** a read-only link that follows later saved document versions, with password protection on by default or direct access when turned off. Passwords use 16 alphanumeric characters. Choose a 1-day, 7-day, 30-day, or permanent lifetime; toggle protection, reset the password or revoke access on the same link.
 - **Keep your work** with [background autosave](docs/autosave.md) on by default and sync-failure notices that remain until recovery is confirmed, plus local drafts, version history, recoverable trash, and JSON / full-archive import and export.
 
 Codex assistance is **optional and disabled by default**. When enabled, selected material is passed to the local CLI and its configured model provider. Generated text must be reviewed, inserted, and saved explicitly.
@@ -55,11 +55,11 @@ Use **上报 Bug** at the bottom right to submit screenshots and reproduction st
 | Service | Default port | Purpose |
 | --- | --- | --- |
 | Workspace | `5200` | Sign-in, editing, and document management |
-| Sharing, enabled separately | `5201` | Read-only snapshots with optional password protection |
+| Sharing, enabled separately | `5201` | Live saved-document reading with optional password protection |
 
 The reader runs under a separate OS identity and reads a dedicated publication store, without access to the private document library. Follow the [sharing deployment guide](docs/document-sharing.md); [systemd examples](deploy/systemd/) cover the workspace and scheduled backups. Alternatively, run the workspace with `docker compose up -d --build`; data uses a named volume. Sharing and Codex are not enabled in the default container setup.
 
-Use HTTPS in production. Back up the database, attachments, and sharing key. Shares contain the saved version at publication time; later edits stay private. Downloaded content cannot be recalled.
+Use HTTPS in production. Back up the database, attachments, and sharing key. Shares expose only saved versions; later saves update the same link while drafts remain private. Downloaded content cannot be recalled.
 
 ```bash
 WORKSPACE_DATA_DIR=/path/to/private-data ./backup.sh /path/to/private-backups

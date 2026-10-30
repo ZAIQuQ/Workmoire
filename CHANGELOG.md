@@ -2,6 +2,21 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.2] — 2026-10-30
+
+- 已生成的分享链接现在会随文档的每次已保存改动自动更新，链接、密码、有效期和密码保护状态保持不变；未保存草稿不会公开。
+- 分享弹窗明确显示当前链接是否已同步到最新保存版本。
+- 分享阅读页目录固定在正文右侧，长文阅读时保持可见；手机端继续使用可展开目录。
+
+见[分享说明](docs/document-sharing.md)。
+
+### English
+
+Keep generated share URLs live across later saved edits. Preserve URL, password,
+expiry and protection mode while replacing the published document and scoped
+attachments in place; unsaved drafts remain private. The owner dialog shows
+whether the link is current.
+
 ## [1.15.1] — 2026-10-30
 
 - 自动保存永久开启，移除保存按钮下的开关；已有文档和有实际内容的新文档统一后台同步，停笔约 3 秒保存。

@@ -65,9 +65,21 @@ class SharingTests(unittest.TestCase):
         status,body,_=self.public_request(share['path']);self.assertEqual(status,200);self.assertNotIn(item['title'].encode(),body)
         self.assertEqual(self.unlock(share)[0],200)
         status,body,_=self.public_request(share['path']+'/document');self.assertEqual(status,200);self.assertIn(item['content'],body.decode());self.assertNotIn('owner_item_id',body.decode());self.assertEqual(json.loads(body)['rich_content']['document']['attrs']['bodyFont'],'serif')
-        self.request('/api/items/'+str(item['id']),'PUT',{**item,'content':'New private text','rich_content':None,'base_updated_at':item['updated_at']})
-        self.assertNotIn('New private text',self.public_request(share['path']+'/document')[1].decode())
+        changed={**item,'content':'New saved text is now public','rich_content':{'version':1,'document':{'type':'doc','content':[{'type':'paragraph','content':[{'type':'text','text':'New saved text is now public'}]}]}},'base_updated_at':item['updated_at']}
+        self.assertEqual(self.request('/api/items/'+str(item['id']),'PUT',changed)[0],200)
+        refreshed=SharePublisher(self.root).latest(item['id']);self.assertEqual(refreshed['path'],share['path']);self.assertEqual(refreshed['password'],share['password']);self.assertEqual(refreshed['source_updated_at'],json.loads(self.request('/api/items/'+str(item['id']))[1])['item']['updated_at'])
+        self.assertIn('New saved text is now public',self.public_request(share['path']+'/document')[1].decode())
         self.assertEqual(self.request('/api/items/'+str(item['id'])+'/share','POST',{'days':2,'base_updated_at':item['updated_at']})[0],409)
+
+    def test_saved_updates_keep_live_share_url_credentials_expiry_and_attachments(self):
+        image=self.fixture_file('live.png',b'\x89PNG\r\n\x1a\nlive','image/png',file_id='c'*32)
+        item=self.create(nodes=[{'type':'paragraph','content':[{'type':'text','text':'Before'}]},{'type':'image','attrs':{'src':image+'?inline=1','alt':'live'}}])
+        share=self.publish(item,days=30);self.assertEqual(self.unlock(share)[0],200)
+        original=json.loads(self.public_request(share['path']+'/document')[1]);old_media=original['rich_content']['document']['content'][1]['attrs']['src'];
+        changed={**item,'content':'After saved update','rich_content':{'version':1,'document':{'type':'doc','content':[{'type':'paragraph','content':[{'type':'text','text':'After saved update'}]}]}},'base_updated_at':item['updated_at']}
+        self.assertEqual(self.request('/api/items/'+str(item['id']),'PUT',changed)[0],200)
+        refreshed=SharePublisher(self.root).latest(item['id']);self.assertEqual(refreshed['path'],share['path']);self.assertEqual(refreshed['password'],share['password']);self.assertEqual(refreshed['days'],30);self.assertEqual(self.public_request(share['path']+'/document')[0],200);self.assertIn('After saved update',self.public_request(share['path']+'/document')[1].decode());self.assertEqual(self.public_request(old_media)[0],404)
+        with publication_connection(self.root) as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM shares WHERE owner_item_id=? AND revoked_at=0',(item['id'],)).fetchone()[0],1)
 
     def test_public_links_allow_anonymous_pdf_reading_and_keep_expiry_revocation_and_backups(self):
         source=self.fixture_file('open.pdf',b'%PDF-1.4 public synthetic bytes','application/pdf')

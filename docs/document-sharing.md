@@ -11,14 +11,19 @@ adds expiry commentary.
 Unsaved or legacy documents are saved through the normal revision-checked flow
 first. A stale save prevents publication.
 
-Each link publishes a read-only snapshot of the saved native document and copies
-only attachments referenced by its body. Subsequent private edits are not
-published. **生成新链接** updates the snapshot and revokes the previous link.
+Each link publishes the saved native document as a read-only public version and
+copies only attachments referenced by its body. Later **saved** edits refresh the
+same link, password and expiry in place; unsaved drafts never become public.
+**生成新链接** remains available when you want to replace the URL or credentials.
 **重置** changes the password and invalidates existing reader sessions;
 **停止分享** revokes the link. Moving the original document to trash also revokes
 its share; restoring the document does not reactivate the link. Already downloaded
 content cannot be recalled. A permanent link remains active until revoked or
-replaced. Changing validity counts from the time of the change.
+replaced. Changing validity counts from the time of the change. A reader reloads
+the link to receive the latest saved version; an already open reader may need to
+reload after a publication update.
+
+When the document is saved, an existing link is refreshed in place with the new正文 and referenced attachment set; its URL, password, expiry and protection mode stay unchanged.
 
 Changing **密码保护** on an existing share saves immediately and keeps the link
 and snapshot. Re-enabling protection generates a fresh password and invalidates
@@ -27,7 +32,7 @@ password reset is available only while protection is enabled. Concurrent stale
 settings are rejected rather than silently overriding a newer choice.
 
 The public page preserves rich text, math, read-only tasks, images, code folding,
-and the local PDF reader. References to other private documents become plain text.
+LaTeX previews, a sticky right-hand outline and the local PDF reader. References to other private documents become plain text.
 Unreferenced attachments and the private document catalogue are never exposed.
 
 ## Two services

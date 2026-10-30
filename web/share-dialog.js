@@ -22,7 +22,7 @@ export function openShareDialog({request,post,getState,ensureSaved}){
   if(!protectedLink){q('#share-owner-password').type='password';q('#share-show-password').textContent='显示';}
   q('#share-expiry').textContent=share?.expires_at?'有效至 '+new Date(share.expires_at*1000).toLocaleString('zh-CN',{hour12:false}):'';q('#share-expiry').classList.toggle('is-hidden',!share?.expires_at);
   const changed=share&&share.source_updated_at!==current.item.updated_at;
-  q('.share-version-note').textContent=share?'分享的是已保存的只读快照。'+(changed?'文档已有新版本；生成新链接会更新内容并使原链接失效。':'重新生成后，原链接立即失效。'):'分享当前已保存的文档及正文引用的附件。后续修改不会自动公开。';
+  q('.share-version-note').textContent=share?'分享内容会随文档的已保存版本自动更新。'+(changed?'当前链接正在等待最新保存版本同步。':'当前链接已同步到最新保存版本。'):'生成后，分享内容会随文档的已保存版本自动更新。';
   q('#share-create').textContent=(current.ready?'':'保存并')+(share?'生成新链接':'生成分享链接');
   for(const selector of ['.share-close','#share-duration','#share-create','#share-password-required'])q(selector).disabled=busy;
   q('#share-revoke').disabled=busy||!share;
@@ -35,7 +35,7 @@ export function openShareDialog({request,post,getState,ensureSaved}){
  q('#share-show-password').onclick=()=>{const field=q('#share-owner-password'),show=field.type==='password';field.type=show?'text':'password';q('#share-show-password').textContent=show?'隐藏':'显示';};
  q('#share-create').onclick=async()=>{
   if(busy)return;const days=Number(q('#share-duration').value),password_required=q('#share-password-required').checked;busy=true;paint();q('.share-dialog-status').textContent='正在准备分享…';
-  try{await ensureSaved();const item=state().item;const data=await post('/api/items/'+item.id+'/share',{days,password_required,base_updated_at:item.updated_at});share=data.share;publicBase=data.public_base_url;port=data.port;q('.share-dialog-status').textContent=share.password_required===false?'分享链接已生成，可直接发送给接收者。':'分享链接已生成，请将链接和密码提供给接收者。';}
+  try{await ensureSaved();const item=state().item;const data=await post('/api/items/'+item.id+'/share',{days,password_required,base_updated_at:item.updated_at});share=data.share;publicBase=data.public_base_url;port=data.port;q('.share-dialog-status').textContent=share.password_required===false?'分享链接已生成，后续保存会自动更新内容。':'分享链接已生成，后续保存会自动更新内容。';}
   catch(error){q('.share-dialog-status').textContent=error.message;}
   finally{busy=false;paint();}
  };

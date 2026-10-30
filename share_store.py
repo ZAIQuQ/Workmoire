@@ -1,4 +1,4 @@
-"""Publish immutable share snapshots; the public reader needs no workspace access."""
+"""Publish and refresh share documents; the public reader needs no workspace access."""
 from __future__ import annotations
 
 import base64
@@ -200,7 +200,7 @@ class SharePublisher:
         for path in (self.root/'media').iterdir():
             if re.fullmatch(r'[a-f0-9]{64}', path.name) and path.name not in used: path.unlink(missing_ok=True)
 
-    def publish(self, item: dict, file_rows: dict, files_dir: Path, days: int, owner_origin: str='', password_required: bool=True) -> dict:
+    def publish(self, item: dict, file_rows: dict, files_dir: Path, days: int, owner_origin: str='', password_required: bool=True, preserve_existing: bool=False) -> dict:
         if type(days) is not int or days not in DURATIONS: raise ValueError('请选择 1 天、7 天、30 天或永久')
         if type(password_required) is not bool: raise ValueError('密码保护设置无效')
         rich = read_rich_content(item.get('rich_content'), item['content'])
@@ -208,8 +208,12 @@ class SharePublisher:
         self.initialize()
         with self.locked(), closing(publication_connection(self.root, True)) as con:
             now = int(time.time()); key = (self.root/'publisher.key').read_bytes()
-            record = {'id':secrets.token_hex(16), 'owner_item_id':item['id'], 'link_nonce':secrets.token_urlsafe(32),
-                      'password_nonce':new_password_nonce(), 'key_id':token_hash(b64(key))}
+            existing = con.execute('SELECT * FROM shares WHERE owner_item_id=? AND revoked_at=0',(item['id'],)).fetchone() if preserve_existing else None
+            if existing:
+                record = dict(existing);password_required=requires_password(existing)
+            else:
+                record = {'id':secrets.token_hex(16), 'owner_item_id':item['id'], 'link_nonce':secrets.token_urlsafe(32),
+                          'password_nonce':new_password_nonce(), 'key_id':token_hash(b64(key))}
             token, password = self.credentials(record)
             assets = {}; copied = {}
             def local_id(value):
@@ -257,18 +261,29 @@ class SharePublisher:
             try:
                 document = json.dumps(sanitize(copy.deepcopy(rich['document'])), ensure_ascii=False, separators=(',',':'))
                 with con:
-                    old = [row[0] for row in con.execute('SELECT id FROM shares WHERE owner_item_id=? AND revoked_at=0',(item['id'],))]
+                    old = [row[0] for row in con.execute('SELECT id FROM shares WHERE owner_item_id=? AND revoked_at=0',(item['id'],)) if row[0] != record['id']]
                     for share_id in old:
                         con.execute("UPDATE shares SET revoked_at=?,document='',version=version+1,revision=revision+1 WHERE id=?",(now,share_id))
                         con.execute('DELETE FROM share_files WHERE share_id=?',(share_id,))
-                    con.execute('INSERT INTO shares(id,owner_item_id,token_hash,link_nonce,password_nonce,password_hash,key_id,title,document,source_updated_at,created_at,days,expires_at,password_required) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                                (record['id'],item['id'],token_hash(token),record['link_nonce'],record['password_nonce'],password_hash(password),record['key_id'],item['title'],document,item['updated_at'],now,days,now+days*86400 if days else None,password_required))
+                    if existing:
+                        con.execute('DELETE FROM share_files WHERE share_id=?',(record['id'],))
+                        con.execute('UPDATE shares SET title=?,document=?,source_updated_at=?,revision=revision+1,password_required=? WHERE id=?',
+                                    (item['title'],document,item['updated_at'],password_required,record['id']))
+                    else:
+                        con.execute('INSERT INTO shares(id,owner_item_id,token_hash,link_nonce,password_nonce,password_hash,key_id,title,document,source_updated_at,created_at,days,expires_at,password_required) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                                    (record['id'],item['id'],token_hash(token),record['link_nonce'],record['password_nonce'],password_hash(password),record['key_id'],item['title'],document,item['updated_at'],now,days,now+days*86400 if days else None,password_required))
                     for file_id,alias in assets.items():
                         f=copied[file_id];con.execute('INSERT INTO share_files VALUES(?,?,?,?,?,?)',(record['id'],alias,f['blob'],f['name'],f['content_type'],f['size']))
                 self._collect_blobs(con)
                 return self.owner_view(con.execute('SELECT * FROM shares WHERE id=?',(record['id'],)).fetchone())
             except Exception:
                 con.rollback();self._collect_blobs(con);raise
+
+    def refresh(self, item: dict, file_rows: dict, files_dir: Path, owner_origin: str='') -> dict | None:
+        """Update a live share in place while preserving its URL, password and expiry."""
+        if not self.latest(item['id']):
+            return None
+        return self.publish(item, file_rows, files_dir, 0, owner_origin, True, preserve_existing=True)
 
     def change(self, item_id: int, share_id: str, revision: int, action: str, days=None, password_required=None):
         self.initialize()

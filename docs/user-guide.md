@@ -295,7 +295,7 @@ workflow. Run `make skill-sync` after changing it.
 ## Backups
 
 `WORKSPACE_DATA_DIR=/path/to/private-data ./backup.sh /path/to/private-backups`
-creates a SQLite-consistent snapshot and an archive of uploaded files. Both are
+creates a SQLite-consistent publication store and an archive of uploaded files. Both are
 validated before retention pruning; the default retention is 14 days. Backup and
 systemd timer examples are in `deploy/systemd/`. JSON exports omit credentials
 and attachment binaries; complete archives include attachment bytes but never
@@ -310,12 +310,13 @@ sources are listed in `workspace/static/THIRD_PARTY_ASSETS.md`.
 ## Document sharing
 
 Use **分享** at the upper right of a document to generate a
-read-only snapshot on the independent sharing service (default port 5201).
+read-only live publication on the independent sharing service (default port 5201).
 Choose 1, 7, 30 days or permanent. **密码保护** is on by default; turn it off to
 share a direct link with no password. Existing shares keep their protection
 after upgrades. Re-enable the switch to generate a new password on the same link.
 Every link uses an unpredictable URL identifier. Reset passwords, replace links or stop
-sharing from the same dialog. Later private edits are not published automatically.
+sharing from the same dialog. Later saved edits update the same link automatically;
+unsaved drafts remain private.
 See [sharing setup, access controls and backup/restore](document-sharing.md).
 
 ## Compact editing space

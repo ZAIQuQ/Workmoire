@@ -385,6 +385,42 @@ def share_publisher():
     return SharePublisher(Path(SHARE_DATA_DIR))
 
 
+def refresh_item_share(item: sqlite3.Row, con: sqlite3.Connection, origin: str) -> None:
+    """Keep an existing public link on the latest saved document revision."""
+    if not SHARE_DATA_DIR:
+        return
+    publisher = share_publisher()
+    if not publisher.latest(item['id']):
+        return
+    native = read_rich_content(item['rich_content'], item['content'])
+    if not native:
+        return
+    ids = set()
+    def references(node):
+        if node.get('type') == 'codeBlock':
+            return
+        attrs = node.get('attrs', {})
+        candidates = [attrs.get('src', '')] + [mark.get('attrs', {}).get('href', '') for mark in node.get('marks', []) if mark.get('type') == 'link']
+        for candidate in candidates:
+            parsed = urlparse(str(candidate))
+            if parsed.netloc and parsed.netloc != urlparse(origin or 'http://' + self_host()).netloc:
+                continue
+            match = re.fullmatch(r'/files/([a-f0-9]{32})', parsed.path)
+            if match:
+                ids.add(match[1])
+        for child in node.get('content', []):
+            references(child)
+    references(native['document'])
+    if len(ids) > 256:
+        raise ValueError('单个分享最多包含 256 个附件')
+    files = {row['id']: dict(row) for file_id in ids for row in con.execute("SELECT * FROM files WHERE id=? AND deleted_at=''", (file_id,))}
+    publisher.refresh(dict(item), files, FILES_DIR, origin or 'http://' + self_host())
+
+
+def self_host():
+    return f'127.0.0.1:{PORT}'
+
+
 def revoke_item_shares(item_ids):
     if SHARE_DATA_DIR:
         SharePublisher(Path(SHARE_DATA_DIR)).revoke_items(item_ids)
@@ -3208,6 +3244,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                         row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
                     else:
                         row = exists
+                if changed and SHARE_DATA_DIR:
+                    with closing(open_db()) as share_con:
+                        refresh_item_share(row, share_con, self.headers.get('Origin','') or 'http://' + self.headers.get('Host',''))
                 self.json_response({"item": as_item(row)})
             except Exception as exc:
                 self.request_error(exc)

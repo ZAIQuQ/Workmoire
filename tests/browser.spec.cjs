@@ -405,7 +405,7 @@ test('sharing saves a protected snapshot and renders read-only rich blocks, imag
   const block=guest.locator('.native-code-block');await expect(block.locator('.hljs-built_in')).toBeVisible();await block.locator('.code-fold').click();await expect(block.locator('pre')).toBeHidden();await block.locator('.code-fold').click();await expect(block.locator('pre')).toBeVisible();
   await expect(guest.frameLocator('.native-pdf iframe').locator('.page canvas').first()).toBeVisible();await expect(guest.frameLocator('.native-pdf iframe').locator('.textLayer')).toContainText('Workmoire');
   expect((await context.request.get('http://127.0.0.1:8766/api/items')).status()).toBe(404);expect((await context.request.get('http://127.0.0.1:8766/static/app.js')).status()).toBe(404);
-  await page.locator('.share-close').click();await setContent(page,'后续的私有修改');await save(page);await guest.reload();await expect(guest.locator('.rich-document')).toContainText('只有这个保存版本会公开');await expect(guest.locator('.rich-document')).not.toContainText('后续的私有修改');
+ await page.locator('.share-close').click();await setContent(page,'后续的已保存修改');await save(page);await guest.reload();await expect(guest.locator('.rich-document')).toContainText('后续的已保存修改');await expect(guest.locator('.rich-document')).not.toContainText('只有这个保存版本会公开');
   await guest.screenshot({path:'artifacts/rich/share-reader-desktop.png',fullPage:true});expect(errors).toEqual([]);
  }finally{await context.close();}
 });
