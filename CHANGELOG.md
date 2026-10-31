@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.23] — 2026-10-31
+
+- 文档列表搜索、排序和页面切换会取消失效请求，减少快速操作时的无效网络请求和旧回调重绘。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Cancel obsolete document-list requests during search, sorting, and page changes to avoid wasted work and stale callbacks.
+
+See the [user guide](docs/user-guide.md).
+
 ## [1.15.22] — 2026-10-31
 
 - 分享阅读目录会跟随代码块折叠、图片加载和窗口变化重新计算章节位置，目录高亮保持准确。
