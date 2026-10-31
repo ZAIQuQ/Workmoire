@@ -2,6 +2,14 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.18] — 2026-10-31
+
+- 增加手机端附件上传、正文输入和自动保存同时进行的回归测试，覆盖进度卡片、草稿同步和页面宽度。
+
+### English
+
+- Add a mobile regression covering attachment upload progress, typing, autosave, draft synchronization, and viewport width together.
+
 ## [1.15.17] — 2026-10-31
 
 - 文档关系页搜索支持多词跨标题、摘要和标签匹配，并保留关系图的截断提示。
