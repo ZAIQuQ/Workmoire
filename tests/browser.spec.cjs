@@ -758,7 +758,7 @@ test('history panel shows line changes and restores a selected saved version',{t
 });
 
 test('history preview reports rich-format-only changes',{tag:'@history-ui'},async({page})=>{
- await login(page);await blank(page,'浏览器测试：格式历史');await setContent(page,'## 格式历史\n\n正文格式');await save(page);await page.locator('.rich-document > p').last().click();await page.locator('#line-height').selectOption('1.75');await save(page);await page.locator('#inspector-toggle').click();await page.locator('.inspector-details').filter({hasText:'历史版本'}).locator('summary').click();const rows=page.locator('.revision-row');await expect(rows).toHaveCount(1);await rows.first().click();await expect(page.locator('.revision-format-note')).toContainText('富文本格式或内容块属性发生变化');
+ await login(page);await blank(page,'浏览器测试：格式历史');await setContent(page,'## 格式历史\n\n正文格式');await save(page);await page.locator('.rich-document > p').last().click();await page.locator('#line-height').selectOption('1.75');await save(page);await page.locator('#inspector-toggle').click();await page.locator('.inspector-details').filter({hasText:'历史版本'}).locator('summary').click();const rows=page.locator('.revision-row');await expect(rows).toHaveCount(1);await rows.first().click();await expect(page.locator('.revision-format-note')).toContainText('行间距发生变化');
 });
 
 test('shared LaTeX blocks keep a read-only Write source and copy control',{tag:'@shared-latex'},async({page,browser})=>{

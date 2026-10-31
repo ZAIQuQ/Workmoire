@@ -293,11 +293,29 @@ function nativeFormatFingerprint(value){
  const normalize=node=>{if(!node||typeof node!=='object')return null;const result={type:node.type};if(node.attrs)result.attrs=node.attrs;if(node.marks)result.marks=node.marks;if(Array.isArray(node.content))result.content=node.content.map(normalize);return result;};
  return JSON.stringify({version:native.version,document:normalize(native.document)});
 }
-function nativeFormatChanged(before,after){const left=nativeFormatFingerprint(before),right=nativeFormatFingerprint(after);return Boolean(left&&right&&left!==right);}
+function nativeFormatProfile(value){
+ let native=value;if(typeof native==='string'){try{native=JSON.parse(native);}catch{return null;}}
+ if(!native||native.version!==1||!native.document)return null;
+ const profile={bodyFont:native.document.attrs?.bodyFont||'sans',headings:[],lineHeights:[],alignments:[],indents:[],marks:[],tables:[],codeFolds:[]};
+ const visit=node=>{if(!node||typeof node!=='object')return;if(node.type==='heading')profile.headings.push(node.attrs?.level||1);if(node.type==='paragraph'||node.type==='heading'){if(node.attrs?.lineHeight&&node.attrs.lineHeight!=='default')profile.lineHeights.push(node.attrs.lineHeight);if(node.attrs?.textAlign)profile.alignments.push(node.attrs.textAlign);if(node.attrs?.blockIndent)profile.indents.push(node.attrs.blockIndent);}if(node.type==='table')profile.tables.push({fixedWidth:node.attrs?.fixedWidth!==false});if(node.type==='codeBlock'&&node.attrs?.collapsed)profile.codeFolds.push(true);for(const mark of node.marks||[])profile.marks.push(mark.type+(mark.attrs?.color?':color':''));for(const child of node.content||[])visit(child);};
+ visit(native.document);for(const key of ['headings','lineHeights','alignments','indents','marks','tables','codeFolds'])profile[key].sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));return profile;
+}
+function nativeFormatNotes(before,after){
+ const left=nativeFormatProfile(before),right=nativeFormatProfile(after);if(!left||!right)return [];
+ const notes=[],fontNames={system:'系统默认',sans:'Noto Sans SC',serif:'Noto Serif SC',inter:'Inter',mono:'Maple Mono'};
+ if(left.bodyFont!==right.bodyFont)notes.push('字体：'+(fontNames[left.bodyFont]||left.bodyFont)+' → '+(fontNames[right.bodyFont]||right.bodyFont));
+ if(JSON.stringify(left.lineHeights)!==JSON.stringify(right.lineHeights))notes.push('行间距发生变化');
+ if(JSON.stringify(left.headings)!==JSON.stringify(right.headings))notes.push('标题层级发生变化');
+ if(JSON.stringify(left.marks)!==JSON.stringify(right.marks))notes.push('文字格式或颜色发生变化');
+ if(JSON.stringify(left.alignments)!==JSON.stringify(right.alignments)||JSON.stringify(left.indents)!==JSON.stringify(right.indents))notes.push('段落对齐或缩进发生变化');
+ if(JSON.stringify(left.tables)!==JSON.stringify(right.tables))notes.push('表格宽度属性发生变化');
+ if(JSON.stringify(left.codeFolds)!==JSON.stringify(right.codeFolds))notes.push('代码块折叠状态发生变化');
+ return notes;
+}
 function openRevisionPreview(item,revisions,index){
- const revision=revisions[index],after=index===0?snapshot(state.current):revisions[index-1],formatChanged=nativeFormatChanged(revision.rich_content,after.rich_content),dialog=document.createElement('dialog');dialog.className='dialog revision-preview-dialog';const card=document.createElement('div');card.className='dialog-card';
+ const revision=revisions[index],after=index===0?snapshot(state.current):revisions[index-1],formatNotes=nativeFormatNotes(revision.rich_content,after.rich_content),formatChanged=Boolean(nativeFormatFingerprint(revision.rich_content)&&nativeFormatFingerprint(after.rich_content)&&nativeFormatFingerprint(revision.rich_content)!==nativeFormatFingerprint(after.rich_content)),dialog=document.createElement('dialog');dialog.className='dialog revision-preview-dialog';const card=document.createElement('div');card.className='dialog-card';
  const rows=lineDiff(revision.content,after.content).map(row=>'<div class="revision-diff-line revision-diff-'+row.type+'"><span>'+({added:'+',removed:'−',same:' '}[row.type])+'</span><code>'+esc(row.text||' ')+'</code></div>').join('');
- card.innerHTML='<div class="dialog-head"><div><h2>版本改动</h2><p class="dialog-note">'+esc(new Date(revision.created_at).toLocaleString('zh-CN'))+' · '+(index===0?'改动后为当前版本':'改动后为下一条历史版本')+'</p></div><button type="button" class="icon-button revision-close" aria-label="关闭版本预览">'+icon('close')+'</button></div><div class="revision-preview-meta"><strong>'+esc(revision.title||'未命名文档')+'</strong><span>正文改动</span></div><div class="revision-diff" aria-label="正文改动">'+rows+'</div>'+(formatChanged?'<p class="revision-format-note">富文本格式或内容块属性发生变化，已纳入此版本。</p>':'')+'<div class="dialog-actions"><button type="button" class="button secondary revision-close">关闭</button><button type="button" class="button primary" id="revision-restore">恢复这个版本</button></div>';
+ card.innerHTML='<div class="dialog-head"><div><h2>版本改动</h2><p class="dialog-note">'+esc(new Date(revision.created_at).toLocaleString('zh-CN'))+' · '+(index===0?'改动后为当前版本':'改动后为下一条历史版本')+'</p></div><button type="button" class="icon-button revision-close" aria-label="关闭版本预览">'+icon('close')+'</button></div><div class="revision-preview-meta"><strong>'+esc(revision.title||'未命名文档')+'</strong><span>正文改动</span></div><div class="revision-diff" aria-label="正文改动">'+rows+'</div>'+(formatChanged?'<p class="revision-format-note">'+esc(formatNotes.length?formatNotes.join('；'):'富文本格式或内容块属性发生变化')+'，已纳入此版本。</p>':'')+'<div class="dialog-actions"><button type="button" class="button secondary revision-close">关闭</button><button type="button" class="button primary" id="revision-restore">恢复这个版本</button></div>';
  dialog.append(card);document.body.append(dialog);const close=()=>dialog.close();card.querySelectorAll('.revision-close').forEach(button=>button.onclick=close);card.querySelector('#revision-restore').onclick=async()=>{if(!canLeave()||!window.confirm('恢复此版本？当前已保存内容会保留到历史中。'))return;try{const result=await post('/api/items/'+item.id+'/revisions/'+revision.id+'/restore',{});clearDraft(item);state.current=result.item;state.baseline=snapshot(result.item);dialog.close();renderEditor();await loadItems();renderList();toast('已恢复历史版本');}catch(error){toast(error.message,true);}};dialog.addEventListener('close',()=>dialog.remove());dialog.addEventListener('click',event=>{if(event.target===dialog)close();});dialog.showModal();
 }
 async function loadDocumentDetails(){

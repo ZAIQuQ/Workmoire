@@ -2,6 +2,16 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.11] — 2026-10-31
+
+- 历史版本预览进一步显示具体格式变化类型，例如字体前后值、行间距、标题层级、文字格式/颜色、段落对齐/缩进、表格宽度和代码折叠状态。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- History previews now identify specific rich-format changes, including font values, line spacing, heading levels, text styles/colors, paragraph alignment/indentation, table width, and code-fold state.
+
 ## [1.15.10] — 2026-10-31
 
 - 历史版本预览现在会识别并提示仅富文本格式或内容块属性发生的变化，行间距、字体、文字样式、表格属性等改动不再显示成空的正文差异。
