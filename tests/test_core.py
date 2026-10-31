@@ -45,6 +45,13 @@ class WorkspaceCoreTests(unittest.TestCase):
         finally:
             app.CODEX_BIN = previous
 
+    def test_versioned_document_task_templates_cover_every_general_entry(self):
+        self.assertEqual(set(app.ASSISTANT_TASKS), {"summarize", "outline", "next_steps", "review"})
+        for task in app.ASSISTANT_TASKS:
+            template = app.document_task_template(task)
+            self.assertIn("· v1", template)
+            self.assertGreater(len(template), 120)
+
     def test_assistant_uses_explicit_local_command(self):
         previous = app.CODEX_BIN
         with tempfile.TemporaryDirectory() as temp:
@@ -80,6 +87,7 @@ class WorkspaceCoreTests(unittest.TestCase):
             try:
                 app.CODEX_BIN = sys.executable + " " + str(script)
                 result = app.run_assistant("summarize", "论文标题", "paper", "正文", "研究摘要", "方法,实验")
+                self.assertIn("文档整理模板 · summarize · v1", result)
                 self.assertIn("摘要：研究摘要", result)
                 self.assertIn("标签：方法,实验", result)
             finally:

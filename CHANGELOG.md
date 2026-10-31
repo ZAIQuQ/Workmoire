@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.12] — 2026-10-31
+
+- 将文档摘要、大纲、下一步建议和自查四个通用 AI 入口拆成独立的 v1 模板资源，保留明确的输入边界、输出格式和事实约束。
+- 论文速读继续使用独立的 `paper-brief.md` 模板；后续可以按入口分别评测和迭代，不再需要修改业务代码中的长提示词。
+
+见[使用说明](docs/user-guide.md)与[AI 模板待办](TODO.md)。
+
+### English
+
+- Move the four general document tasks—summary, outline, next steps, and review—into independent versioned v1 prompt resources with explicit input boundaries, output formats, and factual constraints.
+- Keep paper reading on its separate `paper-brief.md` template so each entry can be evaluated and refined independently without editing business code.
+
 ## [1.15.11] — 2026-10-31
 
 - 历史版本预览进一步显示具体格式变化类型，例如字体前后值、行间距、标题层级、文字格式/颜色、段落对齐/缩进、表格宽度和代码折叠状态。
