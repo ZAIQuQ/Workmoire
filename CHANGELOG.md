@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.14] — 2026-10-31
+
+- 专注模式下将“工具栏”入口和编辑/阅读切换固定到顶栏左侧，阅读模式隐藏工具栏后不会把模式按钮推到右侧。
+- 保持专注模式键盘顺序为工具栏、保存、退出专注，避免鼠标和键盘操作位置来回跳动。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Keep the focus-mode toolbar entry and edit/read switch in a stable left-side control group, so hiding the toolbar in reading mode does not push the mode controls to the far right.
+- Preserve the focus-mode keyboard order: toolbar, save, then exit focus.
+
 ## [1.15.13] — 2026-10-31
 
 - 全局搜索支持多词匹配，关键词可以分别出现在标题、摘要、正文或标签中。

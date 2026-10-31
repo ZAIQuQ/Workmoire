@@ -1,17 +1,18 @@
 /* Reuse the existing controls; focus mode changes layout, never document nodes. */
-.focus-title-slot, .focus-view-controls, .focus-tools-toggle { display: none; }
+.focus-left-controls, .focus-title-slot, .focus-view-controls, .focus-tools-toggle { display: none; }
 .focus-mode .page-content { padding: 6px; }
 .focus-mode .editor-surface { border-radius: 12px; }
 .focus-mode .document-topline { height: 44px; min-height: 44px; padding: 0 16px; gap: 12px; }
 .focus-mode .document-title-block, .focus-mode .doc-inspector,
 .focus-mode #back-to-list, .focus-mode #assistant-content,
 .focus-mode #inspector-toggle, .focus-mode #share-document { display: none; }
-.focus-mode .focus-title-slot { display: flex; align-items: center; flex: 1; min-width: 0; order: 0; }
+.focus-mode .focus-left-controls { display: flex; align-items: center; gap: 5px; flex: none; min-width: 0; order: 0; position: relative; z-index: 90; padding: 2px; border-radius: var(--radius-sm); background: var(--paper); }
+.focus-mode .focus-title-slot { display: flex; align-items: center; flex: 1; min-width: 0; order: 1; }
 .focus-mode .focus-title-slot .editor-title { min-height: 24px; max-height: 24px; padding: 0; font: 500 14px/24px var(--ui-font); letter-spacing: 0; white-space: nowrap; overflow: hidden; }
-.focus-mode .document-location { order: 1; flex: none; }
+.focus-mode .document-location { order: 2; flex: none; }
 .focus-mode .document-location > :not(#save-state) { display: none; }
 .focus-mode .document-location #save-state { font-size: 11px; }
-.focus-mode .document-actions { order: 2; gap: 5px; flex: none; }
+.focus-mode .document-actions { order: 3; gap: 5px; flex: none; }
 .focus-mode .focus-view-controls { display: flex; align-items: center; gap: 5px; order: 0; }
 .focus-mode .focus-view-controls .view-modes { margin: 0; padding: 1px; }
 .focus-mode .focus-view-controls .view-modes button { padding: 4px 7px; }
@@ -33,7 +34,7 @@
  .focus-mode .editor-surface { border-radius: 0; }
  .focus-mode .document-topline { padding: 0 8px; gap: 6px; }
  .focus-mode .focus-title-slot .editor-title { font-size: 12px; }
- .focus-mode .document-actions, .focus-mode .focus-view-controls { gap: 3px; }
+ .focus-mode .document-actions, .focus-mode .focus-view-controls, .focus-mode .focus-left-controls { gap: 3px; }
  .focus-mode .focus-tools-toggle { width: 28px; padding: 0; justify-content: center; }
  .focus-mode .focus-tools-toggle > span { display: none; }
  .focus-mode .focus-view-controls .outline-toggle { font-size: 0; gap: 0; padding: 5px; }
