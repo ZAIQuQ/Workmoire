@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.22] — 2026-10-31
+
+- 分享阅读目录会跟随代码块折叠、图片加载和窗口变化重新计算章节位置，目录高亮保持准确。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Recalculate shared-reader outline positions after code folding, media reflow, and viewport changes so the active heading stays accurate.
+
+See the [user guide](docs/user-guide.md).
+
 ## [1.15.21] — 2026-10-31
 
 - 稳定自动保存失败回归测试，等待实际保存请求命中后再验证错误提示，减少 CI 时序噪声。
