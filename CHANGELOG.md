@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.13] — 2026-10-31
+
+- 全局搜索支持多词匹配，关键词可以分别出现在标题、摘要、正文或标签中。
+- 搜索结果安全高亮所有命中词，保留上下文并支持直接打开准确文档。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Global search now supports multiple terms across titles, summaries, bodies, and tags.
+- Search results safely highlight every matched term, preserve context, and open the exact document.
+
 ## [1.15.12] — 2026-10-31
 
 - 将文档摘要、大纲、下一步建议和自查四个通用 AI 入口拆成独立的 v1 模板资源，保留明确的输入边界、输出格式和事实约束。

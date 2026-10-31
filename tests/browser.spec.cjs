@@ -166,6 +166,10 @@ test('dragging a block moves it without losing text and undo restores the origin
  await expect.poll(()=>paragraphs.allTextContents()).not.toEqual(['第一段','第二段','第三段']);expect((await paragraphs.allTextContents()).filter(Boolean).sort()).toEqual(['第一段','第二段','第三段'].sort());await page.locator('.rich-document').click();await page.keyboard.press('Control+z');await expect.poll(()=>paragraphs.allTextContents()).toEqual(['第一段','第二段','第三段']);
 });
 
+test('global search highlights all terms in context and opens the exact document',async({page})=>{
+ await login(page);await blank(page,'搜索上下文目标文档');await setContent(page,'这是一段可定位的检索上下文，应该出现在搜索结果中。');await save(page);const id=await page.evaluate(()=>state.current.id);await page.locator('#global-search-trigger').click();await page.locator('#global-search').fill('检索 上下文');await expect(page.locator('#search-results .search-result')).toHaveCount(1);await expect.poll(async()=>page.locator('#search-results .search-hit').count()).toBeGreaterThan(1);await expect(page.locator('#search-results .search-result p')).toContainText('检索上下文');await page.locator('#search-results .search-result').click();await expect(page.locator('#edit-title')).toHaveValue('搜索上下文目标文档');expect(await page.evaluate(()=>state.current.id)).toBe(id);
+});
+
 test('failed local draft storage is visible and cannot silently discard native edits',async({page})=>{
  await login(page);await blank(page,'浏览器测试：草稿容量');await page.locator('.rich-document').click();await page.keyboard.insertText('需要保留的正文');await page.evaluate(()=>{window.originalStorageSet=Storage.prototype.setItem;Storage.prototype.setItem=function(){throw new DOMException('Synthetic quota','QuotaExceededError')};});await page.waitForTimeout(1000);await expect(page.locator('#save-state')).toHaveText('未保存 · 草稿写入失败');await page.locator('[data-page="papers"]').click();await expect(page.locator('.rich-document')).toContainText('需要保留的正文');await expect(page.locator('#toast')).toContainText('请先保存文档');await page.evaluate(()=>{Storage.prototype.setItem=window.originalStorageSet});await save(page);
 });

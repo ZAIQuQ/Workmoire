@@ -1734,10 +1734,17 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if not query:
                 self.json_response({"items": [], "files": []})
                 return
-            pattern = "%" + query + "%"
+            terms = [term for term in re.split(r"\s+", query) if term][:8]
+            if not terms:
+                self.json_response({"items": [], "files": []})
+                return
             con = open_db()
-            item_clauses = ["deleted_at=''", "(title LIKE ? OR summary LIKE ? OR content LIKE ? OR tags LIKE ?)"]
-            item_values: list[object] = [pattern, pattern, pattern, pattern]
+            item_clauses = ["deleted_at=''"]
+            item_values: list[object] = []
+            for term in terms:
+                pattern = "%" + term + "%"
+                item_clauses.append("(title LIKE ? OR summary LIKE ? OR content LIKE ? OR tags LIKE ?)")
+                item_values.extend([pattern, pattern, pattern, pattern])
             if kind:
                 item_clauses.append("kind=?")
                 item_values.append(kind)
@@ -1746,18 +1753,28 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 item_values.append(status)
             item_where = " AND ".join(item_clauses)
             item_total = con.execute("SELECT COUNT(*) FROM items WHERE %s" % item_where, item_values).fetchone()[0]
-            item_score = "CASE WHEN title LIKE ? THEN 16 ELSE 0 END + CASE WHEN summary LIKE ? THEN 8 ELSE 0 END + CASE WHEN tags LIKE ? THEN 6 ELSE 0 END + CASE WHEN content LIKE ? THEN 3 ELSE 0 END"
+            item_score_parts = []
+            score_values: list[object] = []
+            for term in terms:
+                pattern = "%" + term + "%"
+                item_score_parts.append("CASE WHEN title LIKE ? THEN 16 ELSE 0 END + CASE WHEN summary LIKE ? THEN 8 ELSE 0 END + CASE WHEN tags LIKE ? THEN 6 ELSE 0 END + CASE WHEN content LIKE ? THEN 3 ELSE 0 END")
+                score_values.extend([pattern, pattern, pattern, pattern])
+            item_score = " + ".join(item_score_parts)
             item_rows = con.execute(
                 "SELECT * FROM items WHERE %s ORDER BY (%s) DESC, pinned DESC, updated_at DESC, id DESC LIMIT ? OFFSET ?" % (item_where, item_score),
-                item_values + [pattern, pattern, pattern, pattern] + [limit, offset],
+                item_values + score_values + [limit, offset],
             ).fetchall()
             items = []
             for row in item_rows:
                 item = as_item_summary(row)
                 item["snippet"] = search_snippet(row, query)
                 items.append(item)
-            file_clauses = ["f.deleted_at=''", "(f.name LIKE ? OR COALESCE(i.title,'') LIKE ?)"]
-            file_values: list[object] = [pattern, pattern]
+            file_clauses = ["f.deleted_at=''"]
+            file_values: list[object] = []
+            for term in terms:
+                pattern = "%" + term + "%"
+                file_clauses.append("(f.name LIKE ? OR COALESCE(i.title,'') LIKE ?)")
+                file_values.extend([pattern, pattern])
             if kind:
                 file_clauses.append("i.kind=?")
                 file_values.append(kind)
@@ -1766,10 +1783,16 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 file_values.append(status)
             file_where = " AND ".join(file_clauses)
             file_total = con.execute("SELECT COUNT(*) FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s" % file_where, file_values).fetchone()[0]
-            file_score = "CASE WHEN f.name LIKE ? THEN 8 ELSE 0 END + CASE WHEN COALESCE(i.title,'') LIKE ? THEN 6 ELSE 0 END"
+            file_score_parts = []
+            file_score_values: list[object] = []
+            for term in terms:
+                pattern = "%" + term + "%"
+                file_score_parts.append("CASE WHEN f.name LIKE ? THEN 8 ELSE 0 END + CASE WHEN COALESCE(i.title,'') LIKE ? THEN 6 ELSE 0 END")
+                file_score_values.extend([pattern, pattern])
+            file_score = " + ".join(file_score_parts)
             files = [dict(row) for row in con.execute(
                 "SELECT f.id,f.name,f.size,f.content_type,f.item_id,f.created_at,i.title AS item_title FROM files f LEFT JOIN items i ON i.id=f.item_id AND i.deleted_at='' WHERE %s ORDER BY (%s) DESC, f.created_at DESC, f.id DESC LIMIT ? OFFSET ?" % (file_where, file_score),
-                file_values + [pattern, pattern] + [limit, offset],
+                file_values + file_score_values + [limit, offset],
             ).fetchall()]
             con.close()
             next_offset = offset + limit if offset + limit < max(item_total, file_total) else None

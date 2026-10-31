@@ -69,6 +69,12 @@ class SearchHttpTests(unittest.TestCase):
         self.assertEqual([item["kind"] for item in filtered["items"]], ["paper"])
         self.request("/api/search?q=workflow&kind=invalid", status=400)
 
+    def test_search_matches_multiple_terms_across_item_fields(self):
+        item = self.create("Multi term title", content="The body supplies the second context token.", tags="research")
+        result = self.request("/api/search?q=Multi%20context")
+        self.assertEqual([row["id"] for row in result["items"]], [item["id"]])
+        self.assertIn("context", result["items"][0]["snippet"].lower())
+
     def test_search_prioritizes_title_and_metadata_matches(self):
         body_match = self.create("Unrelated note", content="workflow appears only in the body")
         pinned_body_match = self.create("Pinned unrelated note", content="workflow appears in this body", pinned=True)
