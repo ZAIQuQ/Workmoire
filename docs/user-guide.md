@@ -66,10 +66,10 @@ including local drafts, saved history and JSON/full archives; Markdown export
 does not carry document fonts. Code, formula faces and interface typography
 retain their own styles.
 
-Use **行间距** to apply a consistent spacing to the current paragraph or all
-selected paragraphs and headings. Choose default, 1.0, 1.15, 1.5, 1.75, or
-2.0. The setting is stored with the native document and follows save, history,
-export, import, and sharing.
+Use **行间距** to apply one spacing to every body paragraph and heading in the
+document. Selecting a value does not require a text selection. Choose default,
+1.0, 1.15, 1.5, 1.75, or 2.0. The setting is stored with the native document
+and follows save, history, export, import, and sharing.
 
 Select text, then use the toolbar's **A** color button for a preset or custom
 color. **默认颜色** removes only the selected text's explicit color. Bold,

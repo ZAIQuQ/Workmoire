@@ -318,7 +318,7 @@ export function mountRichEditor(host,options={}){
   tableFixedWidth:()=>selectedTable(editor)?.node.attrs.fixedWidth!==false,
   bodyFont,
   setBodyFont(value){if(!editor.isEditable||!['system','sans','serif','inter','mono'].includes(value)||bodyFont()===value)return;editor.view.dispatch(closeHistory(editor.state.tr).step(new DocumentFontStep(value,bodyFont())));editor.view.dispatch(closeHistory(editor.state.tr));},
-  lineHeight:()=>{const name=editor.state.selection.$from.parent.type.name;return ['paragraph','heading'].includes(name)?validLineHeight(editor.state.selection.$from.parent.attrs.lineHeight):'default';},
+  lineHeight:()=>{let value='default',seen=false,mixed=false;editor.state.doc.descendants(node=>{if(!['paragraph','heading'].includes(node.type.name))return;const current=validLineHeight(node.attrs.lineHeight);if(!seen){value=current;seen=true;}else if(value!==current)mixed=true;});return mixed?'default':value;},
   setLineHeight(value,bookmark){return applyLineHeight(editor,value,bookmark);},
   restoreBookmark,
   setColor(color,{focus=true}={}){const chain=editor.chain();if(focus)chain.focus();return color?chain.setColor(color).run():chain.unsetColor().run();},
