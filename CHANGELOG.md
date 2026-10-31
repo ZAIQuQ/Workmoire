@@ -2,6 +2,14 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.16] — 2026-10-31
+
+- 增加手机端文档关系页回归测试，覆盖导航展开、关系选择、关系地图和页面宽度边界。
+
+### English
+
+- Add a mobile relationship-page regression covering navigation, relation selection, the map, and viewport overflow.
+
 ## [1.15.15] — 2026-10-31
 
 - 为四个通用 AI 入口加入合成评测集和模板契约检查，持续验证输入边界、事实约束和可编辑输出格式。
