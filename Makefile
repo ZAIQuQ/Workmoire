@@ -8,6 +8,7 @@ compile:
 
 test:
 	python3 -m unittest discover -s tests -v
+	python3 scripts/check_document_templates.py
 	npm run test:commands
 
 build:

@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.15] — 2026-10-31
+
+- 为四个通用 AI 入口加入合成评测集和模板契约检查，持续验证输入边界、事实约束和可编辑输出格式。
+- `make test` 现在会检查摘要、大纲、下一步建议、自查模板及其评测案例是否完整。
+
+见[AI 模板待办](TODO.md)。
+
+### English
+
+- Add synthetic evaluation fixtures and template contract checks for the four general AI document tasks.
+- `make test` now validates the completeness of the summary, outline, next-step, and review templates and their evaluation cases.
+
 ## [1.15.14] — 2026-10-31
 
 - 专注模式下将“工具栏”入口和编辑/阅读切换固定到顶栏左侧，阅读模式隐藏工具栏后不会把模式按钮推到右侧。

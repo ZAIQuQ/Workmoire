@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "description": "Synthetic fixtures for comparing general document assistant templates. Contains no personal or paper content.",
+  "cases": [
+    {
+      "id": "summarize-001",
+      "task": "summarize",
+      "title": "实验记录",
+      "material": "本周把缓存策略从 30 秒改成 12 分钟，离线期间可以继续编辑。当前仍有两个问题：首次同步失败时没有明确提示，导出文件没有记录模板版本。下周准备先补同步失败测试，再比较两种缓存策略的命中率。",
+      "checks": {
+        "must_include": ["12 分钟", "离线", "同步失败"],
+        "must_omit": ["材料未明确", "待核实", "关键证据与边界", "根据所提供的材料"],
+        "shape": "markdown_bullets_max_5"
+      }
+    },
+    {
+      "id": "outline-001",
+      "task": "outline",
+      "title": "研究计划",
+      "material": "研究问题：如何降低长文档检索的定位成本。方法分为语料清洗、分段索引和浏览器端定位三步。评估包含命中率、首次定位时间和用户回退次数。风险是标注样本不足，缓解方式是先用 50 份合成文档做回归。",
+      "checks": {
+        "must_include": ["研究问题", "语料清洗", "分段索引", "命中率", "标注样本不足"],
+        "must_omit": ["材料未明确", "待补充"],
+        "shape": "markdown_headings_and_lists"
+      }
+    },
+    {
+      "id": "next-steps-001",
+      "task": "next_steps",
+      "title": "发布前检查",
+      "material": "当前版本已完成接口测试，但还没有验证手机宽度下的表格滚动。分享页使用的是上一轮静态资源。发布前需要跑浏览器回归、刷新分享服务静态资源并检查两个健康端口。",
+      "checks": {
+        "must_include": ["手机宽度", "浏览器回归", "分享服务", "健康端口"],
+        "must_omit": ["负责人", "截止日期", "已完成"],
+        "shape": "numbered_actions_max_5"
+      }
+    },
+    {
+      "id": "review-001",
+      "task": "review",
+      "title": "功能说明草稿",
+      "material": "用户可以输入关键词搜索文档。搜索结果显示标题和一段摘要。点击结果会打开文档。当前说明没有解释多词搜索如何匹配，也没有说明无结果时应该做什么。",
+      "checks": {
+        "must_include": ["多词搜索", "无结果", "说明"],
+        "must_omit": ["待核实", "材料未明确", "无法判断"],
+        "shape": "markdown_review_points"
+      }
+    }
+  ]
+}
