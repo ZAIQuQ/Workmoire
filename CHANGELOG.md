@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.20] — 2026-10-31
+
+- 修复文档关系搜索的旧请求覆盖新结果问题；快速输入和离开关系页时会取消失效请求。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Prevent stale relationship-search responses from replacing newer results; obsolete requests are cancelled on rapid input and page changes.
+
+See the [user guide](docs/user-guide.md).
+
 ## [1.15.19] — 2026-10-31
 
 - 修复 About 面板当前版本更新缺少「使用说明」入口的问题。

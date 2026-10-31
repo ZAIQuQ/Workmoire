@@ -117,6 +117,12 @@ test('document relations remain usable without horizontal overflow on phones',as
  await login(page);await page.setViewportSize({width:390,height:844});await page.locator('#mobile-menu').click();await page.locator('[data-page="relations"]').click();await expect(page.locator('.relation-workspace')).toBeVisible();await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);const picker=page.locator('.relation-picker-row').first();await expect(picker).toBeVisible();await picker.click();await expect(page.locator('#relation-map .map-current')).toBeVisible();await expect(page.locator('#relation-map')).toBeInViewport();await expect(page.locator('.relation-picker')).toHaveCSS('overflow-x','visible');
 });
 
+test('relationship search ignores a late response from an obsolete query',async({page})=>{
+ await login(page);await page.locator('[data-page="relations"]').click();await expect(page.locator('.relation-workspace')).toBeVisible();let release,started;const gate=new Promise(resolve=>release=resolve),first=new Promise(resolve=>started=resolve);
+ await page.route('**/api/graph?*',async route=>{const query=new URL(route.request().url()).searchParams.get('q')||'';if(query==='slow'){started();await gate;}try{await route.continue();}catch{}});
+ await page.locator('#relation-search').fill('slow');await first;await page.locator('#relation-search').fill('fast');await expect(page.locator('.relation-picker')).toContainText('还没有匹配的文档。');release();await expect(page.locator('.relation-picker')).toContainText('还没有匹配的文档。');await page.unroute('**/api/graph?*');
+});
+
 test('conflicting saves preserve the native local draft',async({page})=>{
  await login(page);await blank(page,'浏览器测试：冲突保护');await setContent(page,'最初正文');await save(page);const original=await page.evaluate(()=>({...state.current}));await setContent(page,'**本机未保存的正文**');const update=await page.request.put('/api/items/'+original.id,{data:{kind:'note',title:original.title,content:'另一个窗口的更新',base_updated_at:original.updated_at}});expect(update.status()).toBe(200);
  await page.locator('#save-content').click();await expect(page.locator('#conflict-notice')).toBeVisible();await expect(page.locator('.rich-document strong')).toContainText('本机未保存的正文');await page.locator('#load-current-version').click();await expect(page.locator('.rich-document')).toContainText('另一个窗口的更新');await expect(page.locator('#copy-stale-draft')).toBeVisible();await expect(page.locator('#restore-draft')).toHaveCount(0);
