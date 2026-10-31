@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.19] — 2026-10-31
+
+- 修复 About 面板当前版本更新缺少「使用说明」入口的问题。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Fix the About panel's current-release notes so they always include the user guide link.
+
+See the [user guide](docs/user-guide.md).
+
 ## [1.15.18] — 2026-10-31
 
 - 增加手机端附件上传、正文输入和自动保存同时进行的回归测试，覆盖进度卡片、草稿同步和页面宽度。
