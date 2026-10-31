@@ -83,6 +83,14 @@ class GraphHttpTests(unittest.TestCase):
         focused = self.request("/api/graph?kind=paper&q=Graph")
         self.assertEqual(focused["total"], 1)
         self.assertEqual(focused["nodes"][0]["id"], child["id"])
+        multi = self.create("Workflow parent", kind="project")
+        self.request("/api/items/%d" % multi["id"], "PUT", {
+            "kind": "project", "title": "Workflow parent", "summary": "retrieval context", "content": "",
+            "tags": "planning", "status": "inbox", "priority": 2, "due_date": "", "parent_id": None, "pinned": False,
+            "base_updated_at": multi["updated_at"],
+        })
+        multi_result = self.request("/api/graph?q=Workflow%20context")
+        self.assertEqual([node["id"] for node in multi_result["nodes"]], [multi["id"]])
         self.request("/api/graph?limit=bad", status=400)
         self.request("/api/graph?kind=unknown", status=400)
 

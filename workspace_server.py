@@ -1652,6 +1652,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             params = parse_qs(parsed.query)
             kind = params.get("kind", [""])[0]
             query = params.get("q", [""])[0].strip()[:120]
+            terms = [term for term in re.split(r"\s+", query) if term][:8]
             if kind and kind not in KINDS:
                 self.error("无效的关系地图类型", 400)
                 return
@@ -1665,16 +1666,23 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if kind:
                 clauses.append("kind=?")
                 values.append(kind)
-            if query:
+            for term in terms:
+                pattern = "%" + term + "%"
                 clauses.append("(title LIKE ? OR summary LIKE ? OR tags LIKE ?)")
-                pattern = "%" + query + "%"
                 values.extend([pattern, pattern, pattern])
             where = " AND ".join(clauses)
             total = con.execute("SELECT COUNT(*) FROM items WHERE " + where, values).fetchone()[0]
+            score_parts, score_values = [], []
+            for term in terms:
+                pattern = "%" + term + "%"
+                score_parts.append("CASE WHEN title LIKE ? THEN 8 ELSE 0 END + CASE WHEN summary LIKE ? THEN 4 ELSE 0 END + CASE WHEN tags LIKE ? THEN 2 ELSE 0 END")
+                score_values.extend([pattern, pattern, pattern])
+            score = " + ".join(score_parts)
+            order_score = "(" + score + ") DESC, " if score else ""
             rows = con.execute(
                 "SELECT id,kind,title,summary,status,priority,due_date,entry_date,parent_id,pinned,updated_at "
-                "FROM items WHERE " + where + " ORDER BY pinned DESC, updated_at DESC LIMIT ?",
-                values + [limit],
+                "FROM items WHERE " + where + " ORDER BY " + order_score + "pinned DESC, updated_at DESC LIMIT ?",
+                values + score_values + [limit],
             ).fetchall()
             nodes = [dict(row) for row in rows]
             node_ids = {row["id"] for row in rows}

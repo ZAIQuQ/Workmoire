@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.17] — 2026-10-31
+
+- 文档关系页搜索支持多词跨标题、摘要和标签匹配，并保留关系图的截断提示。
+- 修复关系页无关键词查询在 SQLite 中触发无效排序表达式的问题。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Relationship search now matches multiple terms across titles, summaries, and tags while retaining the graph truncation notice.
+- Fix an invalid SQLite ordering expression for empty relationship queries.
+
 ## [1.15.16] — 2026-10-31
 
 - 增加手机端文档关系页回归测试，覆盖导航展开、关系选择、关系地图和页面宽度边界。
