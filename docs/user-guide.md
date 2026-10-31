@@ -83,6 +83,9 @@ handle. Choose **正文** or **H1**–**H6** to promote, demote, or return the b
 to body text. The change keeps the text and paragraph attributes, participates
 in undo and save history, and updates the outline and shared document.
 
+The history preview also reports rich-text-only changes when the Markdown lines
+are unchanged, such as font, color, line spacing, table width, or block style.
+
 The document body has an independent outline on its right in editing, reading,
 and focus modes. Headings 1–6 appear with their hierarchy; selecting an entry
 scrolls only the document, while the current section follows scrolling. Heading

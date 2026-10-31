@@ -2,6 +2,16 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.10] — 2026-10-31
+
+- 历史版本预览现在会识别并提示仅富文本格式或内容块属性发生的变化，行间距、字体、文字样式、表格属性等改动不再显示成空的正文差异。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- History previews now report rich-text formatting and block-attribute changes even when the Markdown line diff is unchanged, covering line spacing, fonts, text styles, and table attributes.
+
 ## [1.15.9] — 2026-10-31
 
 - 修复专注模式下点击右侧目录标题后目录自动收起的问题；桌面专注模式会保持目录展开并继续阅读，窄屏目录仍在跳转后收起以避免遮挡正文。
