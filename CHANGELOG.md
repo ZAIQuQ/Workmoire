@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.15.21] — 2026-10-31
+
+- 稳定自动保存失败回归测试，等待实际保存请求命中后再验证错误提示，减少 CI 时序噪声。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Stabilize the autosave failure regression by waiting for the save request before checking its error notice, reducing CI timing noise.
+
+See the [user guide](docs/user-guide.md).
+
 ## [1.15.20] — 2026-10-31
 
 - 修复文档关系搜索的旧请求覆盖新结果问题；快速输入和离开关系页时会取消失效请求。
