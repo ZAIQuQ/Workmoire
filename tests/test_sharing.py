@@ -53,7 +53,7 @@ class SharingTests(unittest.TestCase):
         for days in [1,7,30,0]:
             share=self.publish(item,days);token=share['path'].split('/')[-1]
             self.assertTrue(share['password_required'])
-            self.assertRegex(token,r'^[A-Za-z0-9_-]{43}$');self.assertNotEqual(token,str(item['id']))
+            self.assertRegex(token,r'^[A-Za-z0-9]{43}$');self.assertNotEqual(token,str(item['id']))
             self.assertRegex(share['password'],r'^[A-Za-z0-9]{16}$')
             for regex in [r'[A-Z]',r'[a-z]',r'[0-9]']:self.assertRegex(share['password'],regex)
             if days:self.assertLess(abs(share['expires_at']-time.time()-days*86400),3)
@@ -86,7 +86,7 @@ class SharingTests(unittest.TestCase):
         item=self.create(nodes=[{'type':'pdf','attrs':{'src':source+'?inline=1','title':'PDF'}}])
         share=self.publish(item,0,password_required=False)
         self.assertFalse(share['password_required']);self.assertIsNone(share['password'])
-        self.assertRegex(share['path'],r'^/s/[A-Za-z0-9_-]{43}$')
+        self.assertRegex(share['path'],r'^/s/[A-Za-z0-9]{43}$')
         status,body,headers=self.public_request(share['path']+'/document')
         self.assertEqual(status,200);self.assertNotIn('Set-Cookie',headers);self.assertIsNone(json.loads(body)['session_expires_at'])
         file=json.loads(body)['rich_content']['document']['content'][0]['attrs']['src']
@@ -165,7 +165,7 @@ class SharingTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(password.encode()).hexdigest(),'868b98e495dd2291ef379f875d26e3c17641fb109ceffe1d1c444973ea626985')
         self.assertEqual(token_hash(token),'ad962c094de8f6bc924850a4bc55e65b136bb1620a2df769580008c627b2e698')
         item=self.create()
-        with patch('share_store.new_password_nonce',return_value='legacy-test-nonce'):
+        with patch('share_store.new_password_nonce',return_value='legacy-test-nonce'), patch('share_store.new_link_nonce',return_value='legacy-test-link'):
             share=self.publish(item,0)
         self.assertEqual(share['password'],password);self.assertEqual(self.unlock(share)[0],200)
         recovered=SharePublisher(self.root).latest(item['id'])
@@ -176,6 +176,17 @@ class SharingTests(unittest.TestCase):
         self.assertRegex(reset['password'],r'^[A-Za-z0-9]{16}$');self.assertEqual(reset['path'],share['path'])
         self.assertEqual(self.public_request(share['path']+'/document')[0],401)
         self.assertEqual(self.unlock(share)[0],401);self.assertEqual(self.unlock(reset)[0],200)
+
+    def test_new_links_use_only_base62_and_unknown_versions_fail_closed(self):
+        key=(self.root/'publisher.key').read_bytes();seen=set()
+        for index in range(128):
+            row={'key_id':token_hash(b64(key)),'link_nonce':'v2:synthetic-'+str(index),'password_nonce':'v2:password'}
+            token,password=self.publisher.credentials(row)
+            self.assertRegex(token,r'^[A-Za-z0-9]{43}$');seen.add(token)
+            self.assertEqual(self.publisher.credentials(row),(token,password))
+        self.assertEqual(len(seen),128)
+        row['link_nonce']='v3:unsupported'
+        with self.assertRaises(ValueError):self.publisher.credentials(row)
 
     def test_new_passwords_are_recoverable_alphanumeric_and_include_all_character_classes(self):
         key=(self.root/'publisher.key').read_bytes();seen=set()

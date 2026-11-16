@@ -1,0 +1,141 @@
+{
+  "source": "Synthetic Sequence Study\nExample Author One and Example Author Two\nExample University\nCorresponding author: Example Author Two, Example Learning Lab.\nAccepted at Example Conference 2026.\nWe study machine learning methods for time series forecasting and compare prediction errors.\nThe experiments use synthetic sequences and report limitations of short training histories.\n\nFirst public release v1: 15 January 2026, arXiv.\nAbstract: Time series combine fast fluctuations with long-term structure. A single encoder fails to adapt its representation when the regime changes. We introduce a temporal mixture of experts to route each sequence to specialized predictors.\nMethod: A temporal encoder receives 96 time steps from 8 sensors. The router uses the encoded state to choose two of four experts. Expert predictions are combined by routing weights. Training minimizes mean squared error with an adaptive weight for short versus long windows. At inference the router and experts produce a 24-step forecast.\nExperiments: On synthetic sequences this model reduces mean squared error by 8% compared to a single temporal encoder. Removing the router removes the improvement. The evaluation is a synthetic offline experiment.\n",
+  "report": {
+    "title": {
+      "name": "Synthetic Sequence Study",
+      "evidence": "Synthetic Sequence Study"
+    },
+    "publication": {
+      "status": "accepted",
+      "venue": "Example Conference",
+      "year": "2026",
+      "evidence": "Accepted at Example Conference 2026."
+    },
+    "authors": [
+      {
+        "name": "Example Author One",
+        "evidence": "Example Author One and Example Author Two"
+      },
+      {
+        "name": "Example Author Two",
+        "evidence": "Example Author One and Example Author Two"
+      }
+    ],
+    "affiliations": [
+      {
+        "name": "Example University",
+        "evidence": "Example University"
+      }
+    ],
+    "corresponding_authors": [
+      {
+        "name": "Example Author Two",
+        "evidence": "Corresponding author: Example Author Two, Example Learning Lab."
+      }
+    ],
+    "labs": [
+      {
+        "name": "Example Learning Lab",
+        "lead": "Example Author Two",
+        "evidence": "Corresponding author: Example Author Two, Example Learning Lab."
+      }
+    ],
+    "fields": {
+      "primary": "机器学习",
+      "secondary": "时间序列预测",
+      "evidence": "We study machine learning methods for time series forecasting and compare prediction errors."
+    },
+    "report_version": 4,
+    "reading": {
+      "first_public": {
+        "name": "15 January 2026, arXiv",
+        "evidence": "First public release v1: 15 January 2026, arXiv."
+      },
+      "direction": "Time Series Forecasting",
+      "keywords": [
+        "Temporal Experts",
+        "Routing"
+      ],
+      "motivation": "序列同时包含快速变化和长期结构，单一编码器难以适应状态变化。",
+      "contributions": [
+        {
+          "name": "时序专家路由",
+          "description": "编码输入序列的状态，从四个专家中选出两个，用路由权重融合专家预测。"
+        },
+        {
+          "name": "自适应训练权重",
+          "description": "训练时平衡短期与长期窗口的均方误差，输出未来24步预测。"
+        }
+      ],
+      "experiments": "合成序列实验中，相比单一时序编码器，均方误差下降8%；移除路由器后改善消失。",
+      "summary": "通过状态路由选择时序专家，结合自适应训练权重实现多时间尺度预测。"
+    }
+  },
+  "cases": [
+    {
+      "id": "faithful-specific",
+      "approved": true,
+      "reading_overrides": {}
+    },
+    {
+      "id": "wrong-number",
+      "approved": false,
+      "reading_overrides": {
+        "experiments": "相比单一时序编码器，均方误差下降80%。"
+      }
+    },
+    {
+      "id": "wrong-comparator",
+      "approved": false,
+      "reading_overrides": {
+        "experiments": "真实线上实验中，相比所有现有方法，均方误差下降8%。"
+      }
+    },
+    {
+      "id": "vague-contributions",
+      "approved": false,
+      "reading_overrides": {
+        "contributions": [
+          {
+            "name": "新框架",
+            "description": "提出一种创新的方法，有效提升性能，具有广泛应用价值。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "repeated-contributions",
+      "approved": false,
+      "reading_overrides": {
+        "contributions": [
+          {
+            "name": "时序专家路由",
+            "description": "编码输入序列的状态，从四个专家中选出两个，用路由权重融合专家预测。"
+          },
+          {
+            "name": "时序专家路由",
+            "description": "编码输入序列的状态，从四个专家中选出两个，用路由权重融合专家预测。"
+          },
+          {
+            "name": "时序专家路由",
+            "description": "编码输入序列的状态，从四个专家中选出两个，用路由权重融合专家预测。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "missed-insight",
+      "approved": false,
+      "reading_overrides": {
+        "motivation": "现有数据库查询延迟过高，需要加速存储系统。"
+      }
+    },
+    {
+      "id": "omitted-known-first-release",
+      "approved": false,
+      "reading_overrides": {
+        "first_public": null
+      }
+    }
+  ]
+}

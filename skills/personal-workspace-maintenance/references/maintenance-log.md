@@ -189,3 +189,8 @@ changes belong in normal commit history.
 - 2026-10-30: Added the requested `/latex` native block and broadened document outlines for focus/shared readers. Tests now cover renderer state, read-only sharing, long headings and collapse cleanup.
 
 - 2026-10-30: Added immediate follow-up PUT after a deduplicated create replay when local input changed during the lost response. This preserves the newest body before autosave reports success.
+
+## 2026-11-16
+
+- Adopted a bounded structured paper report matching the owner-selected short format; program-owned headings, field/item/total limits, an independent semantic quality gate and adversarial synthetic actual-provider verification prevent prompt-only format drift. Existing reviewed drafts stay compatible.
+- Versioned new share-link derivation to unbiased base62 without schema changes; keep legacy links, credentials, media paths and recovery valid. Added fixed-vector and lifecycle regression checks.

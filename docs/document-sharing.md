@@ -79,10 +79,14 @@ not prove internet reachability.
 
 ## Access controls
 
-Public paths use a 43-character token with 256 bits of HMAC output derived from a
+New public paths use a 43-character alphanumeric (A–Z, a–z, 0–9) token, generated
+with rejection sampling over versioned HMAC output derived from a
 private key and a fresh random nonce. No article ID, slug, title or sequential
 identifier is used. Only token hashes are stored; the public reader cannot
 recover the URL token or password from stored nonces without the publisher key.
+Legacy base64url links keep their original derivation and remain valid; refresh,
+expiry and password changes preserve the existing path. Creating a new link uses
+the alphanumeric format. No database rewrite is needed.
 Passwords use salted scrypt verifiers and constant-time comparison. New password
 nonces carry a `v2:` prefix. HMAC output supplies an unbiased alphanumeric sample,
 with rejection until the 16-character password contains all three character

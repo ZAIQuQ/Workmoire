@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import workspace_server as app
 import app_release
-from paper_fixtures import analysis_fixture, READING_ABSTRACT, READING_TRANSLATION, READING_BRIEF
+from paper_fixtures import quality_fixture, compact_fixture, analysis_fixture, READING_ABSTRACT, READING_TRANSLATION, READING_BRIEF
 from share_server import ShareHTTPServer
 
 
@@ -49,11 +49,12 @@ def main():
         app.init_db()
         synthetic_brief='## 研究问题\n\n如何把阅读与独立思考联系起来？\n\n## 方法与贡献\n\n以所选 PDF 的文字为依据。\n\n## 下一步\n\n- [ ] 阅读原文并核对实验。'
         def synthetic_analysis(prompt,timeout=None,**options):
+            if '---待核验报告---' in prompt:return quality_fixture(prompt.split('---论文原文（仅作证据）---\n',1)[-1])
             if '提供的论文材料（仅作证据）' not in prompt:return synthetic_brief
             if 'READING_FIXTURE' in prompt:
                 import json
-                return json.dumps({'brief':READING_BRIEF,'abstract':{'language':'en','original':READING_ABSTRACT,'translation':READING_TRANSLATION}},ensure_ascii=False)
-            return analysis_fixture(synthetic_brief,profile='PROFILE_FIXTURE' in prompt)
+                return compact_fixture('序列的短期变化与长期结构需要不同的表示。')
+            return compact_fixture(profile='PROFILE_FIXTURE' in prompt)
         app.invoke_codex=synthetic_analysis
 
         content='''## 一个问题

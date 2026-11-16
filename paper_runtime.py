@@ -61,7 +61,7 @@ class PaperRuntime:
             job={'id':secrets.token_hex(16),'owner':owner,'digest':digest,'status':'running','stage':'preparing','started':time.monotonic(),'finished':0,'characters':len(payload.get('text','')),'estimate':self.estimate(len(payload.get('text','')))}
             self.jobs[job['id']]=job
         def progress(stage):
-            if stage in {'preparing','analyzing','formatting'}:
+            if stage in {'preparing','analyzing','verifying','formatting'}:
                 with self.lock:job['stage']=stage
         def run():
             try:

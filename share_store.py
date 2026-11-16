@@ -48,6 +48,20 @@ def new_password_nonce() -> str:
     return 'v2:' + secrets.token_urlsafe(32)
 
 
+def new_link_nonce() -> str:
+    return 'v2:' + secrets.token_urlsafe(32)
+
+
+def alphanumeric_link(key: bytes, nonce: str) -> str:
+    # Rejection sampling avoids modulo bias; 43 base62 characters carry >256 bits.
+    token = ''; counter = 0
+    while len(token) < 43:
+        digest = hmac.new(key, f'link-v2:{nonce}:{counter}'.encode(), hashlib.sha512).digest()
+        token += ''.join(PASSWORD_ALPHABET[byte % 62] for byte in digest if byte < 248)
+        counter += 1
+    return token[:43]
+
+
 def alphanumeric_password(key: bytes, nonce: str) -> str:
     counter = 0
     while True:
@@ -151,7 +165,13 @@ class SharePublisher:
         key = (self.root/'publisher.key').read_bytes()
         if token_hash(b64(key)) != row['key_id']:
             raise ValueError('分享密钥已变化，请重新生成分享链接')
-        token = b64(hmac.new(key, ('link-v1:'+row['link_nonce']).encode(), hashlib.sha256).digest())
+        nonce = row['link_nonce']
+        if nonce.startswith('v2:'):
+            token = alphanumeric_link(key, nonce)
+        elif ':' in nonce:
+            raise ValueError('分享链接格式不受此版本支持')
+        else:
+            token = b64(hmac.new(key, ('link-v1:'+nonce).encode(), hashlib.sha256).digest())
         if row['password_nonce'].startswith('v2:'):
             return token, alphanumeric_password(key, row['password_nonce'])
         if ':' in row['password_nonce']:
@@ -212,7 +232,7 @@ class SharePublisher:
             if existing:
                 record = dict(existing);password_required=requires_password(existing)
             else:
-                record = {'id':secrets.token_hex(16), 'owner_item_id':item['id'], 'link_nonce':secrets.token_urlsafe(32),
+                record = {'id':secrets.token_hex(16), 'owner_item_id':item['id'], 'link_nonce':new_link_nonce(),
                           'password_nonce':new_password_nonce(), 'key_id':token_hash(b64(key))}
             token, password = self.credentials(record)
             assets = {}; copied = {}

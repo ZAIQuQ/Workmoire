@@ -26,3 +26,25 @@ def analysis_fixture(brief='## 一句话看懂\n\nSynthetic brief.', profile=Fal
             labs=[{'name':'Example Learning Lab','lead':'Example Author Two','evidence':'Corresponding author: Example Author Two, Example Learning Lab.'}],
             fields={'primary':'机器学习','secondary':'时间序列预测','evidence':'We study machine learning methods for time series forecasting and compare prediction errors.'})
     return json.dumps(result,ensure_ascii=False)
+
+
+def compact_fixture(motivation='Synthetic brief.', profile=False):
+    result=json.loads(analysis_fixture(profile=profile))
+    result.pop('brief')
+    result.update(report_version=4,reading={
+        'first_public':None,'direction':'Time Series Forecasting',
+        'keywords':['Temporal Experts','Routing'],
+        'motivation':motivation.split('\n\n',1)[-1][:150],
+        'contributions':[{'name':'时序专家','description':'按当前序列状态选择专家并融合预测。'}],
+        'experiments':'','summary':'通过时序专家混合方法按状态组合不同时间尺度的预测。'})
+    return json.dumps(result,ensure_ascii=False)
+
+
+def quality_fixture(source):
+    return json.dumps({'approved':True,'checks':dict.fromkeys(['grounded','core_insight','mechanism','experiments','concise'],True),'evidence':[' '.join(source.split())[:150]],'issues':[]})
+
+
+def model_fixture(report):
+    def reply(prompt,**kwargs):
+        return quality_fixture(prompt.split('---论文原文（仅作证据）---\n',1)[-1]) if '---待核验报告---' in prompt else report
+    return reply

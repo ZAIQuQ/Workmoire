@@ -61,45 +61,53 @@ bytes and model-request text to the chosen fixture. Backend checks enforce file
 validation, authentication, selected-text analysis, no document writes during
 preparation/generation, and ordinary handling of legacy kinds.
 
-## Fast briefs and progress
+## Compact reading reports
 
-Paper summaries use the versioned brief template with medium reasoning. Upload
-bytes and extracted pages are measured; AI progress and remaining time are
-explicit estimates learned from recent durations. See [progress and timing](paper-progress.md).
+The versioned v4 template uses `gpt-6.1-terra` / `low` by default. A separate fast
+model call verifies content quality after generation.
+Model names are provider-specific and configurable independently of general
+assistant tasks. Generation and verification share a 150-second total model budget; no lookup or
+automatic rewrite loop is used. Upload bytes and
+extracted pages are measured; analysis progress is an estimate. See
+[progress and timing](paper-progress.md).
 
-## Profiles and field labels
+Reports have exactly three sections: **论文信息**, **阅读笔记**, **原文 PDF**.
+Paper information contains title and authors; an optional source URL is attached
+to the title itself.
+Reading notes use these ordered fields:
 
-One medium-reasoning call returns structured publication, author, affiliation,
-correspondence, lab and field information together with the concise brief. Facts
-retain supporting excerpts found in the selected PDF text; correspondence can
-use an explicit matching footnote marker. Unsupported facts remain empty internally and are omitted from the rendered document. An
-arXiv URL alone does not prove publication status, and a famous author or their
-university alone does not identify a lab. No source page is fetched. Publication information is populated only when the supplied text supports it.
+1. 首次公开 — only an evidenced first release or v1 date.
+2. 正式发表 — only an evidenced published or accepted venue/year.
+3. 研究方向 — one topic, rendered as inline code.
+4. 研究关键词 — up to five inline-code terms.
+5. Motivation — one paragraph, at most 150 characters.
+6. Contribution — one to three named items, each description at most 90 characters.
+7. 实验贡献 — one paragraph, at most 100 characters.
+8. 一句话总结 — one sentence, at most 70 characters.
 
-Research fields are explicitly classified from the paper's subject, with a supporting excerpt kept for validation. Primary and secondary field names become at most
-two distinct tags, in addition to the protected `论文` tag. The preview selects
-them by default; the user may deselect either. They enter the unsaved document
-on insertion and the catalogue only on normal save. No tag or document is
-created during analysis. Replacing the PDF clears its facts and suggestions.
+The quality template independently checks factual grounding (including experiment
+numbers and comparators), the core insight, concrete technical mechanisms,
+experimental coverage and non-redundant writing. Approval requires every check
+and source-matching citations; rejected or malformed reviews produce an error
+and cannot expose a candidate preview. This is a model-assisted gate, not a proof
+of correctness. The source PDF remains available for review. Reproduce the live
+provider evaluation with `python3 scripts/check_paper_quality.py --service <service>`;
+its seven public-safe cases include wrong numbers/comparators, vague prose, repeated
+contributions, a missed core insight and omitted known publication metadata. The UI shows a quality-check stage.
 
-The model can correct PDF metadata titles/authors unless the user edited those
-fields. Subsequent title/author/source changes keep the result; insertion
-revalidates the reviewed analysis and composes the document without another AI
-call. Malformed structured output gives an explicit retry error. Raw model JSON
-is not rendered as the final document.
+The renderer owns the headings and list structure. Reading notes have an
+800-character visible-text budget; the complete text report has a 1,032-character
+budget excluding PDF/source URLs. Off-template or overlong AI output returns an
+explicit retry error; it is never silently inserted or stored. No abstract
+translation, lab biography, review verdict or missing-information filler is added.
+Unsupported metadata and optional empty fields are omitted. A revised preprint
+date is not treated as the first publication date.
 
-## Reading-first presentation
+Primary and secondary field classifications retain supporting PDF excerpts
+internally and suggest up to two distinct selectable tags, plus the built-in
+`论文` tag. Analysis creates no document or tags. Title/author/source corrections
+reuse and revalidate the reviewed result without a second model call; replacing
+the PDF invalidates it. Extraction coverage stays in the import UI.
 
-The v3 template explains the paper through **一句话看懂**, **核心洞见** and
-**技术要点**. It focuses on the idea behind the method and the input/module/
-training/decision flow, without adding review verdicts, missing-information
-placeholders or comments about how the analysis was generated. Unknown profile
-fields and empty sections are omitted. Field evidence stays internal; no
-classification explanation is appended to the document.
-
-When the model identifies a complete English or Chinese abstract, the original
-must match the supplied text and both language versions must be present. The
-renderer places Chinese and English paragraphs before the one-sentence brief.
-Missing or unmatched abstracts are omitted. Abstracts survive preview, reviewed
-metadata edits, insertion and save without a second model call. Extraction page
-counts and truncation remain in the import UI and authenticated job metadata.
+Saved documents remain untouched. Previously reviewed v3 drafts can still be
+inserted with their prior structure; all new AI calls must produce v4 reports.

@@ -2,6 +2,23 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.16.0] — 2026-11-16
+
+- 论文报告改为固定短模板：论文信息、阅读笔记、原文 PDF；笔记按首次公开、正式发表、研究方向、关键词、Motivation、Contribution、实验贡献、一句话总结排列。
+- 最多三条贡献、五个关键词，逐字段及全文校验篇幅；不再生成中英摘要、团队介绍或额外小节。未知事实省略，仍支持最多两个领域标签。
+- 增加独立内容质量复核：事实与实验数字、核心洞见、具体机制、实验覆盖、简洁性全部通过才显示预览；新增含错误数字、错误比较对象、空话和重复内容的合成评测。
+- 论文分析默认使用可配置的 `gpt-6.1-terra` / `low`，与普通文档助手独立。
+- 新分享 hash 为 43 位大小写字母和数字，既有链接、密码、有效期及访问会话保持兼容。
+
+见[使用说明](docs/user-guide.md)与[论文报告格式](docs/paper-intake.md)。
+
+### English
+
+- Generate compact paper reports with fixed sections and ordered reading-note fields, at most three contributions and five keywords, and enforced field and total length limits. Omit unsupported metadata and extra abstracts or sections; retain field-tag suggestions.
+- Gate previews on an independent content-quality review of grounding, core insights, mechanisms, experiments and concision, tested with adversarial synthetic cases.
+- Default paper analysis to configurable `gpt-6.1-terra` with `low` reasoning, independently of general document tasks.
+- Generate new shares with 43-character alphanumeric hashes while preserving existing links and credentials.
+
 ## [1.15.25] — 2026-11-01
 
 - 修复行间距工具栏只修改当前段落的问题；现在直接选择行间距即可统一应用到整篇文档的正文段落和标题。

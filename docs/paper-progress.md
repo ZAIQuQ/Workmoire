@@ -1,15 +1,15 @@
 # Paper summaries and progress
 
 Paper analysis uses the versioned [brief template](../prompts/paper-brief.md),
-with `gpt-6.1-sol` and `medium` reasoning by default. The model request has a
-150-second limit. One request produces known metadata, a bilingual abstract when
-available, and a 400–700-character brief explaining the core insights and
-technical details.
+with configurable `gpt-6.1-terra` and `low` reasoning by default. The model request
+has a 150-second total limit shared by generation and quality verification. Generation produces known metadata, field tags and the
+[compact reading report](paper-intake.md#compact-reading-reports), with at most
+three contributions and an enforced length budget.
 
 Supporting excerpts are checked internally. Unsupported metadata is omitted,
 and extraction coverage stays in the import dialog. The document does not include
-review-style caveats, classification explanations or process commentary. No
-second call is used for translation or tagging. General document assistance
+review-style caveats, classification explanations or process commentary. An independent fast verification call checks factual grounding, technical content
+and repetition before results are displayed; formatting and tagging add no further calls. General document assistance
 keeps its separate model/reasoning/timeout configuration.
 
 Lower reasoning effort favors speed and fewer tokens; see the

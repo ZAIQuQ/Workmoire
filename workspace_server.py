@@ -38,7 +38,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from rich_documents import normalized_rich_content, read_rich_content, remap_references
-from paper_intake import paper_source, selected_pdf_header, parse_paper_analysis, paper_field_tags, paper_profile_markdown, paper_abstract_markdown
+from paper_intake import paper_source, selected_pdf_header, parse_paper_analysis, paper_field_tags, paper_profile_markdown, paper_abstract_markdown, paper_reading_markdown, check_report_length, validate_paper_quality
 from share_store import SharePublisher
 from app_release import release_info
 import bug_reports
@@ -82,10 +82,10 @@ CODEX_MODEL = os.environ.get("WORKSPACE_CODEX_MODEL", "").strip()
 CODEX_REASONING_EFFORT = os.environ.get("WORKSPACE_CODEX_REASONING_EFFORT", "medium").strip().lower()
 if CODEX_REASONING_EFFORT not in {"low", "medium", "high", "xhigh", "max"}:
     CODEX_REASONING_EFFORT = "medium"
-PAPER_CODEX_MODEL = os.environ.get("WORKSPACE_PAPER_CODEX_MODEL", "gpt-6.1-sol").strip() or CODEX_MODEL
-PAPER_REASONING_EFFORT = os.environ.get("WORKSPACE_PAPER_REASONING_EFFORT", "medium").strip().lower()
-if PAPER_REASONING_EFFORT not in {"medium", "high", "xhigh", "max"}:
-    PAPER_REASONING_EFFORT = "medium"
+PAPER_CODEX_MODEL = os.environ.get("WORKSPACE_PAPER_CODEX_MODEL", "gpt-6.1-terra").strip() or CODEX_MODEL
+PAPER_REASONING_EFFORT = os.environ.get("WORKSPACE_PAPER_REASONING_EFFORT", "low").strip().lower()
+if PAPER_REASONING_EFFORT not in {"low", "medium", "high", "xhigh", "max"}:
+    PAPER_REASONING_EFFORT = "low"
 try:
     PAPER_ASSISTANT_TIMEOUT = min(max(int(os.environ.get("WORKSPACE_PAPER_ASSISTANT_TIMEOUT", "150")), 60), 600)
 except ValueError:
@@ -676,12 +676,13 @@ def invoke_codex(prompt: str, timeout: int | None = None, *, reasoning_effort: s
 
 
 PAPER_TEMPLATE = ROOT / 'prompts' / 'paper-brief.md'
+PAPER_QUALITY_TEMPLATE = ROOT / 'prompts' / 'paper-quality.md'
 _paper_runtime_instance = None
 _paper_runtime_lock = threading.Lock()
 
 def paper_runtime():
     global _paper_runtime_instance
-    profile = hashlib.sha256((PAPER_CODEX_MODEL+'|'+PAPER_REASONING_EFFORT+'|'+PAPER_TEMPLATE.read_text()).encode()).hexdigest()
+    profile = hashlib.sha256((PAPER_CODEX_MODEL+'|'+PAPER_REASONING_EFFORT+'|'+PAPER_TEMPLATE.read_text()+'|'+PAPER_QUALITY_TEMPLATE.read_text()).encode()).hexdigest()
     key = (str(DATA_DIR.resolve()), profile)
     with _paper_runtime_lock:
         if _paper_runtime_instance is None or _paper_runtime_instance[0] != key:
@@ -689,12 +690,26 @@ def paper_runtime():
         return _paper_runtime_instance[1]
 
 
+def check_paper_quality(details: dict, source_text: str, timeout=None):
+    # Review only facts and prose that the v4 renderer exposes, not legacy fields.
+    candidate={key:details[key] for key in ('title','authors','publication','reading')}
+    prompt = PAPER_QUALITY_TEMPLATE.read_text(encoding='utf-8') + '\n\n---待核验报告---\n' + json.dumps(candidate,ensure_ascii=False) + '\n\n---论文原文（仅作证据）---\n' + source_text
+    raw = invoke_codex(prompt,timeout=timeout or PAPER_ASSISTANT_TIMEOUT,reasoning_effort=PAPER_REASONING_EFFORT,model=PAPER_CODEX_MODEL)
+    validate_paper_quality(raw,source_text)
+
+
 def paper_notes(paper: dict, material: dict, progress=None) -> dict:
+    deadline=time.monotonic()+PAPER_ASSISTANT_TIMEOUT
     prompt = PAPER_TEMPLATE.read_text(encoding='utf-8') + '\n\n--- 提供的论文材料（仅作证据）---\n' + json.dumps({'paper':paper,'reading_material':material},ensure_ascii=False)
     if progress:progress('analyzing')
     result = invoke_codex(prompt, timeout=PAPER_ASSISTANT_TIMEOUT, reasoning_effort=PAPER_REASONING_EFFORT, model=PAPER_CODEX_MODEL)
+    details = parse_paper_analysis(result, material['text'], require_compact=True)
+    remaining=deadline-time.monotonic()
+    if remaining<=0:raise RuntimeError('论文分析超时，请重试')
+    if progress:progress('verifying')
+    check_paper_quality(details,material['text'],timeout=remaining)
     if progress:progress('formatting')
-    return parse_paper_analysis(result, material['text'])
+    return details
 
 
 def selected_pdf(file_id: object) -> dict:
@@ -745,9 +760,12 @@ def paper_from_pdf(payload: dict, progress=None) -> dict:
         if not generate and 'selected_tags' in payload:
             if not isinstance(payload['selected_tags'],list):raise ValueError('领域标签格式无效')
             tags=[tag for tag in tags if tag in payload['selected_tags']]
-        notes='\n\n'.join(part for part in [paper_profile_markdown(details),paper_abstract_markdown(details),details['brief']] if part)
+        notes=paper_reading_markdown(details) if details.get('report_version')==4 else '\n\n'.join(part for part in [paper_profile_markdown(details),paper_abstract_markdown(details),details['brief']] if part)
     else:notes='## 阅读笔记\n\n'
-    return {'title':paper['title'],'content':selected_pdf_header(paper,file,material,include_pdf=False)+'\n'+notes+'\n\n## 原文 PDF\n\n@[pdf](/files/'+file['id']+'?inline=1)\n','analysis':notes if details else '', 'details':details, 'tags':tags, 'paper':paper,'file':file,'evidence':{key:material[key] for key in ['scope','url','truncated','page_count','pages_read','file_id']}}
+    compact=bool(details and details.get('report_version')==4)
+    content=selected_pdf_header(paper,file,material,include_pdf=False,compact=compact)+'\n'+notes+'\n\n## 原文 PDF\n\n@[pdf](/files/'+file['id']+'?inline=1)\n'
+    if compact:check_report_length(content)
+    return {'title':paper['title'],'content':content,'analysis':notes if details else '', 'details':details, 'tags':tags, 'paper':paper,'file':file,'evidence':{key:material[key] for key in ['scope','url','truncated','page_count','pages_read','file_id']}}
 
 
 def inline_file_type(target: Path) -> str | None:

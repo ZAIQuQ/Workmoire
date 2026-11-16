@@ -205,11 +205,11 @@ up to 80 pages / 60,000 characters, with a bounded loading task. Optional Codex
 analysis uses those extracted words, never a substitute HTML article or another
 PDF. Textless/scanned PDFs can be archived and read without invented analysis.
 
-Optionally run **AI 分析论文** to organize publication, authors, affiliations,
-correspondence, labs and two research-field levels along with a concise explanation of the core insights and technical method.
-Unknown fields are omitted. A matched original abstract and its translation appear
-before the one-sentence overview when available. The generated note omits
-review-style caveats, classification explanations and extraction-process notes. The preview suggests one or two
+Optionally run **AI 分析论文** for a fixed compact report: 论文信息, 阅读笔记,
+and 原文 PDF. Notes cover known release/publication facts, research direction,
+up to five keywords, Motivation, up to three Contribution items, experiments
+and a one-sentence summary. Unknown fields are omitted, without abstract
+translations, extra sections or process commentary. The preview suggests one or two
 field tags, selected by default; deselect any you do not want. Confirm the
 title/author, insert into the editor, then save. Tags appear in the catalogue
 after saving. Editing the title/author or optional source link retains the
@@ -217,13 +217,15 @@ analysis; replacing the PDF invalidates it. Only the final selected file is asso
 document. Abandoned/replaced temporary imports move to recoverable attachment
 trash. See [paper intake behavior](paper-intake.md).
 
-Paper briefs default to `gpt-6.1-sol` with `medium` reasoning and a 150-second model timeout.
+Paper briefs default to `gpt-6.1-terra` with `low` reasoning and a 150-second model timeout.
 General document tasks default to `medium` with a 90-second timeout. Optional
 private settings can override the paper model and budget independently. The
-[brief template](../prompts/paper-brief.md) requests a one-sentence takeaway,
-motivation, the method/differentiator, and evidence/limitations in about 400–700
-Chinese characters. [Progress tracking](paper-progress.md) separates measured
-upload/extraction from AI estimates calibrated with recent task durations.
+[brief template](../prompts/paper-brief.md) requests bounded structured fields;
+the renderer fixes section order and rejects outputs exceeding 800 characters
+of reading notes or 1,032 characters of report text (excluding PDF/source URLs).
+A separate fast quality check validates grounding, core insights, mechanisms,
+experiments and concision before exposing a preview. Failed checks return a retry
+error without inserting or saving the candidate.
 
 Generated dossiers and assistant suggestions are previews. Importing a chosen
 PDF creates an unassociated attachment; inserting a dossier creates unsaved
@@ -257,7 +259,7 @@ Copy `.env.example` to a private `.env` and configure:
 - `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`: configure these in the same private
   service environment when the selected model provider requires an egress proxy.
 - `WORKSPACE_CODEX_MODEL` / `WORKSPACE_CODEX_REASONING_EFFORT`: optional general CLI overrides.
-- `WORKSPACE_PAPER_CODEX_MODEL` / `WORKSPACE_PAPER_REASONING_EFFORT`: independent paper overrides, defaulting to `gpt-6.1-sol` and `medium`.
+- `WORKSPACE_PAPER_CODEX_MODEL` / `WORKSPACE_PAPER_REASONING_EFFORT`: independent paper overrides, defaulting to `gpt-6.1-terra` and `low`.
 - `WORKSPACE_PAPER_ASSISTANT_TIMEOUT`: paper model timeout in seconds (default 150; bounded to 60–600).
 - `WORKSPACE_PAPER_PROXY`: optional trusted HTTP CONNECT proxy for paper retrieval.
   The paper fetcher also recognizes `HTTPS_PROXY`; target DNS is validated and the
