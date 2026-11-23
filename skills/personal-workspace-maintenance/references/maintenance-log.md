@@ -198,3 +198,7 @@ changes belong in normal commit history.
 ## 2026-11-23
 
 - Correlated paper-analysis failure stages by job ID in the service journal using fixed diagnostics. Added recovery and fail-closed checks to the release gate.
+
+## 2026-11-23 paper analysis acceptance
+
+- Added the 90% end-to-end acceptance condition and a default-disabled release switch. Regression checks and one-off PDF reruns remain separate from release acceptance.

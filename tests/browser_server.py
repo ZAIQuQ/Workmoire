@@ -45,6 +45,7 @@ def main():
         app.DATA_DIR=Path(scratch);app.FILES_DIR=Path(scratch)/'files';app.DB_PATH=Path(scratch)/'workspace.db'
         app.SESSION_SECRET='synthetic-browser-session-secret';app.SETUP_TOKEN='';app.CODEX_BIN='/usr/bin/true';app.COOKIE_SECURE=False
         app.SHARE_DATA_DIR=str(Path(scratch)/'sharing');app.SHARE_PUBLIC_URL='http://127.0.0.1:8766';app.SHARE_PORT=8766
+        app.paper_analysis_enabled=lambda: True
         app_release.fetch_latest=lambda:{"tag_name":"v"+app_release.local_release()["version"],"body":"Synthetic release notes"}
         app.init_db()
         synthetic_brief='## 研究问题\n\n如何把阅读与独立思考联系起来？\n\n## 方法与贡献\n\n以所选 PDF 的文字为依据。\n\n## 下一步\n\n- [ ] 阅读原文并核对实验。'

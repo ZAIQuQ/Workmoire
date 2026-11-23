@@ -63,6 +63,8 @@ preparation/generation, and ordinary handling of legacy kinds.
 
 ## Compact reading reports
 
+Analysis is disabled until the candidate meets the [release acceptance gate](paper-acceptance.md).
+
 The versioned v4 template uses `gpt-6.1-terra` / `low` by default. A separate fast
 model call verifies content quality after generation.
 Model names are provider-specific and configurable independently of general

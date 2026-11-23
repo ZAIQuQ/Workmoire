@@ -110,7 +110,11 @@ class PaperTimingTests(unittest.TestCase):
             self.assertNotIn('固定提示', str(events))
 
 class PaperProgressHttpTests(unittest.TestCase):
-    setUp=support.DocumentHttpTests.setUp
+    def setUp(self):
+        support.DocumentHttpTests.setUp(self)
+        gate = patch.object(app, 'paper_analysis_enabled', return_value=True)
+        gate.start()
+        self.addCleanup(gate.stop)
     tearDown=support.DocumentHttpTests.tearDown
     request=support.DocumentHttpTests.request
     fixture_file=support.DocumentHttpTests.fixture_file

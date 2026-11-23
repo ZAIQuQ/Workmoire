@@ -32,6 +32,7 @@ import unicodedata
 import zipfile
 from contextlib import closing
 from datetime import date, datetime, timezone
+from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -42,6 +43,7 @@ from paper_intake import paper_source, selected_pdf_header, parse_paper_analysis
 from share_store import SharePublisher
 from app_release import release_info
 import bug_reports
+import paper_acceptance
 from paper_runtime import PaperFailure, PaperRuntime
 
 ROOT = Path(__file__).resolve().parent
@@ -83,6 +85,8 @@ CODEX_REASONING_EFFORT = os.environ.get("WORKSPACE_CODEX_REASONING_EFFORT", "med
 if CODEX_REASONING_EFFORT not in {"low", "medium", "high", "xhigh", "max"}:
     CODEX_REASONING_EFFORT = "medium"
 PAPER_CODEX_MODEL = os.environ.get("WORKSPACE_PAPER_CODEX_MODEL", "gpt-6.1-terra").strip() or CODEX_MODEL
+PAPER_ANALYSIS_REQUESTED = os.environ.get("WORKSPACE_PAPER_ANALYSIS_ENABLED") == "1"
+PAPER_PROVIDER_PROFILE = os.environ.get("WORKSPACE_PAPER_PROVIDER_PROFILE", "").strip()
 PAPER_REASONING_EFFORT = os.environ.get("WORKSPACE_PAPER_REASONING_EFFORT", "low").strip().lower()
 if PAPER_REASONING_EFFORT not in {"low", "medium", "high", "xhigh", "max"}:
     PAPER_REASONING_EFFORT = "low"
@@ -698,6 +702,24 @@ def paper_runtime():
         if _paper_runtime_instance is None or _paper_runtime_instance[0] != key:
             _paper_runtime_instance = (key, PaperRuntime(DATA_DIR, profile))
         return _paper_runtime_instance[1]
+
+
+PAPER_ANALYSIS_PAUSED = 'AI 论文分析暂未开放，可上传 PDF 并手动整理。'
+
+
+@lru_cache(maxsize=1)
+def paper_acceptance_profile():
+    return paper_acceptance.profile_digest(ROOT, model=PAPER_CODEX_MODEL, reasoning=PAPER_REASONING_EFFORT,
+                                           timeout=PAPER_ASSISTANT_TIMEOUT, provider=PAPER_PROVIDER_PROFILE)
+
+
+def paper_analysis_enabled():
+    if not PAPER_ANALYSIS_REQUESTED or not PAPER_PROVIDER_PROFILE or codex_command() is None:
+        return False
+    try:
+        return paper_acceptance.accepted(DATA_DIR / 'paper-acceptance.json', paper_acceptance_profile())
+    except OSError:
+        return False
 
 
 def call_paper_model(prompt, timeout):
@@ -1504,7 +1526,11 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             return
         if path == '/api/papers/timing':
             if not self.require_user():return
-            self.json_response({'estimate':paper_runtime().estimate(30000),'timeout_seconds':PAPER_ASSISTANT_TIMEOUT})
+            if not paper_analysis_enabled():
+                self.json_response({'available': False, 'message': PAPER_ANALYSIS_PAUSED})
+            else:
+                self.json_response({'available': True, 'estimate': paper_runtime().estimate(30000),
+                                    'timeout_seconds': PAPER_ASSISTANT_TIMEOUT})
             return
         paper_job = re.fullmatch(r'/api/papers/jobs/([a-f0-9]{32})', path)
         if paper_job:
@@ -2565,6 +2591,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 payload = parse_json(self)
                 if not payload.get('file_id'):
                     raise ValueError('请先手动上传 PDF，再分析论文')
+                if payload.get('generate', True) is not False and not paper_analysis_enabled():
+                    self.json_response({'error': PAPER_ANALYSIS_PAUSED, 'error_code': 'paper_analysis_paused'}, 503)
+                    return
                 if payload.get('background') is True and payload.get('generate',True):
                     selected_pdf(payload['file_id'])
                     if not isinstance(payload.get('text'),str) or len(payload['text'])>60000:raise ValueError('PDF 提取文字无效')

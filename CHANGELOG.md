@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.16.3] — 2026-11-23
+
+- 暂停 AI 论文分析，保留手动上传与归档。
+- 新增 90% 上线门槛。至少 50 篇独立论文经过完整流程和人工质量复核，验收通过且匹配当前配置后才可启用分析。
+
+见[使用说明](docs/user-guide.md)与[论文分析验收](docs/paper-acceptance.md)。
+
+### English
+
+- Pause AI paper analysis and keep manual PDF filing available.
+- Require a matching acceptance record with at least 90% end-to-end success on 50 or more distinct papers before enabling the feature.
+
 ## [1.16.2] — 2026-11-23
 
 - 论文报告从 PDF 首页明确的 arXiv v1 页边标记补齐遗漏的首次公开日期。

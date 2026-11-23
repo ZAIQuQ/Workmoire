@@ -9,6 +9,8 @@ changes. Minor related fixes may be grouped into the same release.
 
 ## Before publication
 
+Enabling AI paper analysis requires the [90% acceptance gate](paper-acceptance.md) for the exact deployed profile. Releases that keep analysis disabled can ship with the regular checks.
+
 1. Fetch `origin/main` and integrate upstream changes. Preserve both existing
    GitHub history and server development history.
 2. Bump `package.json` and the root/package versions in `package-lock.json` using

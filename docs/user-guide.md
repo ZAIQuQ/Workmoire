@@ -259,6 +259,7 @@ Copy `.env.example` to a private `.env` and configure:
 - `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`: configure these in the same private
   service environment when the selected model provider requires an egress proxy.
 - `WORKSPACE_CODEX_MODEL` / `WORKSPACE_CODEX_REASONING_EFFORT`: optional general CLI overrides.
+- `WORKSPACE_PAPER_ANALYSIS_ENABLED` / `WORKSPACE_PAPER_PROVIDER_PROFILE` require a matching [acceptance record](paper-acceptance.md) before enabling paper analysis.
 - `WORKSPACE_PAPER_CODEX_MODEL` / `WORKSPACE_PAPER_REASONING_EFFORT`: independent paper overrides, defaulting to `gpt-6.1-terra` and `low`.
 - `WORKSPACE_PAPER_ASSISTANT_TIMEOUT`: paper model timeout in seconds (default 150; bounded to 60–600).
 - `WORKSPACE_PAPER_PROXY`: optional trusted HTTP CONNECT proxy for paper retrieval.
