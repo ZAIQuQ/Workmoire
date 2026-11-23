@@ -391,7 +391,7 @@ test('cancelled paper imports go to recoverable trash and invalid uploads create
 });
 
 test('failed paper analysis clears an older preview and still permits archiving the selected PDF',async({page})=>{
- await login(page);await paperEntry(page);const dialog=page.locator('.paper-import-dialog');await dialog.locator('#paper-pdf-input').setInputFiles({name:'analysis.pdf',mimeType:'application/pdf',buffer:chosenPDF('ANALYSIS_RETRY')});await dialog.locator('#paper-prepare').click();await expect(dialog.locator('#paper-generate')).toBeEnabled();await dialog.locator('#paper-generate').click();await expect(dialog.locator('.paper-analysis-result')).toBeVisible();await page.route('**/api/papers/draft',async route=>{if(route.request().postDataJSON().generate)await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'整理暂时超时，请重试'})});else await route.continue();});await dialog.locator('#paper-generate').click();await expect(dialog.locator('.paper-import-error')).toContainText('超时');await expect(dialog.locator('.paper-analysis-result')).toBeHidden();await dialog.locator('#paper-use').click();await expect(page.locator('.rich-document')).toContainText('阅读笔记');await expect(page.locator('.rich-document')).not.toContainText('如何把阅读与独立思考联系起来');await expect(page.locator('.native-pdf iframe')).toHaveCount(1);await save(page);
+ await login(page);await paperEntry(page);const dialog=page.locator('.paper-import-dialog');await dialog.locator('#paper-pdf-input').setInputFiles({name:'analysis.pdf',mimeType:'application/pdf',buffer:chosenPDF('ANALYSIS_RETRY')});await dialog.locator('#paper-prepare').click();await expect(dialog.locator('#paper-generate')).toBeEnabled();await dialog.locator('#paper-generate').click();await expect(dialog.locator('.paper-analysis-result')).toBeVisible();await page.route('**/api/papers/draft',async route=>{if(route.request().postDataJSON().generate)await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'整理暂时超时，请重试'})});else await route.continue();});await dialog.locator('#paper-generate').click();await expect(dialog.locator('.paper-ai-progress').getByRole('alert')).toContainText('超时');await expect(dialog.locator('.paper-analysis-result')).toBeHidden();await dialog.locator('#paper-use').click();await expect(page.locator('.rich-document')).toContainText('阅读笔记');await expect(page.locator('.rich-document')).not.toContainText('如何把阅读与独立思考联系起来');await expect(page.locator('.native-pdf iframe')).toHaveCount(1);await save(page);
 });
 
 async function createShare(page,title='浏览器测试：分享的研究笔记',passwordRequired=true){
@@ -603,6 +603,31 @@ test('paper analysis displays estimated progress and handles overruns without cl
  const job={job_id:'f'.repeat(32),status:'running',stage:'analyzing',elapsed_seconds:3,estimate:{seconds:30,low:20,high:45,samples:4},progress:9,progress_kind:'estimated',over_estimate:false};
  await page.route('**/api/papers/draft',route=>route.fulfill({status:202,json:job}));await page.route('**/api/papers/jobs/*',route=>route.fulfill({json:finished?{...job,status:'completed',result:{title:'Brief',content:'## 一句话看懂\n\n核心机制和动机。'}}:{...job,stage:'verifying',elapsed_seconds:60,over_estimate:true}}));
  await dialog.locator('#paper-generate').click();await expect(dialog.locator('.paper-ai-progress')).toContainText('预估进度');await expect(dialog.locator('.paper-ai-progress .operation-progress')).toBeInViewport();await expect(dialog.locator('.paper-ai-progress')).toContainText('超过常见耗时');await expect(dialog.locator('.paper-ai-progress')).toContainText('核对报告质量');await expect(dialog.locator('.paper-ai-progress progress')).not.toHaveAttribute('value','100');await expect(dialog.locator('.paper-analysis-result')).toBeHidden();await page.screenshot({path:'artifacts/rich/paper-analysis-progress.png'});finished=true;await expect(dialog.locator('.paper-ai-progress progress')).toHaveAttribute('value','100');await expect(dialog.locator('.paper-analysis-result')).toContainText('核心机制和动机');
+});
+
+test('paper analysis failure stays visible with a copyable trace and keeps the uploaded PDF',async({page,context})=>{
+ await context.grantPermissions(['clipboard-read','clipboard-write']);
+ await page.setViewportSize({width:390,height:844});
+ await login(page);await paperEntry(page);
+ const dialog=page.locator('.paper-import-dialog'),id='a'.repeat(32);
+ await dialog.locator('#paper-pdf-input').setInputFiles({name:'quality.pdf',mimeType:'application/pdf',buffer:chosenPDF('QUALITY_REJECTION')});
+ await dialog.locator('#paper-prepare').click();await expect(dialog.locator('#paper-generate')).toBeEnabled();
+ const job={job_id:id,trace_id:id,status:'running',stage:'revising',elapsed_seconds:10,estimate:{seconds:30,low:20,high:45,samples:4}};
+ await page.route('**/api/papers/draft',route=>route.fulfill({status:202,json:job}));
+ let finish;const reviewing=new Promise(resolve=>finish=resolve);
+ await page.route('**/api/papers/jobs/*',async route=>{await reviewing;await route.fulfill({json:{...job,status:'failed',stage:'verifying',error:'质量未通过',failed_checks:['grounded','experiments']}});});
+ await dialog.locator('#paper-generate').click();
+ const panel=dialog.locator('.paper-ai-progress');
+ try{await expect(panel).toContainText('正在修订报告');}finally{finish();}
+ await expect(panel.getByRole('alert')).toHaveText('报告的事实依据、实验结果未通过质量核验。请重试分析。');
+ const copy=panel.getByRole('button',{name:id});
+ await expect(copy).toBeInViewport();await copy.click();
+ await expect(copy).toContainText('已复制');
+ expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(id);
+ await expect(dialog.locator('.paper-analysis-result')).toBeHidden();
+ await expect(dialog.locator('.paper-file-preview iframe')).toHaveAttribute('src',/inline/);
+ await expect(dialog.locator('#paper-generate')).toBeEnabled();
+ await expect(dialog.locator('#paper-use')).toBeEnabled();
 });
 
 async function readingDesk(page,title='浏览器测试：论文阅读台'){

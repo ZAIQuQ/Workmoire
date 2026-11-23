@@ -2,7 +2,7 @@
 
 Paper analysis uses the versioned [brief template](../prompts/paper-brief.md),
 with configurable `gpt-6.1-terra` and `low` reasoning by default. The model request
-has a 150-second total limit shared by generation and quality verification. Generation produces known metadata, field tags and the
+has a 150-second total limit shared by generation, quality verification, and one optional recovery attempt. Generation produces known metadata, field tags and the
 [compact reading report](paper-intake.md#compact-reading-reports), with at most
 three contributions and an enforced length budget.
 
@@ -72,3 +72,14 @@ available only to the signed-in owner. A service restart loses pending jobs;
 the UI offers retry. Measurements are estimates, not guarantees against network
 or provider load changes. Calibrate a deployment using public/synthetic material,
 then let real completed tasks improve the estimates without logging content.
+
+Failed jobs show the reason and a copyable trace ID at the bottom of the import
+dialog. The trace ID is the job ID. Search the private service journal for
+`paper_analysis` and the ID to see stage timings, the outcome, and any failed
+quality checks. Diagnostic events contain fixed codes and timing only, plus the
+job ID. The PDF, candidate report and review feedback stay out of these events.
+
+When enough time remains, a semantic rejection triggers one targeted revision
+and a fresh review. A malformed review or unmatched citation can trigger one
+recheck of the same candidate. A failed final check leaves the uploaded PDF
+available for a manual retry or archiving.

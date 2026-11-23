@@ -391,7 +391,8 @@ class ReadingMaterialTests(unittest.TestCase):
         self.assertEqual(invoke.call_args_list[0].kwargs['reasoning_effort'],app.PAPER_REASONING_EFFORT)
         self.assertEqual(app.PAPER_REASONING_EFFORT,'low')
         self.assertEqual(invoke.call_args_list[0].kwargs['model'],'gpt-6.1-terra')
-        self.assertEqual(invoke.call_args_list[0].kwargs['timeout'],150)
+        self.assertGreater(invoke.call_args_list[0].kwargs['timeout'],0)
+        self.assertLessEqual(invoke.call_args_list[0].kwargs['timeout'],150)
         self.assertIn('partial_pdf_text',invoke.call_args_list[0].args[0]);self.assertIn('Contribution',invoke.call_args_list[0].args[0]);self.assertIn('≤800',invoke.call_args_list[0].args[0])
         self.assertEqual(result['reading']['motivation'],'Synthetic')
 

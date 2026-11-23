@@ -1,6 +1,10 @@
 import {progressPanel,uploadFile,trackPaperJob} from './operation-progress.js';
 import {tagColor} from './tag-colors.js';
 const icon=name=>window.WorkmoireIcons.render(name);
+const qualityLabels=new Map([
+ ['grounded','事实依据'],['core_insight','核心洞见'],['mechanism','技术机制'],
+ ['experiments','实验结果'],['concise','内容精简度']
+]);
 
 export function openPaperImport({request,post,assistantAvailable,onUse}){
  const dialog=document.createElement('dialog');dialog.className='dialog paper-import-dialog';dialog.setAttribute('aria-label','新建论文资料');
@@ -47,8 +51,14 @@ export function openPaperImport({request,post,assistantAvailable,onUse}){
  function payload(generate){return {file_id:prepared.file.id,reference:reference.value.trim(),title:q('#paper-title').value.trim(),author:q('#paper-author').value.trim(),title_confirmed:titleConfirmed,author_confirmed:authorConfirmed,text:extracted.text,page_count:extracted.page_count,pages_read:extracted.pages_read,truncated:extracted.truncated,generate};}
  q('#paper-generate').onclick=async()=>{
   if(busy||!prepared||!q('#paper-title').reportValidity())return;busy=true;draft=null;q('.paper-analysis-result').hidden=true;controls();error.textContent='';q('#paper-generate').textContent='正在分析所选 PDF…';analysis.reset();analysis.stage('正在提交分析请求','',1);
-  try{const job=await post('/api/papers/draft',{...payload(true),background:true});draft=job.job_id?await trackPaperJob(job,request,analysis,()=>!closed):job;if(!job.job_id)analysis.done('论文分析完成');if(closed)return;if(!titleConfirmed&&draft.title)q('#paper-title').value=draft.title;if(!authorConfirmed&&Array.isArray(draft.paper?.authors))q('#paper-author').value=draft.paper.authors.join('; ');renderTags(draft.tags||[]);q('.paper-analysis-preview').innerHTML=window.WorkmoireEditor.render(draft.analysis||draft.content);q('.paper-analysis-preview').querySelectorAll('iframe').forEach(el=>el.remove());q('.paper-analysis-result').hidden=false;q('.paper-analysis-result').scrollIntoView({block:'nearest'});}
-  catch(e){draft=null;analysis.fail('论文分析未完成');error.textContent=e.message;}
+  let traceId='';
+  try{const job=await post('/api/papers/draft',{...payload(true),background:true});traceId=job.trace_id||job.job_id||'';draft=job.job_id?await trackPaperJob(job,request,analysis,()=>!closed):job;if(!job.job_id)analysis.done('论文分析完成');if(closed)return;if(!titleConfirmed&&draft.title)q('#paper-title').value=draft.title;if(!authorConfirmed&&Array.isArray(draft.paper?.authors))q('#paper-author').value=draft.paper.authors.join('; ');renderTags(draft.tags||[]);q('.paper-analysis-preview').innerHTML=window.WorkmoireEditor.render(draft.analysis||draft.content);q('.paper-analysis-preview').querySelectorAll('iframe').forEach(el=>el.remove());q('.paper-analysis-result').hidden=false;q('.paper-analysis-result').scrollIntoView({block:'nearest'});}
+  catch(e){
+   draft=null;
+   const checks=Array.isArray(e.failedChecks)?e.failedChecks.map(key=>qualityLabels.get(key)).filter(Boolean):[];
+   const reason=checks.length?'报告的'+checks.join('、')+'未通过质量核验。请重试分析。':e instanceof TypeError&&!traceId?'无法提交论文分析，请检查网络后重试。':e.message;
+   if(!closed)analysis.fail('论文分析未完成',reason,traceId);
+  }
   finally{busy=false;q('#paper-generate').innerHTML=icon('spark')+'AI 分析论文';controls();}
  };
  q('#paper-use').onclick=async()=>{

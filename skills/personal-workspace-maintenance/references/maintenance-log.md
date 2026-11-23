@@ -194,3 +194,7 @@ changes belong in normal commit history.
 
 - Adopted a bounded structured paper report matching the owner-selected short format; program-owned headings, field/item/total limits, an independent semantic quality gate and adversarial synthetic actual-provider verification prevent prompt-only format drift. Existing reviewed drafts stay compatible.
 - Versioned new share-link derivation to unbiased base62 without schema changes; keep legacy links, credentials, media paths and recovery valid. Added fixed-vector and lifecycle regression checks.
+
+## 2026-11-23
+
+- Correlated paper-analysis failure stages by job ID in the service journal using fixed diagnostics. Added recovery and fail-closed checks to the release gate.

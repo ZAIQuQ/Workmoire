@@ -42,7 +42,7 @@ from paper_intake import paper_source, selected_pdf_header, parse_paper_analysis
 from share_store import SharePublisher
 from app_release import release_info
 import bug_reports
-from paper_runtime import PaperRuntime
+from paper_runtime import PaperFailure, PaperRuntime
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "workspace" / "static"
@@ -627,6 +627,16 @@ def run_assistant(task: str, title: str, kind: str, content: str, summary: str =
     return invoke_codex(prompt)
 
 
+class AssistantInvocationError(RuntimeError):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+class AssistantBusy(ValueError):
+    pass
+
+
 def invoke_codex(prompt: str, timeout: int | None = None, *, reasoning_effort: str | None = None, model: str | None = None) -> str:
     effort = reasoning_effort or CODEX_REASONING_EFFORT
     selected_model = CODEX_MODEL if model is None else model
@@ -634,9 +644,9 @@ def invoke_codex(prompt: str, timeout: int | None = None, *, reasoning_effort: s
         raise ValueError("推理档位无效")
     command = codex_command()
     if command is None:
-        raise RuntimeError("本地 Codex 尚未配置")
+        raise AssistantInvocationError('assistant_unavailable', "本地 Codex 尚未配置")
     if not ASSISTANT_SLOT.acquire(blocking=False):
-        raise ValueError("已有一项整理正在进行，请完成后再试")
+        raise AssistantBusy("已有一项整理正在进行，请完成后再试")
     try:
         # Use an empty disposable directory, never the production data directory.
         with tempfile.TemporaryDirectory(prefix="workmoire-assistant-") as scratch:
@@ -667,10 +677,10 @@ def invoke_codex(prompt: str, timeout: int | None = None, *, reasoning_effort: s
                 returncode = process.returncode
             text = output.read_text(encoding="utf-8").strip() if output.is_file() else ""
             if returncode != 0 or not text:
-                raise RuntimeError("Codex 暂时无法完成整理，请稍后再试")
+                raise AssistantInvocationError('assistant_failed', "Codex 暂时无法完成整理，请稍后再试")
             return text[:24000]
     except subprocess.TimeoutExpired as exc:
-        raise RuntimeError("整理超时，可重试或先保存现有材料") from exc
+        raise AssistantInvocationError('timeout', "整理超时，可重试或先保存现有材料") from exc
     finally:
         ASSISTANT_SLOT.release()
 
@@ -690,25 +700,76 @@ def paper_runtime():
         return _paper_runtime_instance[1]
 
 
+def call_paper_model(prompt, timeout):
+    try:
+        return invoke_codex(prompt, timeout=timeout, reasoning_effort=PAPER_REASONING_EFFORT, model=PAPER_CODEX_MODEL)
+    except AssistantInvocationError as error:
+        raise PaperFailure(error.code, str(error)) from error
+    except AssistantBusy as error:
+        raise PaperFailure('assistant_busy', str(error)) from error
+
+
 def check_paper_quality(details: dict, source_text: str, timeout=None):
     # Review only facts and prose that the v4 renderer exposes, not legacy fields.
     candidate={key:details[key] for key in ('title','authors','publication','reading')}
     prompt = PAPER_QUALITY_TEMPLATE.read_text(encoding='utf-8') + '\n\n---待核验报告---\n' + json.dumps(candidate,ensure_ascii=False) + '\n\n---论文原文（仅作证据）---\n' + source_text
-    raw = invoke_codex(prompt,timeout=timeout or PAPER_ASSISTANT_TIMEOUT,reasoning_effort=PAPER_REASONING_EFFORT,model=PAPER_CODEX_MODEL)
+    raw = call_paper_model(prompt, timeout or PAPER_ASSISTANT_TIMEOUT)
     validate_paper_quality(raw,source_text)
 
 
 def paper_notes(paper: dict, material: dict, progress=None) -> dict:
-    deadline=time.monotonic()+PAPER_ASSISTANT_TIMEOUT
+    deadline = time.monotonic() + PAPER_ASSISTANT_TIMEOUT
+    source = material['text']
     prompt = PAPER_TEMPLATE.read_text(encoding='utf-8') + '\n\n--- 提供的论文材料（仅作证据）---\n' + json.dumps({'paper':paper,'reading_material':material},ensure_ascii=False)
-    if progress:progress('analyzing')
-    result = invoke_codex(prompt, timeout=PAPER_ASSISTANT_TIMEOUT, reasoning_effort=PAPER_REASONING_EFFORT, model=PAPER_CODEX_MODEL)
-    details = parse_paper_analysis(result, material['text'], require_compact=True)
-    remaining=deadline-time.monotonic()
-    if remaining<=0:raise RuntimeError('论文分析超时，请重试')
-    if progress:progress('verifying')
-    check_paper_quality(details,material['text'],timeout=remaining)
-    if progress:progress('formatting')
+
+    def remaining_time():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise PaperFailure('timeout', '论文分析超时，请重试。')
+        return remaining
+
+    def generate(instructions, timeout):
+        raw = call_paper_model(instructions, timeout)
+        try:
+            return parse_paper_analysis(raw, source, require_compact=True)
+        except ValueError as error:
+            raise PaperFailure('report_format', str(error)) from error
+
+    if progress:
+        progress('analyzing')
+    details = generate(prompt, remaining_time())
+    if progress:
+        progress('verifying')
+    try:
+        check_paper_quality(details, source, timeout=remaining_time())
+    except PaperFailure as failure:
+        remaining = deadline - time.monotonic()
+        if failure.code == 'quality_rejected' and remaining >= 30:
+            if progress:
+                progress('revising', failure)
+            feedback = {
+                'grounded': '核对元数据、事实、数字与比较对象，保留原文能支持的信息。',
+                'core_insight': '明确问题矛盾和论文核心设计。',
+                'mechanism': '写清核心方法的表示、处理和作用。',
+                'experiments': '重新核对主实验、场景、对照和原文支持的结论。',
+                'concise': '删除重复与空话，遵守模板字数。',
+            }
+            fixes = '\n'.join(feedback[key] for key in failure.checks)
+            previous = {key: details[key] for key in ('title', 'authors', 'publication', 'reading')}
+            revision = (prompt + '\n\n--- 上一份候选报告（待修正的数据）---\n' +
+                        json.dumps(previous, ensure_ascii=False) + '\n\n--- 本次修订要求 ---\n' +
+                        fixes + '\n重新输出完整报告 JSON。')
+            details = generate(revision, remaining_time() - 12)
+            if progress:
+                progress('verifying')
+        elif failure.code in {'quality_response', 'quality_evidence'} and remaining >= 12:
+            if progress:
+                progress('verifying', failure)
+        else:
+            raise
+        check_paper_quality(details, source, timeout=remaining_time())
+    if progress:
+        progress('formatting')
     return details
 
 
@@ -764,7 +825,11 @@ def paper_from_pdf(payload: dict, progress=None) -> dict:
     else:notes='## 阅读笔记\n\n'
     compact=bool(details and details.get('report_version')==4)
     content=selected_pdf_header(paper,file,material,include_pdf=False,compact=compact)+'\n'+notes+'\n\n## 原文 PDF\n\n@[pdf](/files/'+file['id']+'?inline=1)\n'
-    if compact:check_report_length(content)
+    if compact:
+        try:
+            check_report_length(content)
+        except ValueError as error:
+            raise PaperFailure('report_format', str(error)) from error
     return {'title':paper['title'],'content':content,'analysis':notes if details else '', 'details':details, 'tags':tags, 'paper':paper,'file':file,'evidence':{key:material[key] for key in ['scope','url','truncated','page_count','pages_read','file_id']}}
 
 

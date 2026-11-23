@@ -2,6 +2,20 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.16.1] — 2026-11-23
+
+- 论文分析失败时在弹窗底部显示失败原因和可复制的追踪编号，方便定位质量检查、模型超时和任务异常。
+- 质量检查拒绝报告时，在剩余时间允许的情况下修订一次并重新复核。核验响应无效或引文无法匹配时，可对同一份报告复核一次。报告通过全部检查后才显示预览。
+- 修复 arXiv 页边编号紧跟 `v1` 时遗漏首次公开日期的问题。
+
+见[使用说明](docs/user-guide.md)与[论文分析进度和追踪](docs/paper-progress.md)。
+
+### English
+
+- Show the reason and a copyable trace ID when paper analysis fails. Correlate the job and validation stages in the service journal.
+- Within the existing deadline, revise a rejected report or retry an invalid quality check once. Preview still requires all quality checks to pass.
+- Recognize first-release dates in PDF margins where an arXiv identifier ends in `v1`.
+
 ## [1.16.0] — 2026-11-16
 
 - 论文报告改为固定短模板：论文信息、阅读笔记、原文 PDF；笔记按首次公开、正式发表、研究方向、关键词、Motivation、Contribution、实验贡献、一句话总结排列。

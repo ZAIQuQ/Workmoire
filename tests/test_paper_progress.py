@@ -1,5 +1,5 @@
 import json
-from paper_fixtures import model_fixture, compact_fixture
+from paper_fixtures import model_fixture, compact_fixture, quality_fixture
 import os
 from pathlib import Path
 import tempfile
@@ -13,6 +13,51 @@ from unittest.mock import patch
 import test_documents as support
 import workspace_server as app
 from paper_runtime import PaperRuntime
+
+class PaperRecoveryTests(unittest.TestCase):
+    def test_semantic_rejection_is_revised_once_and_requires_a_fresh_review(self):
+        source = 'The control and treatment use the same fixed test population.'
+        report = json.loads(compact_fixture('Synthetic result'))
+        revised = json.loads(compact_fixture('Revised synthetic result'))
+        approved = json.loads(quality_fixture(source))
+        rejected = {**approved, 'approved': False, 'checks': {**approved['checks'], 'experiments': False},
+                    'issues': ['PRIVATE_REVIEW_TEXT']}
+        material = {'text': source}
+        for last_review in (approved, rejected):
+            with self.subTest(approved=last_review['approved']), patch.object(
+                app, 'invoke_codex', side_effect=map(json.dumps, [report, rejected, revised, last_review])
+            ) as invoke:
+                if last_review['approved']:
+                    details = app.paper_notes({}, material)
+                    self.assertEqual(details['reading']['motivation'], revised['reading']['motivation'])
+                else:
+                    with self.assertRaises(app.PaperFailure) as failure:
+                        app.paper_notes({}, material)
+                    self.assertEqual(failure.exception.checks, ('experiments',))
+                self.assertEqual(invoke.call_count, 4)
+                revision = invoke.call_args_list[2].args[0]
+                self.assertIn('重新核对主实验', revision)
+                self.assertNotIn('PRIVATE_REVIEW_TEXT', revision)
+                self.assertIn('Revised synthetic result', invoke.call_args_list[3].args[0])
+                self.assertLess(invoke.call_args_list[-1].kwargs['timeout'], app.PAPER_ASSISTANT_TIMEOUT)
+
+    def test_invalid_evidence_rechecks_the_same_candidate_and_insufficient_budget_skips_repair(self):
+        source = 'The control and treatment use the same fixed test population.'
+        report = compact_fixture('Synthetic result')
+        approved = json.loads(quality_fixture(source))
+        invalid = json.dumps({**approved, 'evidence': ['This sentence is absent from the PDF.']})
+        with patch.object(app, 'invoke_codex', side_effect=[report, invalid, json.dumps(approved)]) as invoke:
+            app.paper_notes({}, {'text': source})
+            self.assertEqual(invoke.call_count, 3)
+            self.assertEqual(invoke.call_args_list[1].args[0], invoke.call_args_list[2].args[0])
+        with patch.object(app, 'PAPER_ASSISTANT_TIMEOUT', 10), patch.object(
+            app, 'invoke_codex', side_effect=[report, invalid]
+        ) as invoke:
+            with self.assertRaises(app.PaperFailure) as failure:
+                app.paper_notes({}, {'text': source})
+            self.assertEqual(failure.exception.code, 'quality_evidence')
+            self.assertEqual(invoke.call_count, 2)
+
 
 class PaperTimingTests(unittest.TestCase):
     def test_duration_samples_persist_without_paper_content_and_excess_is_not_completion(self):
@@ -40,6 +85,29 @@ class PaperTimingTests(unittest.TestCase):
             self.assertEqual(result['progress'],100);self.assertEqual(result['result']['content'],'Synthetic result')
             with restored.lock:restored.jobs[job['job_id']]['finished']-=901
             self.assertIsNone(restored.get('owner',job['job_id']))
+
+    def test_failed_jobs_share_one_trace_and_exclude_private_details(self):
+        with tempfile.TemporaryDirectory() as directory, patch('paper_runtime.print') as log:
+            runtime = PaperRuntime(Path(directory), 'synthetic-profile')
+            def work(progress):
+                progress('verifying')
+                raise app.PaperFailure('quality_rejected', '固定提示', ('mechanism',))
+            job = runtime.start('owner', {'text': 'PRIVATE_SYNTHETIC_PDF'}, work)
+            for _ in range(100):
+                result = runtime.get('owner', job['job_id'])
+                if result['status'] == 'failed' and log.call_count == 3:
+                    break
+                time.sleep(.01)
+            self.assertEqual(result['trace_id'], job['job_id'])
+            self.assertEqual(result['stage'], 'verifying')
+            self.assertEqual(result['error_code'], 'quality_rejected')
+            self.assertEqual(result['failed_checks'], ['mechanism'])
+            self.assertNotIn('result', result)
+            events = [json.loads(call.args[0].split(' ', 1)[1]) for call in log.call_args_list]
+            self.assertEqual([event['event'] for event in events], ['started', 'stage', 'failed'])
+            self.assertEqual({event['trace_id'] for event in events}, {job['job_id']})
+            self.assertNotIn('PRIVATE_SYNTHETIC_PDF', str(events))
+            self.assertNotIn('固定提示', str(events))
 
 class PaperProgressHttpTests(unittest.TestCase):
     setUp=support.DocumentHttpTests.setUp

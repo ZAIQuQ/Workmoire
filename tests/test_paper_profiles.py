@@ -76,6 +76,15 @@ class PaperProfileTests(unittest.TestCase):
         raw['publication']['status']='submitted';raw['publication']['evidence']='Submitted to Example Conference 2026.'
         self.assertNotIn('正式发表',paper_reading_markdown(parse_paper_analysis(raw,source+' Submitted to Example Conference 2026.',require_compact=True)))
 
+    def test_compact_report_accepts_arxiv_v1_watermark_but_not_later_versions(self):
+        raw = json.loads(compact_fixture())
+        for version in (1, 2, 10):
+            with self.subTest(version=version):
+                watermark = f'arXiv:2601.00000v{version} [cs.LG] 15 Jan 2026'
+                raw['reading']['first_public'] = {'name': '15 Jan 2026', 'evidence': watermark}
+                report = paper_reading_markdown(parse_paper_analysis(raw, PROFILE_TEXT + '\n' + watermark, require_compact=True))
+                self.assertEqual('首次公开' in report, version == 1)
+
     def test_compact_report_rejects_verbose_or_off_template_results(self):
         with self.assertRaisesRegex(ValueError,'模板'):
             parse_paper_analysis(analysis_fixture(),PROFILE_TEXT,require_compact=True)
@@ -150,10 +159,11 @@ class PaperProfileHttpTests(unittest.TestCase):
     def test_quality_failure_does_not_return_or_store_a_draft(self):
         self.fixture_file('chosen.pdf',b'%PDF-1.4 synthetic','application/pdf')
         payload={'file_id':'a'*32,'title':'Synthetic','text':PROFILE_TEXT,'page_count':1,'pages_read':1}
-        with patch.object(app,'invoke_codex',side_effect=[compact_fixture(),'{"approved":false,"checks":{},"evidence":[],"issues":["unsupported experiment"]}']) as invoke:
+        invalid_review = '{"approved":false,"checks":{},"evidence":[],"issues":["unsupported experiment"]}'
+        with patch.object(app,'invoke_codex',side_effect=[compact_fixture(), invalid_review, invalid_review]) as invoke:
             status,body,_=self.request('/api/papers/draft','POST',payload)
             self.assertEqual(status,400);self.assertIn('质量校验',json.loads(body)['error'])
-            self.assertNotIn('content',json.loads(body));self.assertEqual(invoke.call_count,2)
+            self.assertNotIn('content',json.loads(body));self.assertEqual(invoke.call_count,3)
             self.assertGreater(invoke.call_args.kwargs['timeout'],0)
             self.assertLessEqual(invoke.call_args.kwargs['timeout'],app.PAPER_ASSISTANT_TIMEOUT)
         with app.open_db() as con:self.assertEqual(con.execute('SELECT count(*) FROM items').fetchone()[0],0)

@@ -5,6 +5,7 @@ import re
 import unicodedata
 
 from paper_tools import public_url, markdown_text
+from paper_runtime import PaperFailure
 
 
 def _text(value, limit=200):
@@ -116,7 +117,7 @@ def parse_paper_analysis(value, source_text, *, require_compact=False):
         if not isinstance(keywords,list) or len(keywords)>5:raise ValueError('论文分析结果关键词最多 5 个，请重试分析')
         first = fact(reading.get('first_public'))
         # Preserve source spelling; a revision date alone cannot establish first publication.
-        if first and not re.search(r'\bv1\b|first|initial|首次',first['evidence'],re.I):first=None
+        if first and not re.search(r'\bv1\b|\barXiv:\s*\d{4}\.\d{4,5}v1\b|first|initial|首次',first['evidence'],re.I):first=None
         if first and len(first['name'])>60:first=None
         result['reading'] = {
             'first_public':first, 'direction':prose(reading.get('direction'),48),
@@ -132,16 +133,28 @@ QUALITY_CHECKS=('grounded','core_insight','mechanism','experiments','concise')
 
 def validate_paper_quality(raw,source_text):
     """Fail closed on missing checks, unsupported citations or a rejected review."""
+    raw = raw.strip() if isinstance(raw, str) else ''
+    if raw.startswith('```') and raw.endswith('```'):
+        raw = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.I)[:-3].strip()
     try:
-        result=json.loads(raw)
-        checks=result.get('checks',{})
-        excerpts=result.get('evidence',[])
-        valid=(result.get('approved') is True and isinstance(checks,dict)
-               and all(checks.get(key) is True for key in QUALITY_CHECKS)
-               and result.get('issues')==[] and isinstance(excerpts,list) and 1<=len(excerpts)<=5
-               and all(isinstance(e,str) and 12<=len(e)<=600 and len(_key(e))>=6 and _key(e) in _key(source_text) for e in excerpts))
-    except (ValueError,TypeError,AttributeError):valid=False
-    if not valid:raise ValueError('论文报告未通过内容质量校验，请重试分析；当前报告未插入或保存')
+        result = json.loads(raw)
+    except ValueError:
+        result = None
+    checks = result.get('checks') if isinstance(result, dict) else None
+    if not isinstance(checks, dict) or any(type(checks.get(key)) is not bool for key in QUALITY_CHECKS):
+        raise PaperFailure('quality_response', '内容质量校验未返回有效结果，请重试分析。')
+    failed = tuple(key for key in QUALITY_CHECKS if not checks[key])
+    if result.get('approved') is False and failed:
+        raise PaperFailure('quality_rejected', '论文报告未通过内容质量校验，请重试分析。', failed)
+    if result.get('approved') is not True or failed or result.get('issues') != []:
+        raise PaperFailure('quality_response', '内容质量校验未返回有效结果，请重试分析。')
+    excerpts = result.get('evidence')
+    source = _key(source_text)
+    if not (isinstance(excerpts, list) and 1 <= len(excerpts) <= 5 and all(
+        isinstance(e, str) and 12 <= len(e) <= 600 and len(_key(e)) >= 6 and _key(e) in source
+        for e in excerpts
+    )):
+        raise PaperFailure('quality_evidence', '内容质量校验的引文未能与 PDF 文字匹配，请重试分析。')
 
 
 def paper_reading_markdown(details):

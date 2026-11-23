@@ -287,6 +287,10 @@
 .operation-progress progress:indeterminate { opacity: .55; }
 .operation-progress-detail { color: var(--muted); font-size: 11px; line-height: 1.7; font-variant-numeric: tabular-nums; }
 .operation-progress.is-failed .operation-progress-head { color: var(--danger); }
+.operation-progress.is-failed progress { display: none; }
+.operation-progress-trace { display: block; margin-top: 4px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 11px; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.operation-progress-trace[hidden] { display: none; }
+.operation-progress-trace:hover { text-decoration: underline; }
 .asset-transfer-card { position: fixed; z-index: 45; left: 24px; bottom: 24px; width: min(360px, calc(100vw - 48px)); background: var(--paper); border-radius: var(--radius-md); box-shadow: var(--shadow); }
 .asset-transfer-card .operation-progress { margin: 0; background: var(--paper); }
 

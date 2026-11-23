@@ -10,6 +10,26 @@ import threading
 import time
 import os
 
+
+class PaperFailure(ValueError):
+    """A fixed public message and content-free diagnostic codes."""
+
+    def __init__(self, code, message, checks=()):
+        super().__init__(message)
+        self.code = code
+        self.checks = checks
+
+    def fields(self):
+        return {'error_code': self.code, 'failed_checks': list(self.checks)}
+
+
+def log_paper_job(trace_id, event, stage, elapsed, failure=None):
+    entry = {'trace_id': trace_id, 'event': event, 'stage': stage, 'elapsed_seconds': round(elapsed, 1)}
+    if failure:
+        entry.update(failure.fields())
+    print('paper_analysis ' + json.dumps(entry, separators=(',', ':')), flush=True)
+
+
 class PaperRuntime:
     def __init__(self,root:Path,profile:str,fallback=45):
         self.root=Path(root);self.path=self.root/'paper-timings.json';self.profile=profile;self.fallback=fallback
@@ -60,19 +80,32 @@ class PaperRuntime:
                     raise ValueError('已有一项论文分析正在进行，请稍候')
             job={'id':secrets.token_hex(16),'owner':owner,'digest':digest,'status':'running','stage':'preparing','started':time.monotonic(),'finished':0,'characters':len(payload.get('text','')),'estimate':self.estimate(len(payload.get('text','')))}
             self.jobs[job['id']]=job
-        def progress(stage):
-            if stage in {'preparing','analyzing','verifying','formatting'}:
-                with self.lock:job['stage']=stage
+        def progress(stage, failure=None):
+            with self.lock:
+                job['stage'] = stage
+            log_paper_job(job['id'], 'retry' if failure else 'stage', stage,
+                          time.monotonic() - job['started'], failure)
         def run():
             try:
+                log_paper_job(job['id'], 'started', 'preparing', 0)
                 result=work(progress)
                 finished=time.monotonic()
                 try:self.record(job['characters'],finished-job['started'])
                 except OSError:pass
                 with self.lock:job.update(status='completed',stage='completed',result=result,finished=finished)
+                log_paper_job(job['id'], 'completed', 'completed', finished - job['started'])
             except Exception as error:
-                message=str(error) if isinstance(error,(ValueError,RuntimeError)) else '论文分析暂时失败，请重试'
-                with self.lock:job.update(status='failed',stage='failed',error=message,finished=time.monotonic())
+                if isinstance(error, PaperFailure):
+                    failure = error
+                elif isinstance(error, ValueError) and job['stage'] == 'preparing':
+                    failure = PaperFailure('invalid_material', '论文材料无法用于分析，请核对所选 PDF 和来源链接后重试。')
+                else:
+                    failure = PaperFailure('internal_error', '论文分析暂时失败，请重试。')
+                finished = time.monotonic()
+                with self.lock:
+                    stage = job['stage']
+                    job.update(status='failed', error=str(failure), finished=finished, **failure.fields())
+                log_paper_job(job['id'], 'failed', stage, finished - job['started'], failure)
             finally:
                 with self.lock:
                     if job['id'] in self.jobs:
@@ -81,9 +114,10 @@ class PaperRuntime:
         with self.lock:return self._view(job)
     def _view(self,job):
         elapsed=(job['finished'] or time.monotonic())-job['started'];estimate=job['estimate'];done=job['status']=='completed'
-        result={'job_id':job['id'],'status':job['status'],'stage':job['stage'],'elapsed_seconds':round(elapsed,1),'estimate':estimate,'progress_kind':'estimated','progress':100 if done else min(95,round(elapsed/max(1,estimate['seconds'])*90)), 'over_estimate':elapsed>estimate['high']}
+        result={'job_id':job['id'],'trace_id':job['id'],'status':job['status'],'stage':job['stage'],'elapsed_seconds':round(elapsed,1),'estimate':estimate,'progress_kind':'estimated','progress':100 if done else min(95,round(elapsed/max(1,estimate['seconds'])*90)), 'over_estimate':elapsed>estimate['high']}
         if done:result['result']=job['result']
-        if job['status']=='failed':result['error']=job['error']
+        if job['status']=='failed':
+            result.update(error=job['error'], error_code=job['error_code'], failed_checks=job['failed_checks'][:])
         return result
     def get(self,owner,job_id):
         with self.lock:
