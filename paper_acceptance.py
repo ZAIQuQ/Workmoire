@@ -17,8 +17,9 @@ PROFILE_FILES = (
 SHA256 = re.compile(r'[a-f0-9]{64}')
 
 
-def profile_digest(root: Path, *, model: str, reasoning: str, timeout: int, provider: str) -> str:
-    config = [model, reasoning, timeout, provider]
+def profile_digest(root: Path, *, model: str, reasoning: str, review_model: str,
+                   review_reasoning: str, final_review_model: str, timeout: int, provider: str) -> str:
+    config = [model, reasoning, review_model, review_reasoning, final_review_model, timeout, provider]
     state = hashlib.sha256(json.dumps(config, separators=(',', ':')).encode())
     for name in PROFILE_FILES:
         state.update(name.encode())

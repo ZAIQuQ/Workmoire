@@ -14,10 +14,11 @@ import os
 class PaperFailure(ValueError):
     """A fixed public message and content-free diagnostic codes."""
 
-    def __init__(self, code, message, checks=()):
+    def __init__(self, code, message, checks=(), feedback=()):
         super().__init__(message)
         self.code = code
         self.checks = checks
+        self.feedback = feedback
 
     def fields(self):
         return {'error_code': self.code, 'failed_checks': list(self.checks)}

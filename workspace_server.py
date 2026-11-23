@@ -25,6 +25,7 @@ import stat
 import sys
 import subprocess
 import tempfile
+import textwrap
 import threading
 import time
 import uuid
@@ -90,10 +91,15 @@ PAPER_PROVIDER_PROFILE = os.environ.get("WORKSPACE_PAPER_PROVIDER_PROFILE", "").
 PAPER_REASONING_EFFORT = os.environ.get("WORKSPACE_PAPER_REASONING_EFFORT", "low").strip().lower()
 if PAPER_REASONING_EFFORT not in {"low", "medium", "high", "xhigh", "max"}:
     PAPER_REASONING_EFFORT = "low"
+PAPER_REVIEW_MODEL = os.environ.get('WORKSPACE_PAPER_REVIEW_MODEL', '').strip()
+PAPER_FINAL_REVIEW_MODEL = os.environ.get('WORKSPACE_PAPER_FINAL_REVIEW_MODEL', '').strip()
+PAPER_REVIEW_REASONING = os.environ.get('WORKSPACE_PAPER_REVIEW_REASONING_EFFORT', '').strip().lower()
+if PAPER_REVIEW_REASONING not in {'low', 'medium', 'high', 'xhigh', 'max'}:
+    PAPER_REVIEW_REASONING = ''
 try:
-    PAPER_ASSISTANT_TIMEOUT = min(max(int(os.environ.get("WORKSPACE_PAPER_ASSISTANT_TIMEOUT", "150")), 60), 600)
+    PAPER_ASSISTANT_TIMEOUT = min(max(int(os.environ.get("WORKSPACE_PAPER_ASSISTANT_TIMEOUT", "240")), 60), 600)
 except ValueError:
-    PAPER_ASSISTANT_TIMEOUT = 150
+    PAPER_ASSISTANT_TIMEOUT = 240
 SETUP_TOKEN = os.environ.get("WORKSPACE_SETUP_TOKEN", "").strip()
 COOKIE_SECURE = os.environ.get("WORKSPACE_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes", "on"}
 try:
@@ -696,7 +702,7 @@ _paper_runtime_lock = threading.Lock()
 
 def paper_runtime():
     global _paper_runtime_instance
-    profile = hashlib.sha256((PAPER_CODEX_MODEL+'|'+PAPER_REASONING_EFFORT+'|'+PAPER_TEMPLATE.read_text()+'|'+PAPER_QUALITY_TEMPLATE.read_text()).encode()).hexdigest()
+    profile = paper_acceptance_profile()
     key = (str(DATA_DIR.resolve()), profile)
     with _paper_runtime_lock:
         if _paper_runtime_instance is None or _paper_runtime_instance[0] != key:
@@ -710,6 +716,8 @@ PAPER_ANALYSIS_PAUSED = 'AI 论文分析暂未开放，可上传 PDF 并手动�
 @lru_cache(maxsize=1)
 def paper_acceptance_profile():
     return paper_acceptance.profile_digest(ROOT, model=PAPER_CODEX_MODEL, reasoning=PAPER_REASONING_EFFORT,
+                                           review_model=PAPER_REVIEW_MODEL, review_reasoning=PAPER_REVIEW_REASONING,
+                                           final_review_model=PAPER_FINAL_REVIEW_MODEL,
                                            timeout=PAPER_ASSISTANT_TIMEOUT, provider=PAPER_PROVIDER_PROFILE)
 
 
@@ -722,21 +730,27 @@ def paper_analysis_enabled():
         return False
 
 
-def call_paper_model(prompt, timeout):
+def call_paper_model(prompt, timeout, *, review=False, final_review=False):
+    model = PAPER_REVIEW_MODEL or PAPER_CODEX_MODEL if review else PAPER_CODEX_MODEL
+    reasoning = PAPER_REVIEW_REASONING or PAPER_REASONING_EFFORT if review else PAPER_REASONING_EFFORT
+    if final_review:
+        model, reasoning = PAPER_FINAL_REVIEW_MODEL, 'high'
     try:
-        return invoke_codex(prompt, timeout=timeout, reasoning_effort=PAPER_REASONING_EFFORT, model=PAPER_CODEX_MODEL)
+        return invoke_codex(prompt, timeout=timeout, reasoning_effort=reasoning, model=model)
     except AssistantInvocationError as error:
         raise PaperFailure(error.code, str(error)) from error
     except AssistantBusy as error:
         raise PaperFailure('assistant_busy', str(error)) from error
 
 
-def check_paper_quality(details: dict, source_text: str, timeout=None):
+def check_paper_quality(details: dict, source_text: str, timeout=None, *, final_review=False):
     # Review only facts and prose that the v4 renderer exposes, not legacy fields.
     candidate={key:details[key] for key in ('title','authors','publication','reading')}
-    prompt = PAPER_QUALITY_TEMPLATE.read_text(encoding='utf-8') + '\n\n---待核验报告---\n' + json.dumps(candidate,ensure_ascii=False) + '\n\n---论文原文（仅作证据）---\n' + source_text
-    raw = call_paper_model(prompt, timeout or PAPER_ASSISTANT_TIMEOUT)
-    validate_paper_quality(raw,source_text)
+    blocks = textwrap.wrap(' '.join(source_text.split()), width=480)
+    numbered = '\n'.join(f'{index}: {block}' for index, block in enumerate(blocks, start=1))
+    prompt = PAPER_QUALITY_TEMPLATE.read_text(encoding='utf-8') + '\n\n---待核验报告---\n' + json.dumps(candidate,ensure_ascii=False) + '\n\n---论文原文（仅作证据）---\n' + numbered
+    raw = call_paper_model(prompt, timeout or PAPER_ASSISTANT_TIMEOUT, review=True, final_review=final_review)
+    validate_paper_quality(raw, source_text, blocks=blocks)
 
 
 def paper_notes(paper: dict, material: dict, progress=None) -> dict:
@@ -750,46 +764,66 @@ def paper_notes(paper: dict, material: dict, progress=None) -> dict:
             raise PaperFailure('timeout', '论文分析超时，请重试。')
         return remaining
 
-    def generate(instructions, timeout):
-        raw = call_paper_model(instructions, timeout)
-        try:
-            return parse_paper_analysis(raw, source, require_compact=True)
-        except ValueError as error:
-            raise PaperFailure('report_format', str(error)) from error
+    def generate(instructions, reserve=0):
+        for attempt in range(2):
+            raw = call_paper_model(instructions, remaining_time() - reserve)
+            try:
+                return parse_paper_analysis(raw, source, require_compact=True)
+            except ValueError as error:
+                failure = PaperFailure('report_format', str(error))
+                if attempt or deadline - time.monotonic() < reserve + 25:
+                    raise failure from error
+                if progress:
+                    progress('revising', failure)
+                instructions += (
+                    '\n\n上一轮校验问题：' + str(failure) +
+                    '\n仅更正不足和超限项。正文优先两条贡献，每条说明约 40–65 字，'
+                    'Motivation 和实验分别约 50–80 字，总结约 30–50 字。输出完整 JSON。'
+                    '\n上一轮待修订的数据：' + json.dumps(raw[:12000], ensure_ascii=False)
+                )
 
     if progress:
         progress('analyzing')
-    details = generate(prompt, remaining_time())
-    if progress:
-        progress('verifying')
-    try:
-        check_paper_quality(details, source, timeout=remaining_time())
-    except PaperFailure as failure:
-        remaining = deadline - time.monotonic()
-        if failure.code == 'quality_rejected' and remaining >= 30:
+    details = generate(prompt)
+    feedback = {
+        'grounded': '在 PDF 首页、论文方法与结果中核对元数据、事实、数字与比较对象。',
+        'core_insight': '明确问题矛盾和论文核心设计。',
+        'mechanism': '写清核心方法的表示、处理和作用。',
+        'experiments': '用一项有明确对照的主结果。核对不清时用原文明确支持的定性结论。',
+        'concise': '删除重复与空话，遵守模板字数。',
+    }
+    for attempt in range(3):
+        if progress:
+            progress('verifying')
+        try:
+            check_paper_quality(details, source, timeout=remaining_time())
+            break
+        except PaperFailure as failure:
+            remaining = deadline - time.monotonic()
+            if attempt == 2:
+                if (PAPER_FINAL_REVIEW_MODEL and failure.code == 'quality_rejected'
+                        and failure.checks == ('grounded',) and remaining >= 25):
+                    if progress:
+                        progress('verifying', failure)
+                    check_paper_quality(details, source, timeout=remaining_time(), final_review=True)
+                    break
+                raise
+            if failure.code in {'quality_response', 'quality_evidence'} and remaining >= 12:
+                if progress:
+                    progress('verifying', failure)
+                continue
+            if failure.code != 'quality_rejected' or remaining < 30:
+                raise
             if progress:
                 progress('revising', failure)
-            feedback = {
-                'grounded': '核对元数据、事实、数字与比较对象，保留原文能支持的信息。',
-                'core_insight': '明确问题矛盾和论文核心设计。',
-                'mechanism': '写清核心方法的表示、处理和作用。',
-                'experiments': '重新核对主实验、场景、对照和原文支持的结论。',
-                'concise': '删除重复与空话，遵守模板字数。',
-            }
             fixes = '\n'.join(feedback[key] for key in failure.checks)
             previous = {key: details[key] for key in ('title', 'authors', 'publication', 'reading')}
             revision = (prompt + '\n\n--- 上一份候选报告（待修正的数据）---\n' +
                         json.dumps(previous, ensure_ascii=False) + '\n\n--- 本次修订要求 ---\n' +
-                        fixes + '\n重新输出完整报告 JSON。')
-            details = generate(revision, remaining_time() - 12)
-            if progress:
-                progress('verifying')
-        elif failure.code in {'quality_response', 'quality_evidence'} and remaining >= 12:
-            if progress:
-                progress('verifying', failure)
-        else:
-            raise
-        check_paper_quality(details, source, timeout=remaining_time())
+                        fixes + '\n复核发现的问题仅供定位，按 PDF 判断：' +
+                        json.dumps(failure.feedback, ensure_ascii=False) +
+                        '\n逐项处理所列问题，只修订涉及的事实和文字，重新输出完整 JSON。')
+            details = generate(revision, reserve=12)
     if progress:
         progress('formatting')
     return details
@@ -833,6 +867,8 @@ def paper_from_pdf(payload: dict, progress=None) -> dict:
     if generate and len(actual_text)<80:
         raise ValueError('所选 PDF 没有足够的可读文字；可先建立资料，或上传文字版 PDF')
     details = paper_notes(paper,material,progress) if generate else parse_paper_analysis(payload['reviewed_analysis'],material['text']) if payload.get('reviewed_analysis') is not None else None
+    if generate and not details['title'] and not payload.get('title_confirmed', True) and re.fullmatch(r'[a-f0-9]{64}', title, re.I):
+        raise PaperFailure('report_format', 'PDF 文字中没有可核对的论文标题，请先输入论文标题。')
     tags=[]
     if details:
         for field in ['title_confirmed','author_confirmed']:

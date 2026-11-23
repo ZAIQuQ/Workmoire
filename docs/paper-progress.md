@@ -2,7 +2,7 @@
 
 Paper analysis uses the versioned [brief template](../prompts/paper-brief.md),
 with configurable `gpt-6.1-terra` and `low` reasoning by default. The model request
-has a 150-second total limit shared by generation, quality verification, and one optional recovery attempt. Generation produces known metadata, field tags and the
+has a four-minute default limit shared by generation, verification and bounded recovery. Generation produces known metadata, field tags and the
 [compact reading report](paper-intake.md#compact-reading-reports), with at most
 three contributions and an enforced length budget.
 
@@ -14,8 +14,8 @@ keeps its separate model/reasoning/timeout configuration.
 
 Lower reasoning effort favors speed and fewer tokens; see the
 [OpenAI reasoning guide](https://platform.openai.com/docs/guides/reasoning).
-The configured model name is kept unchanged; deployment checks must use the
-running service's actual model-provider configuration.
+Generation and verification can use different models and reasoning settings.
+Deployment checks use the running service's model-provider configuration.
 
 ## PDF upload and extraction
 
@@ -79,7 +79,8 @@ dialog. The trace ID is the job ID. Search the private service journal for
 quality checks. Diagnostic events contain fixed codes and timing only, plus the
 job ID. The PDF, candidate report and review feedback stay out of these events.
 
-When enough time remains, a semantic rejection triggers one targeted revision
-and a fresh review. A malformed review or unmatched citation can trigger one
+When enough time remains, an invalid draft format gets one shorter rewrite. A
+semantic rejection can trigger up to two targeted revisions using bounded review feedback
+and a fresh verification. The verifier cites numbered PDF text blocks. A malformed review or unmatched citation can trigger one
 recheck of the same candidate. A failed final check leaves the uploaded PDF
 available for a manual retry or archiving.

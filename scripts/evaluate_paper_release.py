@@ -1,5 +1,6 @@
 """Run and score a private, independently reviewed paper release benchmark."""
 import argparse
+from concurrent.futures import ProcessPoolExecutor
 import hashlib
 import json
 import os
@@ -63,20 +64,54 @@ def run_benchmark(args):
     environment = (Path('/proc') / pid / 'environ').read_bytes().decode().split('\0')
     os.environ.clear()
     os.environ.update(dict(entry.split('=', 1) for entry in environment if '=' in entry))
+    overrides = {
+        'WORKSPACE_PAPER_CODEX_MODEL': args.model,
+        'WORKSPACE_PAPER_REASONING_EFFORT': args.reasoning,
+        'WORKSPACE_PAPER_REVIEW_MODEL': args.review_model,
+        'WORKSPACE_PAPER_FINAL_REVIEW_MODEL': args.final_review_model,
+        'WORKSPACE_PAPER_REVIEW_REASONING_EFFORT': args.review_reasoning,
+        'WORKSPACE_PAPER_ASSISTANT_TIMEOUT': str(args.timeout) if args.timeout else None,
+        'WORKSPACE_PAPER_PROVIDER_PROFILE': args.provider,
+    }
+    os.environ.update({key: value for key, value in overrides.items() if value is not None})
+    from workspace_server import paper_acceptance_profile
+    profile = paper_acceptance_profile()
+    job_count = min(args.workers, len(cases))
+    with ProcessPoolExecutor(max_workers=job_count) as pool:
+        shards = list(pool.map(run_shard, (cases[index::job_count] for index in range(job_count))))
+    paper_acceptance_profile.cache_clear()
+    if profile != paper_acceptance_profile() or cases != load_cases(args.manifest):
+        raise ValueError('The candidate profile or PDF inputs changed during evaluation')
+    by_id = {row['id']: row for shard in shards for row in shard}
+    dataset = hashlib.sha256(json.dumps([(row['id'], row['reference']) for row in cases]).encode()).hexdigest()
+    write_new(args.output, {'version': 1, 'profile': profile,
+                            'dataset': dataset, 'ids': [row['id'] for row in cases],
+                            'attempts': [by_id[row['id']] for row in cases]})
+
+
+def run_shard(cases):
+    # A fresh process and data directory preserve the product's single-job limit.
     with tempfile.TemporaryDirectory(prefix='workmoire-paper-eval-') as scratch:
         os.environ.update(WORKSPACE_HOST='127.0.0.1', WORKSPACE_PORT='0',
                           WORKSPACE_DATA_DIR=scratch, WORKSPACE_SHARE_DATA_DIR='',
                           WORKSPACE_SETUP_TOKEN='', WORKSPACE_COOKIE_SECURE='0',
                           WORKSPACE_SESSION_SECRET=secrets.token_hex(32))
-        if args.provider:
-            os.environ['WORKSPACE_PAPER_PROVIDER_PROFILE'] = args.provider
         import workspace_server as app
+        app.DATA_DIR = Path(scratch)
+        app.DB_PATH = app.DATA_DIR / 'workspace.db'
+        app.FILES_DIR = app.DATA_DIR / 'files'
+        app.COOKIE_SECURE = False
+        app.SETUP_TOKEN = ''
+        app.SESSION_SECRET = os.environ['WORKSPACE_SESSION_SECRET']
+        app.SHARE_DATA_DIR = ''
         if not app.PAPER_PROVIDER_PROFILE or app.codex_command() is None:
             raise ValueError('The benchmark requires the configured Codex binary and a provider profile label')
-        profile = app.paper_acceptance_profile()
         app.init_db()
-        app.paper_analysis_enabled = lambda: True  # Only this loopback process uses the candidate build before acceptance.
-        with app.WorkspaceHTTPServer(('127.0.0.1', 0), app.WorkspaceHandler) as server:
+        app.paper_analysis_enabled = lambda: True
+        class BenchmarkHandler(app.WorkspaceHandler):
+            def log_message(self, *args):
+                pass
+        with app.WorkspaceHTTPServer(('127.0.0.1', 0), BenchmarkHandler) as server:
             worker = threading.Thread(target=server.serve_forever, daemon=True)
             worker.start()
             try:
@@ -88,13 +123,7 @@ def run_benchmark(args):
             finally:
                 server.shutdown()
                 worker.join()
-        app.paper_acceptance_profile.cache_clear()
-        if profile != app.paper_acceptance_profile() or cases != load_cases(args.manifest):
-            raise ValueError('The candidate profile or PDF inputs changed during evaluation')
-        rows = json.loads(child.stdout)
-        dataset = hashlib.sha256(json.dumps([(row['id'], row['reference']) for row in cases]).encode()).hexdigest()
-        write_new(args.output, {'version': 1, 'profile': profile,
-                                'dataset': dataset, 'ids': [row['id'] for row in cases], 'attempts': rows})
+        return json.loads(child.stdout)
 
 
 def score(run, review):
@@ -132,6 +161,13 @@ def main():
     run.add_argument('manifest', type=private_path)
     run.add_argument('output', type=private_path)
     run.add_argument('--service', default='personal-workspace.service')
+    run.add_argument('--workers', type=int, choices=range(1,5), default=1)
+    run.add_argument('--model')
+    run.add_argument('--reasoning', choices=['low','medium','high','xhigh','max'])
+    run.add_argument('--review-model')
+    run.add_argument('--final-review-model')
+    run.add_argument('--review-reasoning', choices=['low','medium','high','xhigh','max'])
+    run.add_argument('--timeout', type=int)
     run.add_argument('--provider', help='Non-secret label for the provider route and CLI profile')
     review = commands.add_parser('score')
     review.add_argument('run', type=private_path)

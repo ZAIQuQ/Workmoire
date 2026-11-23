@@ -16,6 +16,13 @@ def _key(value):
     return ''.join(unicodedata.normalize('NFKC', value).casefold().split())
 
 
+def _name_key(value):
+    # PDF producers sometimes emit a spaced accent separately from its letter.
+    normalized = unicodedata.normalize('NFKD', value.casefold())
+    return ''.join(char for char in normalized
+                   if not char.isspace() and not unicodedata.combining(char))
+
+
 def _arxiv_first_release(source_text):
     """Read an explicit v1 date from the first page's arXiv watermark."""
     first_page = source_text.split('[第 2 页]', 1)[0]
@@ -28,6 +35,55 @@ def _arxiv_first_release(source_text):
     )
     if watermark:
         return {'name': _text(watermark['date']), 'evidence': _text(watermark[0], 600)}
+    return None
+
+
+def _pmlr_publication(source_text):
+    """Link an official proceedings masthead to the first-page publication footer."""
+    first_page = source_text.split('[第 2 页]', 1)[0]
+    header = re.search(
+        r'(?m)^Proceedings of Machine Learning Research (?:vol\s+)?'
+        r'(?P<volume>\d+|TBD)\s*:\s*\d+\s*[-–—]\s*\d+,?\s*'
+        r'(?P<year>(?:19|20)\d{2})[^\S\n]+(?P<venue>[^\n]{8,140})',
+        first_page, re.I,
+    )
+    if not header:
+        return None
+    footer = re.search(
+        r'(?m)^\s*©\s*' + header['year'] + r'[^\n]+\n\s*'
+        r'(?P<volume>\d+)\s*:\s*\d+\s*[-–—]\s*\d+\s*,\s*'
+        + header['year'] + r'\s*$', first_page,
+    )
+    if not footer or header['volume'].upper() not in {'TBD', footer['volume']}:
+        return None
+    return {'status': 'published', 'venue': _text(header['venue']), 'year': header['year'],
+            'evidence': _text(header[0], 600), 'publication_footer': _text(footer[0], 350)}
+
+
+def _official_publication(source_text):
+    proceedings = _pmlr_publication(source_text)
+    if proceedings:
+        return proceedings
+    first_page = ' '.join(source_text.split('[第 2 页]', 1)[0].split())
+    # PDF.js preserves discretionary line-end hyphens after visual layout.
+    first_page = re.sub(r'(?<=[A-Za-z])- (?=[A-Za-z])', '', first_page)
+    patterns = (
+        r'(?P<venue>Journal of Machine Learning Research) \d+ \((?P<year>20\d{2})\) '
+        r'\d+\s*[-–—]\s*\d+.{0,100}?Published \d{1,2}/\d{2}',
+        r'Proceedings of the (?P<venue>\d+\s*(?:st|nd|rd|th) International Conference on'
+        r' Artificial Intelligence and Statistics \(AISTATS\)) (?P<year>20\d{2}),'
+        r' [^.]{2,80}\. PMLR\s*:\s*Volume \d+\. Copyright',
+        r'Proceedings of the (?P<venue>[^.]{8,145}Conference on Machine Learning)\s*, [^.]{2,80}\. '
+        r'PMLR \d+, (?P<year>20\d{2})\. Copyright',
+        r'Proceedings of the (?P<venue>[^,]{8,135}Association for Computational Linguistics'
+        r'(?: \([^)]{1,64}\))?)\s*,\s*pages? \d+\s*[-–—]\s*\d+'
+        r'.{0,95}?©\s*(?P<year>20\d{2})\s+Association for Computational Linguistics',
+    )
+    for pattern in patterns:
+        hit = re.search(pattern, first_page, re.I)
+        if hit:
+            return {'status': 'published', 'venue': _text(hit['venue']), 'year': hit['year'],
+                    'evidence': _text(hit[0], 600)}
     return None
 
 
@@ -51,21 +107,27 @@ def parse_paper_analysis(value, source_text, *, require_compact=False):
         excerpt = _text(row.get('evidence'), 600) if isinstance(row, dict) else ''
         return excerpt if len(_key(excerpt)) >= 6 and _key(excerpt) in source else ''
 
-    def fact(row):
-        if not isinstance(row, dict):return None
+    def fact(row, *, person=False):
+        if not isinstance(row, dict):
+            return None
         name, excerpt = _text(row.get('name')), evidence(row)
-        return {'name':name, 'evidence':excerpt} if name and excerpt and _key(name) in _key(excerpt) else None
+        key = _name_key if person else _key
+        if person and not excerpt:
+            raw = _text(row.get('evidence'), 600)
+            if len(key(raw)) >= 6 and key(raw) in key(source_text):
+                excerpt = raw
+        return {'name': name, 'evidence': excerpt} if name and excerpt and key(name) in key(excerpt) else None
 
-    def facts(rows, limit=12):
+    def facts(rows, limit=12, *, person=False):
         found=[];seen=set()
         for row in rows[:limit] if isinstance(rows, list) else []:
-            result=fact(row)
+            result=fact(row, person=person)
             if result and _key(result['name']) not in seen:
                 found.append(result);seen.add(_key(result['name']))
         return found
 
     result={'brief':value.get('brief','').strip() if not compact else '', 'abstract':None, 'title':fact(value.get('title')),
-            'authors':facts(value.get('authors')), 'affiliations':facts(value.get('affiliations'),6),
+            'authors':facts(value.get('authors'), person=True), 'affiliations':facts(value.get('affiliations'),6),
             'corresponding_authors':[], 'labs':[], 'publication':{}, 'fields':{}}
     author_names={_key(row['name']) for row in result['authors']}
     for raw in value.get('corresponding_authors',[])[:4] if isinstance(value.get('corresponding_authors'),list) else []:
@@ -98,6 +160,10 @@ def parse_paper_analysis(value, source_text, *, require_compact=False):
             venue=_text(publication.get('venue'));year=_text(publication.get('year'),4)
             result['publication']={'status':status, 'venue':venue if _key(venue) in _key(excerpt) else '',
                                    'year':year if re.fullmatch(r'(19|20)\d{2}',year) and year in excerpt else '', 'evidence':excerpt}
+    if compact:
+        proceedings = _official_publication(source_text)
+        if proceedings:
+            result['publication'] = proceedings
     fields=value.get('fields')
     if evidence(fields):
         for level in ['primary','secondary']:
@@ -146,7 +212,7 @@ def parse_paper_analysis(value, source_text, *, require_compact=False):
 
 QUALITY_CHECKS=('grounded','core_insight','mechanism','experiments','concise')
 
-def validate_paper_quality(raw,source_text):
+def validate_paper_quality(raw, source_text, *, blocks=()):
     """Fail closed on missing checks, unsupported citations or a rejected review."""
     raw = raw.strip() if isinstance(raw, str) else ''
     if raw.startswith('```') and raw.endswith('```'):
@@ -160,10 +226,16 @@ def validate_paper_quality(raw,source_text):
         raise PaperFailure('quality_response', '内容质量校验未返回有效结果，请重试分析。')
     failed = tuple(key for key in QUALITY_CHECKS if not checks[key])
     if result.get('approved') is False and failed:
-        raise PaperFailure('quality_rejected', '论文报告未通过内容质量校验，请重试分析。', failed)
+        issues = result.get('issues')
+        feedback = tuple(filter(None, (_text(issue, 160) for issue in issues[:3]))) if isinstance(issues, list) else ()
+        raise PaperFailure('quality_rejected', '论文报告未通过内容质量校验，请重试分析。', failed, feedback)
     if result.get('approved') is not True or failed or result.get('issues') != []:
         raise PaperFailure('quality_response', '内容质量校验未返回有效结果，请重试分析。')
     excerpts = result.get('evidence')
+    if blocks and isinstance(excerpts, list) and 1 <= len(excerpts) <= 5 and all(
+        type(index) is int and 1 <= index <= len(blocks) for index in excerpts
+    ):
+        return
     source = _key(source_text)
     if not (isinstance(excerpts, list) and 1 <= len(excerpts) <= 5 and all(
         isinstance(e, str) and 12 <= len(e) <= 600 and len(_key(e)) >= 6 and _key(e) in source

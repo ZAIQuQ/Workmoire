@@ -120,6 +120,52 @@ class PaperProfileTests(unittest.TestCase):
         for bad in ['not json','[]','null']:
             with self.assertRaisesRegex(ValueError,'质量校验'):validate_paper_quality(bad,PROFILE_TEXT)
 
+    def test_quality_gate_validates_numbered_pdf_evidence(self):
+        from paper_fixtures import quality_fixture
+        verdict = json.loads(quality_fixture(PROFILE_TEXT))
+        blocks = [PROFILE_TEXT[:120], PROFILE_TEXT[120:]]
+        validate_paper_quality(json.dumps({**verdict, 'evidence': [1, 2]}), PROFILE_TEXT, blocks=blocks)
+        for numbers in ([0], [3], [True], [1, '2']):
+            with self.assertRaisesRegex(ValueError, '质量校验'):
+                validate_paper_quality(json.dumps({**verdict, 'evidence': numbers}), PROFILE_TEXT, blocks=blocks)
+
+    def test_proceedings_metadata_combines_matching_first_page_masthead_and_footer(self):
+        header = 'Proceedings of Machine Learning Research vol TBD:1–24, 2025  5th Example Conference'
+        footer = '© 2025 A. Researcher.\n301:42–65, 2025'
+        source = '[第 1 页]\n' + header + '\n' + PROFILE_TEXT + footer + '\n[第 2 页]\nFurther material.'
+        details = parse_paper_analysis(compact_fixture(), source, require_compact=True)
+        publication = details['publication']
+        self.assertEqual((publication['status'], publication['venue'], publication['year']),
+                         ('published', '5th Example Conference', '2025'))
+        self.assertEqual(parse_paper_analysis(details, source), details)
+        for invalid in (source.replace('301:42–65, 2025', '301:42–65, 2024'),
+                        source.replace(footer, '[第 2 页]\n' + footer)):
+            self.assertEqual(parse_paper_analysis(compact_fixture(), invalid)['publication'], {})
+
+    def test_normalizes_spaced_pdf_accents_for_authors(self):
+        report = json.loads(compact_fixture())
+        report['authors'] = [{'name': 'Mário Cardoso', 'evidence': 'Mário Cardoso'}]
+        result = parse_paper_analysis(report, PROFILE_TEXT + '\nM´ ario Cardoso')
+        self.assertEqual([row['name'] for row in result['authors']], ['Mário Cardoso'])
+        result = parse_paper_analysis(report, PROFILE_TEXT + '\nM´ ario Carvalho')
+        self.assertEqual(result['authors'], [])
+
+    def test_official_publication_requires_article_specific_front_page_evidence(self):
+        lines = [
+            'Proceedings of the 27th International Conference on Artificial Intelligence and Statistics (AISTATS) 2024, Example City. PMLR: Volume 238. Copyright 2024 by the author(s).',
+            'Proceedings of the 27 th International Conference on Artifi- cial Intelligence and Statistics (AIS- TATS) 2024, Example City. PMLR: Volume 238. Copy- right 2024 by the author(s).',
+            'Proceedings of the 41 st International Conference on Machine Learning , Example City. PMLR 235, 2024. Copyright 2024 by the author(s).',
+            'Journal of Machine Learning Research 25 (2024) 1-40 Submitted 7/23; Revised 3/24; Published 6/24',
+            'Proceedings of the 41st International Conference on Machine Learning, Example City. PMLR 235, 2024. Copyright 2024 by the author(s).',
+            'Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 54–73 August 11-16, 2024 ©2024 Association for Computational Linguistics',
+        ]
+        for line in lines:
+            source = '[第 1 页]\n' + line + '\n[第 2 页]\n' + PROFILE_TEXT
+            details = parse_paper_analysis(compact_fixture(), source)
+            self.assertEqual(details['publication']['status'], 'published')
+            self.assertEqual(details['publication']['year'], '2024')
+            self.assertEqual(parse_paper_analysis(compact_fixture(), '[第 2 页]\n' + line)['publication'], {})
+
     def test_invalid_model_output_is_actionable_and_never_exposed_as_raw_json(self):
         for raw in ['not json','{}','[]',json.dumps({'brief':'x'*9001})]:
             with self.assertRaisesRegex(ValueError,'论文分析结果'):parse_paper_analysis(raw,PROFILE_TEXT)
@@ -175,10 +221,10 @@ class PaperProfileHttpTests(unittest.TestCase):
         self.fixture_file('chosen.pdf',b'%PDF-1.4 synthetic','application/pdf')
         payload={'file_id':'a'*32,'title':'Synthetic','text':PROFILE_TEXT,'page_count':1,'pages_read':1}
         invalid_review = '{"approved":false,"checks":{},"evidence":[],"issues":["unsupported experiment"]}'
-        with patch.object(app,'invoke_codex',side_effect=[compact_fixture(), invalid_review, invalid_review]) as invoke:
+        with patch.object(app,'invoke_codex',side_effect=[compact_fixture(), invalid_review, invalid_review, invalid_review]) as invoke:
             status,body,_=self.request('/api/papers/draft','POST',payload)
             self.assertEqual(status,400);self.assertIn('质量校验',json.loads(body)['error'])
-            self.assertNotIn('content',json.loads(body));self.assertEqual(invoke.call_count,3)
+            self.assertNotIn('content',json.loads(body));self.assertEqual(invoke.call_count,4)
             self.assertGreater(invoke.call_args.kwargs['timeout'],0)
             self.assertLessEqual(invoke.call_args.kwargs['timeout'],app.PAPER_ASSISTANT_TIMEOUT)
         with app.open_db() as con:self.assertEqual(con.execute('SELECT count(*) FROM items').fetchone()[0],0)

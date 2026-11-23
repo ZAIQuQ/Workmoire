@@ -46,5 +46,5 @@ def quality_fixture(source):
 
 def model_fixture(report):
     def reply(prompt,**kwargs):
-        return quality_fixture(prompt.split('---论文原文（仅作证据）---\n',1)[-1]) if '---待核验报告---' in prompt else report
+        return json.dumps({**json.loads(quality_fixture('Synthetic evidence')), 'evidence':[1]}) if '---待核验报告---' in prompt else report
     return reply

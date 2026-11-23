@@ -26,7 +26,7 @@ async function evaluate(page, origin, sample, timeout) {
     const job = await response.json();
     if (job.status !== 'completed') return { status: outcome, error: job.error_code || 'request_failed' };
     await dialog.locator('.paper-analysis-result').waitFor({ state: 'visible', timeout: 5000 });
-    return { status: 'preview', report: job.result.content, seconds: (performance.now() - started) / 1000 };
+    return { status: 'preview', report: job.result.content, trace: job.trace_id, seconds: (performance.now() - started) / 1000 };
   } catch {
     return { status: outcome };
   }

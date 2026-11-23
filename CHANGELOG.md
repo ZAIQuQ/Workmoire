@@ -2,6 +2,20 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.16.4] — 2026-11-23
+
+- AI 论文分析通过独立验收。50 篇预选公开论文中 47 篇通过完整流程与独立质量复核，成功率为 94%。49 篇生成预览，预览耗时中位数 48 秒，P90 为 77 秒。
+- 已验收的配置使用 GPT-6.2 Sol 生成、GPT-6.1 Sol 复核，并在反复分歧时使用 Terra 复查事实依据。单篇总时限为 5 分钟。
+- 复核重点检查实验的指标、基线和范围。归档标题与作者按 PDF 核对，并支持从首页出版标记恢复发表信息。修复格式时保留篇幅和质量门槛。
+
+见[使用说明](docs/user-guide.md)与[论文分析验收](docs/paper-acceptance.md)。
+
+### English
+
+- The validated configuration passed the end-to-end release benchmark on 47 of 50 preselected public papers. The 49 previews had a median latency of 48 seconds and a P90 of 77 seconds.
+- Separate the draft, review and final grounding checks. The validated configuration has a five-minute total budget.
+- Check experimental metrics, comparisons and scope against the PDF. Recover supported publication metadata and repair format errors before preview.
+
 ## [1.16.3] — 2026-11-23
 
 - 暂停 AI 论文分析，保留手动上传与归档。

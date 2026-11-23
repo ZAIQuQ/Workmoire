@@ -15,7 +15,7 @@ import workspace_server as app
 from paper_runtime import PaperRuntime
 
 class PaperRecoveryTests(unittest.TestCase):
-    def test_semantic_rejection_is_revised_once_and_requires_a_fresh_review(self):
+    def test_semantic_rejections_have_bounded_revisions_and_fresh_reviews(self):
         source = 'The control and treatment use the same fixed test population.'
         report = json.loads(compact_fixture('Synthetic result'))
         revised = json.loads(compact_fixture('Revised synthetic result'))
@@ -25,7 +25,7 @@ class PaperRecoveryTests(unittest.TestCase):
         material = {'text': source}
         for last_review in (approved, rejected):
             with self.subTest(approved=last_review['approved']), patch.object(
-                app, 'invoke_codex', side_effect=map(json.dumps, [report, rejected, revised, last_review])
+                app, 'invoke_codex', side_effect=map(json.dumps, [report, rejected, revised, last_review, revised, rejected])
             ) as invoke:
                 if last_review['approved']:
                     details = app.paper_notes({}, material)
@@ -34,12 +34,43 @@ class PaperRecoveryTests(unittest.TestCase):
                     with self.assertRaises(app.PaperFailure) as failure:
                         app.paper_notes({}, material)
                     self.assertEqual(failure.exception.checks, ('experiments',))
-                self.assertEqual(invoke.call_count, 4)
+                self.assertEqual(invoke.call_count, 4 if last_review['approved'] else 6)
                 revision = invoke.call_args_list[2].args[0]
-                self.assertIn('重新核对主实验', revision)
-                self.assertNotIn('PRIVATE_REVIEW_TEXT', revision)
-                self.assertIn('Revised synthetic result', invoke.call_args_list[3].args[0])
+                self.assertIn('明确对照的主结果', revision)
+                self.assertIn('PRIVATE_REVIEW_TEXT', revision)
+                self.assertIn('Revised synthetic result', invoke.call_args_list[-1].args[0])
                 self.assertLess(invoke.call_args_list[-1].kwargs['timeout'], app.PAPER_ASSISTANT_TIMEOUT)
+
+    def test_final_review_rechecks_a_grounding_disagreement_and_can_still_reject(self):
+        source = 'Synthetic statements from the source PDF describing the method.'
+        report = compact_fixture()
+        approval = json.loads(quality_fixture(source))
+        rejection = {**approval, 'approved': False,
+                     'checks': {**approval['checks'], 'grounded': False}, 'issues': ['Unclear claim']}
+        for final in (approval, rejection):
+            with self.subTest(approved=final['approved']), patch.object(
+                app, 'PAPER_FINAL_REVIEW_MODEL', 'synthetic-final'
+            ), patch.object(app, 'invoke_codex', side_effect=[
+                report, json.dumps(rejection), report, json.dumps(rejection),
+                report, json.dumps(rejection), json.dumps(final),
+            ]) as invoke:
+                if final['approved']:
+                    self.assertEqual(app.paper_notes({}, {'text': source})['report_version'], 4)
+                else:
+                    with self.assertRaises(app.PaperFailure):
+                        app.paper_notes({}, {'text': source})
+                self.assertEqual(invoke.call_count, 7)
+                self.assertEqual(invoke.call_args.kwargs['model'], 'synthetic-final')
+                self.assertIn('待核验报告', invoke.call_args.args[0])
+
+    def test_invalid_report_format_retries_then_verifies(self):
+        source = 'Synthetic statements from the source PDF describing the method.'
+        with patch.object(app, 'invoke_codex', side_effect=['not json', compact_fixture(), quality_fixture(source)]) as invoke:
+            details = app.paper_notes({}, {'text': source})
+            self.assertEqual(details['report_version'], 4)
+            self.assertEqual(invoke.call_count, 3)
+            self.assertIn('上一轮校验问题', invoke.call_args_list[1].args[0])
+            self.assertIn('待核验报告', invoke.call_args_list[2].args[0])
 
     def test_invalid_evidence_rechecks_the_same_candidate_and_insufficient_budget_skips_repair(self):
         source = 'The control and treatment use the same fixed test population.'

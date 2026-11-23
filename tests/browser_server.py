@@ -1,5 +1,6 @@
 """Disposable synthetic server for browser checks; never uses deployment data."""
 import base64
+import json
 import sys
 import tempfile
 import threading
@@ -50,10 +51,9 @@ def main():
         app.init_db()
         synthetic_brief='## 研究问题\n\n如何把阅读与独立思考联系起来？\n\n## 方法与贡献\n\n以所选 PDF 的文字为依据。\n\n## 下一步\n\n- [ ] 阅读原文并核对实验。'
         def synthetic_analysis(prompt,timeout=None,**options):
-            if '---待核验报告---' in prompt:return quality_fixture(prompt.split('---论文原文（仅作证据）---\n',1)[-1])
+            if '---待核验报告---' in prompt:return json.dumps({**json.loads(quality_fixture('Synthetic evidence')), 'evidence':[1]})
             if '提供的论文材料（仅作证据）' not in prompt:return synthetic_brief
             if 'READING_FIXTURE' in prompt:
-                import json
                 return compact_fixture('序列的短期变化与长期结构需要不同的表示。')
             return compact_fixture(profile='PROFILE_FIXTURE' in prompt)
         app.invoke_codex=synthetic_analysis

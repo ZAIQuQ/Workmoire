@@ -68,8 +68,8 @@ Analysis is disabled until the candidate meets the [release acceptance gate](pap
 The versioned v4 template uses `gpt-6.1-terra` / `low` by default. A separate fast
 model call verifies content quality after generation.
 Model names are provider-specific and configurable independently of general
-assistant tasks. Generation, verification and one optional recovery attempt share a
-150-second total model budget. The workflow uses the uploaded PDF text. Upload bytes and
+assistant tasks. Generation, verification and bounded recovery share a four-minute default
+model budget. The workflow uses the uploaded PDF text. Upload bytes and
 extracted pages are measured; analysis progress is an estimate. See
 [progress and timing](paper-progress.md).
 
@@ -90,7 +90,7 @@ Reading notes use these ordered fields:
 The quality template independently checks factual grounding (including experiment
 numbers and comparators), the core insight, concrete technical mechanisms,
 experimental coverage and non-redundant writing. Approval requires every check
-and source-matching citations; rejected or malformed reviews produce an error
+and valid PDF text block references; rejected or malformed reviews produce an error
 and cannot expose a candidate preview. This is a model-assisted gate, not a proof
 of correctness. The source PDF remains available for review. Reproduce the live
 provider evaluation with `python3 scripts/check_paper_quality.py --service <service>`;

@@ -20,14 +20,19 @@ outputs outside the checkout. Each entry in the private manifest has a local
 
 Use the candidate checkout and its installed Playwright Chromium. The runner
 uses the configured model provider from the running service and an isolated
-loopback instance with a disposable account and database. Use the same model,
+loopback instance with a disposable account and database. For a candidate run,
+pass its settings with `--model`, `--reasoning`, `--review-model`,
+`--review-reasoning`, `--final-review-model`, and `--timeout`. Use the same generation and review models,
 reasoning effort, timeout, provider route and CLI configuration intended for
 production. The provider label is a non-secret identifier. Change it when the
 provider route or CLI version/profile changes.
 
 ```sh
 python3 scripts/evaluate_paper_release.py run \
-  /path/to/manifest.json /path/to/run.json --provider candidate-route-v1
+  /path/to/manifest.json /path/to/run.json --provider candidate-route-v1 \
+  --model gpt-6.2-sol --reasoning medium \
+  --review-model gpt-6.1-sol --review-reasoning medium \
+  --final-review-model gpt-6.1-terra --timeout 300 --workers 3
 ```
 
 Count one submission per paper. Recovery already built into a submitted job is
@@ -68,3 +73,13 @@ generation request. A changed profile requires a fresh acceptance record.
 
 The normal CI suite and small synthetic model checks are regression tests. Use
 the held-out results above for a decision to enable analysis.
+
+## v1.16.4 acceptance result
+
+The frozen sample included 50 distinct public papers, with 10 each from arXiv,
+ACL, CVPR, ICML, and AISTATS. The browser workflow produced 49 previews. An
+independent GPT-6 Astra review compared the reports with extracted PDF text and
+passed 47. One job was rejected before preview. The independent review rejected
+one report for omitting an earlier public version and one for omitting the
+paper’s dataset construction contribution. The 49 previews had a median
+end-to-end latency of 48 seconds, a P90 of 77 seconds and a maximum of 91 seconds.
