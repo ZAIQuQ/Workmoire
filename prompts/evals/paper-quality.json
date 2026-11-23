@@ -78,6 +78,15 @@
       "reading_overrides": {}
     },
     {
+      "id": "preprint-with-conference-footer",
+      "approved": true,
+      "source_replacements": {
+        "Accepted at Example Conference 2026.": "40th Example Conference on Learning Systems (ECLS 2026).",
+        "First public release v1: 15 January 2026, arXiv.": "arXiv:2601.00000v1 [cs.LG] 15 Jan 2026"
+      },
+      "reading_overrides": {"first_public": null}
+    },
+    {
       "id": "wrong-number",
       "approved": false,
       "reading_overrides": {

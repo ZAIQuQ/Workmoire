@@ -66,8 +66,8 @@ preparation/generation, and ordinary handling of legacy kinds.
 The versioned v4 template uses `gpt-6.1-terra` / `low` by default. A separate fast
 model call verifies content quality after generation.
 Model names are provider-specific and configurable independently of general
-assistant tasks. Generation and verification share a 150-second total model budget; no lookup or
-automatic rewrite loop is used. Upload bytes and
+assistant tasks. Generation, verification and one optional recovery attempt share a
+150-second total model budget. The workflow uses the uploaded PDF text. Upload bytes and
 extracted pages are measured; analysis progress is an estimate. See
 [progress and timing](paper-progress.md).
 
@@ -76,8 +76,8 @@ Paper information contains title and authors; an optional source URL is attached
 to the title itself.
 Reading notes use these ordered fields:
 
-1. 首次公开 — only an evidenced first release or v1 date.
-2. 正式发表 — only an evidenced published or accepted venue/year.
+1. 首次公开 — an evidenced first release or v1 date. Workmoire can recover a missing value from an explicit first-page arXiv v1 watermark.
+2. 正式发表 — a venue and year with a paper-specific publication or acceptance statement. A conference template footer leaves this field empty.
 3. 研究方向 — one topic, rendered as inline code.
 4. 研究关键词 — up to five inline-code terms.
 5. Motivation — one paragraph, at most 150 characters.
@@ -92,7 +92,7 @@ and source-matching citations; rejected or malformed reviews produce an error
 and cannot expose a candidate preview. This is a model-assisted gate, not a proof
 of correctness. The source PDF remains available for review. Reproduce the live
 provider evaluation with `python3 scripts/check_paper_quality.py --service <service>`;
-its seven public-safe cases include wrong numbers/comparators, vague prose, repeated
+its public-safe cases include wrong numbers/comparators, vague prose, repeated
 contributions, a missed core insight and omitted known publication metadata. The UI shows a quality-check stage.
 
 The renderer owns the headings and list structure. Reading notes have an

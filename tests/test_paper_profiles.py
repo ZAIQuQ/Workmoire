@@ -85,6 +85,17 @@ class PaperProfileTests(unittest.TestCase):
                 report = paper_reading_markdown(parse_paper_analysis(raw, PROFILE_TEXT + '\n' + watermark, require_compact=True))
                 self.assertEqual('首次公开' in report, version == 1)
 
+    def test_compact_report_recovers_missing_first_release_from_the_first_page(self):
+        raw = json.loads(compact_fixture())
+        watermark = 'arXiv:2601.00000v1 [cs.LG] 15\nJan 2026'
+        source = '[第 1 页]\n' + PROFILE_TEXT + watermark + '\n[第 2 页]\nBody'
+        details = parse_paper_analysis(raw, source, require_compact=True)
+        self.assertEqual(details['reading']['first_public']['name'], '15 Jan 2026')
+        self.assertIn('首次公开', paper_reading_markdown(details))
+        self.assertEqual(parse_paper_analysis(details, source), details)
+        for other in (watermark.replace('v1 ', 'v10 '), '[第 2 页]\n' + watermark):
+            self.assertIsNone(parse_paper_analysis(raw, PROFILE_TEXT + other)['reading']['first_public'])
+
     def test_compact_report_rejects_verbose_or_off_template_results(self):
         with self.assertRaisesRegex(ValueError,'模板'):
             parse_paper_analysis(analysis_fixture(),PROFILE_TEXT,require_compact=True)

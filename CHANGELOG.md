@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.16.2] — 2026-11-23
+
+- 论文报告从 PDF 首页明确的 arXiv v1 页边标记补齐遗漏的首次公开日期。
+- 质量复核单独核对本文的录用和发表依据，兼容仅有会议模板页脚的预印本。新增合成样例，验证报告可以正确省略正式发表字段。
+
+见[使用说明](docs/user-guide.md)与[论文报告格式](docs/paper-intake.md)。
+
+### English
+
+- Recover missing first-release dates from an explicit arXiv v1 watermark on the first PDF page.
+- Review formal publication using paper-specific evidence and accept an omitted venue when the source only contains a conference template footer.
+
 ## [1.16.1] — 2026-11-23
 
 - 论文分析失败时在弹窗底部显示失败原因和可复制的追踪编号，方便定位质量检查、模型超时和任务异常。

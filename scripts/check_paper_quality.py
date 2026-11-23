@@ -39,11 +39,15 @@ def main():
     print('Synthetic generation and quality check passed in %.1fs (%s / %s)'%(time.monotonic()-start,app.PAPER_CODEX_MODEL,app.PAPER_REASONING_EFFORT),flush=True)
     for case in fixture['cases']:
         report=copy.deepcopy(fixture['report']);report['reading'].update(case['reading_overrides'])
-        details=parse_paper_analysis(report,source,require_compact=True)
-        approved=True;start=time.monotonic()
-        try:app.check_paper_quality(details,source,timeout=90)
-        except ValueError:approved=False
-        matched=approved==case['approved']
+        case_source = source
+        for original, replacement in case.get('source_replacements', {}).items():
+            case_source = case_source.replace(original, replacement)
+        details=parse_paper_analysis(report,case_source,require_compact=True)
+        outcome = 'approved'
+        start=time.monotonic()
+        try:app.check_paper_quality(details,case_source,timeout=90)
+        except app.PaperFailure as failure:outcome=failure.code
+        matched=outcome==('approved' if case['approved'] else 'quality_rejected')
         print('%s: %s (%.1fs)'%(case['id'],'passed' if matched else 'FAILED',time.monotonic()-start),flush=True)
         if not matched:
             failures.append(case['id'])

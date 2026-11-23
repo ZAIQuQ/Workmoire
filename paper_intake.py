@@ -16,6 +16,21 @@ def _key(value):
     return ''.join(unicodedata.normalize('NFKC', value).casefold().split())
 
 
+def _arxiv_first_release(source_text):
+    """Read an explicit v1 date from the first page's arXiv watermark."""
+    first_page = source_text.split('[第 2 页]', 1)[0]
+    watermark = re.search(
+        r'\barXiv:\s*\d{4}\.\d{4,5}v1\s+\[[a-z][\w.-]*\]\s+'
+        r'(?P<date>(?:[1-9]|[12]\d|3[01])\s+'
+        r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(?:19|20)\d{2})\b',
+        first_page,
+        re.I,
+    )
+    if watermark:
+        return {'name': _text(watermark['date']), 'evidence': _text(watermark[0], 600)}
+    return None
+
+
 def parse_paper_analysis(value, source_text, *, require_compact=False):
     """Validate model/reviewed output and retain only facts with supplied evidence."""
     if isinstance(value, str):
@@ -120,7 +135,7 @@ def parse_paper_analysis(value, source_text, *, require_compact=False):
         if first and not re.search(r'\bv1\b|\barXiv:\s*\d{4}\.\d{4,5}v1\b|first|initial|首次',first['evidence'],re.I):first=None
         if first and len(first['name'])>60:first=None
         result['reading'] = {
-            'first_public':first, 'direction':prose(reading.get('direction'),48),
+            'first_public':first or _arxiv_first_release(source_text), 'direction':prose(reading.get('direction'),48),
             'keywords':list(dict.fromkeys(prose(word,32,True) for word in keywords)),
             'motivation':prose(reading.get('motivation'),150,True),
             'contributions':[{'name':prose(c.get('name'),24,True),'description':prose(c.get('description'),90,True)} for c in contributions],
