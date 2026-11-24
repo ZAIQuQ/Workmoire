@@ -15,7 +15,7 @@ concurrency:
 jobs:
   source:
     name: Source and backend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -31,7 +31,7 @@ jobs:
 
   browser:
     name: Browser (${{ matrix.suite }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       # Keep the preinstalled browser matched to package-lock.json.
       image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
