@@ -14,7 +14,7 @@ Enabling AI paper analysis requires the [90% acceptance gate](paper-acceptance.m
 1. Fetch `origin/main` and integrate upstream changes. Preserve both histories.
 2. Update the package version, lockfile, changelog, and both README languages.
 3. Use Node 22 and run `npm ci`. If frontend assets changed, run `npm run build` and include the generated bundles and compressed files in the commit. Run `make preflight` on the exact commit. It checks source boundaries, generated assets, syntax, and backend and command tests. Use `npm run test:browser -- -g <pattern>` for focused local browser checks.
-4. Push the commit to `main` and wait for GitHub quality to pass. The source checks and the two browser suites run in parallel. The tag reuses the successful `main` run for the same commit.
+4. Push the commit to `main` and wait for GitHub quality to pass. The source checks and the two browser suites run in parallel. Both browser suites use the pinned Playwright image corresponding to the package lock. The tag reuses the successful `main` run for the same commit.
 5. Back up private data, deploy the checked commit, write its `REVISION`, and verify both services. Publish the release from that commit.
 
 ## Prepare and publish
