@@ -12,6 +12,30 @@ async function save(page){await page.locator('#save-content').click();await expe
 async function insert(page,command){await page.locator('.editor-toolbar .block-insert-menu > summary').click();await page.locator('.editor-toolbar .insert-options [data-command="'+command+'"]').click();}
 async function reopen(page,id){await page.reload();await page.locator('[data-open="'+id+'"]').click();await expect(page.locator('.rich-document')).toBeVisible();}
 
+for(const {platform,shortcut,hint} of [
+ {platform:'MacIntel',shortcut:'Meta+h',hint:'⌘ + H'},
+ {platform:'Linux x86_64',shortcut:'Control+Shift+h',hint:'Ctrl + Shift + H'},
+]){
+ test(`text highlighting toggles with the ${platform} shortcut`,async({page})=>{
+  await page.addInitScript(platform=>Object.defineProperty(navigator,'platform',{value:platform}),platform);
+  await login(page);
+  await blank(page,'高亮快捷键');
+  await setContent(page,'Keep this word plain');
+  const editor=page.locator('.rich-document');
+  await page.evaluate(()=>{
+   state.editor.tiptap.commands.setTextSelection({from:6,to:10});
+   state.editor.tiptap.view.focus();
+  });
+  await expect(editor).toBeFocused();
+  await expect(page.locator('.editor-toolbar [data-command="highlight"]')).toHaveAttribute('data-tooltip','文字高亮 · '+hint);
+  await page.keyboard.press(shortcut);
+  await expect(editor.locator('mark')).toHaveText('this');
+  await page.keyboard.press(shortcut);
+  await expect(editor.locator('mark')).toHaveCount(0);
+  await expect(editor).toHaveText('Keep this word plain');
+ });
+}
+
 test('legacy documents open as native editable blocks and retain math, code, tables and tasks',async({page})=>{
  const errors=[];page.on('pageerror',error=>errors.push(error.message));await login(page);await expect(page.locator('.main-nav .nav-item')).toHaveCount(3);
  await page.locator('[data-open="1"]').click();await expect(page.locator('.rich-document')).toHaveAttribute('contenteditable','true');await expect(page.locator('#save-state')).toHaveText('已保存');await expect(page.locator('.rich-bubble-menu')).toBeHidden();expect(await page.evaluate(()=>document.documentElement.scrollHeight)).toBeLessThanOrEqual(1000);

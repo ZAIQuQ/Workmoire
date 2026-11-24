@@ -2,6 +2,16 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.16.5] — 2026-11-24
+
+- 在 Mac 上用 ⌘ + H 切换文字高亮。工具栏和快捷键列表显示对应按键。
+
+见[使用说明](docs/user-guide.md)。
+
+### English
+
+- Toggle text highlighting with Command+H on Mac. The toolbar and keyboard shortcut list show the binding.
+
 ## [1.16.4] — 2026-11-23
 
 - AI 论文分析通过独立验收。50 篇预选公开论文中 47 篇通过完整流程与独立质量复核，成功率为 94%。49 篇生成预览，预览耗时中位数 48 秒，P90 为 77 秒。

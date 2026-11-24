@@ -76,7 +76,8 @@ color. **默认颜色** removes only the selected text's explicit color. Bold,
 italic, underline, strike, inline code, highlighting, lists, quotes, alignment,
 links and clearing text formatting are directly available. **更多** contains
 only subscript, superscript and list indentation. Hover or keyboard-focus a
-control to see its function and any shortcut.
+control to see its function and any shortcut. Select text and press Command+H
+on Mac or Ctrl+Shift+H on Windows and Linux to toggle highlighting.
 
 Each paragraph or heading also has a compact style selector in its left block
 handle. Choose **正文** or **H1**–**H6** to promote, demote, or return the block

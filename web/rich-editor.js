@@ -40,6 +40,9 @@ import {searchSlashCommands} from './slash-commands.mjs';
 
 const lowlight=createLowlight({javascript,python,cpp,json,sql,bash,xml,css,latex});
 const icon=name=>window.WorkmoireIcons.render(name);
+const appleKeyboard=/Mac|iP(hone|[oa]d)/.test(navigator.platform);
+const highlightKey=appleKeyboard?'Meta-h':'Ctrl-Shift-h';
+const highlightHint=appleKeyboard?'⌘ + H':'Ctrl + Shift + H';
 function button(command,label,glyph){const el=document.createElement('button');el.type='button';el.dataset.richCommand=command;el.title=label;el.setAttribute('aria-label',label);el.innerHTML=icon(glyph);return el;}
 function positionMenu(menu,anchor,maxHeight=350){
  const width=Math.min(menu.offsetWidth||270,innerWidth-24),availableBelow=innerHeight-anchor.bottom-14,above=anchor.top-14;
@@ -64,11 +67,16 @@ function findText(doc,query){
 
 export function mountRichEditor(host,options={}){
  let editor,ready=false,destroyed=false,markdownCache='',cachedDoc=null,baselineDoc=null,baselineMarkdown=options.baseline?.content??options.content??'',slashRange=null,slashIndex=0,slashItems=[],blockTarget=null,blockHandle=null,updateFrame=0,blurTimer=0,compositionTimer=0;
+ const highlightButton=host.closest('.document-editor')?.querySelector('.editor-toolbar [data-command="highlight"]');
+ if(highlightButton){
+  highlightButton.dataset.tooltip='文字高亮 · '+highlightHint;
+  highlightButton.setAttribute('aria-keyshortcuts',appleKeyboard?'Meta+H':'Control+Shift+H');
+ }
  const reservations=new Set(),owned=[],cleanup=[],diagnostics={markdownSerializations:0,documentUpdates:0};
  const make=(tag,cls,parent=host)=>{const node=document.createElement(tag);node.className=cls;parent.append(node);return node;};
  const scroll=make('div','rich-editor-scroll');const contentHost=make('div','rich-editor-content',scroll);
  const bubble=document.createElement('div');bubble.className='rich-bubble-menu';owned.push(bubble);bubble.setAttribute('role','toolbar');bubble.setAttribute('aria-label','选中文字格式');
- for(const item of [['bold','加粗','bold'],['italic','斜体','italic'],['underline','下划线','underline'],['strike','删除线','strike'],['highlight','高亮','highlight'],['link','链接','link'],['inline-math','行内公式','variable']])bubble.append(button(...item));
+ for(const item of [['bold','加粗','bold'],['italic','斜体','italic'],['underline','下划线','underline'],['strike','删除线','strike'],['highlight','高亮 · '+highlightHint,'highlight'],['link','链接','link'],['inline-math','行内公式','variable']])bubble.append(button(...item));
  bubble.addEventListener('mousedown',event=>event.preventDefault());bubble.addEventListener('click',event=>{const target=event.target.closest('[data-rich-command]');if(target)run(target.dataset.richCommand);});
  const slash=make('div','rich-slash-menu',document.body);owned.push(slash);slash.hidden=true;slash.setAttribute('role','listbox');slash.setAttribute('aria-label','插入内容块');
  const blockMenu=make('div','rich-block-menu',document.body);owned.push(blockMenu);blockMenu.hidden=true;blockMenu.setAttribute('role','menu');
@@ -108,7 +116,7 @@ export function mountRichEditor(host,options={}){
  const callbacks={math:openMath,openDocument:id=>options.openDocument?.(id),copy:options.copy};
  const NativeKeys=Extension.create({name:'workmoireKeys',addKeyboardShortcuts(){return {
   'Mod-Shift-x':()=>editor.commands.toggleTaskList(),
-  'Mod-Shift-h':()=>editor.commands.toggleHighlight({color:'#fff2a8'}),
+  [highlightKey]:()=>editor.isEditable&&editor.commands.toggleHighlight({color:'#fff2a8'}),
   'Mod-Alt-0':()=>editor.commands.setParagraph(),
   'Mod-f':()=>{showFind();return true;},
  };}});
