@@ -2,6 +2,18 @@
 
 版本遵循 [Semantic Versioning](https://semver.org/)。发布记录见 [GitHub Releases](https://github.com/ZAIQuQ/Workmoire/releases)。
 
+## [1.16.6] — 2026-11-24
+
+- 修复自动保存浏览器测试的聚焦和落盘等待问题。测试服务自动分配端口。
+- 源码、后端和浏览器检查并行运行。发布脚本在部署前等待同一提交的 GitHub CI 通过，版本标签沿用该检查结果。
+
+见[使用说明](docs/user-guide.md)与[发布流程](docs/releases.md)。
+
+### English
+
+- Wait for editor focus and persisted content in the autosave browser regression. Use OS-assigned ports for disposable test servers.
+- Run browser suites alongside the source checks. Require a green GitHub workflow for the main commit before deployment and reuse it for the release tag.
+
 ## [1.16.5] — 2026-11-24
 
 - 在 Mac 上用 ⌘ + H 切换文字高亮。工具栏和快捷键列表显示对应按键。

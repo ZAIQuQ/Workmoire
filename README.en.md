@@ -21,6 +21,8 @@ Self-hosted academic notes and paper reading. Write rich documents, read PDFs in
 
 Codex assistance is **optional and disabled by default**. When enabled, selected material is passed to the local CLI and its configured model provider. Generated text must be reviewed, inserted, and saved explicitly.
 
+Run `make preflight` before release. A successful GitHub quality run qualifies the commit for deployment and tagging. See the [release workflow](docs/releases.md).
+
 ## Quick start
 
 Requires **Python 3.10–3.12**. The server uses the Python standard library; editor assets, fonts, and the PDF reader are bundled. Node.js and a CDN are not required at runtime.

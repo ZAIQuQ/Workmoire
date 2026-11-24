@@ -1,6 +1,7 @@
 """Disposable synthetic server for browser checks; never uses deployment data."""
 import base64
 import json
+import signal
 import sys
 import tempfile
 import threading
@@ -45,7 +46,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='workmoire-browser-') as scratch:
         app.DATA_DIR=Path(scratch);app.FILES_DIR=Path(scratch)/'files';app.DB_PATH=Path(scratch)/'workspace.db'
         app.SESSION_SECRET='synthetic-browser-session-secret';app.SETUP_TOKEN='';app.CODEX_BIN='/usr/bin/true';app.COOKIE_SECURE=False
-        app.SHARE_DATA_DIR=str(Path(scratch)/'sharing');app.SHARE_PUBLIC_URL='http://127.0.0.1:8766';app.SHARE_PORT=8766
+        app.SHARE_DATA_DIR=str(Path(scratch)/'sharing')
         app.paper_analysis_enabled=lambda: True
         app_release.fetch_latest=lambda:{"tag_name":"v"+app_release.local_release()["version"],"body":"Synthetic release notes"}
         app.init_db()
@@ -100,11 +101,20 @@ def attention(q, k, v):
             con.execute('INSERT INTO files(id,name,stored_name,size,content_type,item_id,created_at) VALUES(?,?,?,?,?,2,?)',('b'*32,'synthetic-paper.pdf',name,len(pdf),'application/pdf',stamp))
             reading=reading_pdf_fixture();(app.FILES_DIR/('c'*32+'.pdf')).write_bytes(reading)
             con.execute('INSERT INTO files(id,name,stored_name,size,content_type,item_id,created_at) VALUES(?,?,?,?,?,2,?)',('c'*32,'reading-study.pdf','c'*32+'.pdf',len(reading),'application/pdf',stamp))
-        server=app.WorkspaceHTTPServer(('127.0.0.1',8765),app.WorkspaceHandler)
-        sharing=ShareHTTPServer(('127.0.0.1',8766),Path(app.SHARE_DATA_DIR),app.STATIC_DIR,Path(scratch)/'sharing/auth')
-        threading.Thread(target=sharing.serve_forever,daemon=True).start()
-        print('Synthetic browser server ready',flush=True)
-        try:server.serve_forever()
-        finally:server.server_close();sharing.shutdown();sharing.server_close()
+        with app.WorkspaceHTTPServer(('127.0.0.1',0),app.WorkspaceHandler) as server, ShareHTTPServer(
+            ('127.0.0.1',0),Path(app.SHARE_DATA_DIR),app.STATIC_DIR,Path(scratch)/'sharing/auth'
+        ) as sharing:
+            app.SHARE_PORT=sharing.server_port
+            app.SHARE_PUBLIC_URL=f'http://127.0.0.1:{sharing.server_port}'
+            stopped=threading.Event()
+            signal.signal(signal.SIGTERM,lambda *_: stopped.set())
+            for instance in (server,sharing):
+                threading.Thread(target=instance.serve_forever,daemon=True).start()
+            print(f'Synthetic browser server ready {server.server_port} {sharing.server_port}',flush=True)
+            try:
+                stopped.wait()
+            finally:
+                server.shutdown()
+                sharing.shutdown()
 
 if __name__=='__main__':main()

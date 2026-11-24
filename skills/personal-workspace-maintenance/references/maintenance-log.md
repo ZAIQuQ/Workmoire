@@ -202,3 +202,7 @@ changes belong in normal commit history.
 ## 2026-11-23 paper analysis acceptance
 
 - Added the 90% end-to-end acceptance condition and a default-disabled release switch. Regression checks and one-off PDF reruns remain separate from release acceptance.
+
+## 2026-11-24
+
+- Verified the same autosave focus race across two releases. Use observable focus, editor state and persisted content in the regression. Let the OS assign browser-test ports, run CI suites in parallel, and require one successful main run per release before deployment.

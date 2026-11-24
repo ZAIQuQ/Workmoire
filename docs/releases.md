@@ -11,34 +11,30 @@ changes. Minor related fixes may be grouped into the same release.
 
 Enabling AI paper analysis requires the [90% acceptance gate](paper-acceptance.md) for the exact deployed profile. Releases that keep analysis disabled can ship with the regular checks.
 
-1. Fetch `origin/main` and integrate upstream changes. Preserve both existing
-   GitHub history and server development history.
-2. Bump `package.json` and the root/package versions in `package-lock.json` using
-   Semantic Versioning. Add matching dated notes to `CHANGELOG.md`; update both
-   README languages and relevant guides.
-3. Run `npm ci`, `npm run build`, `make compile`, `make test`, and the isolated
-   browser suite for UI changes. Run `python3 scripts/check_public_source.py` and
-   review the complete diff, including new screenshots. Verify links and licenses.
-4. Commit the reviewed source and back up private data. Deploy only source/static files, including `package.json`,
-   `CHANGELOG.md` and `app_release.py`. Record the reviewed commit in the deployed
-   `REVISION` file. Verify service health, main/share permissions and scheduled
-   backups; never test by publishing actual personal documents.
-5. Verify the deployed revision. If deployment finds an issue, fix, test,
-   commit and redeploy; the published tag must identify the running revision.
+1. Fetch `origin/main` and integrate upstream changes. Preserve both histories.
+2. Update the package version, lockfile, changelog, and both README languages.
+3. Use Node 22 and run `npm ci`. If frontend assets changed, run `npm run build` and include the generated bundles and compressed files in the commit. Run `make preflight` on the exact commit. It checks source boundaries, generated assets, syntax, and backend and command tests. Use `npm run test:browser -- -g <pattern>` for focused local browser checks.
+4. Push the commit to `main` and wait for GitHub quality to pass. The source checks and the two browser suites run in parallel. The tag reuses the successful `main` run for the same commit.
+5. Back up private data, deploy the checked commit, write its `REVISION`, and verify both services. Publish the release from that commit.
 
-## Publish the verified revision
+## Prepare and publish
 
-Set up GitHub CLI authentication on the maintainer's machine once:
+If needed, authenticate GitHub CLI using the browser. Workflow changes require the `workflow` scope.
 
 ```bash
 gh auth login --hostname github.com --git-protocol https --web --scopes workflow
 gh auth setup-git
 ```
 
-Use browser authorization. Do not paste access tokens into chat, commit them, or
-copy GitHub credentials into either service's environment. Only an account with
-write access to the established repository may publish. The `workflow` scope is
-needed when updating GitHub Actions files.
+Prepare the committed version.
+
+```bash
+python3 scripts/publish_release.py --prepare
+```
+
+The script waits for the quality workflow triggered by the push to `main`. If it fails, use the failed job's trace and logs to diagnose it. Commit a fix when the source or test is at fault. For a reported runner or network failure, rerun the failed job on the same commit.
+
+After deploying and verifying that commit, publish the tag and GitHub Release.
 
 ```bash
 python3 scripts/publish_release.py \
@@ -46,20 +42,7 @@ python3 scripts/publish_release.py \
   --share-deployment-dir /opt/workmoire-share
 ```
 
-Omit the sharing argument when that service is not installed. Health URLs are
-configurable for local ports. The script requires a clean checkout, the expected
-remote, matching deployed revisions and healthy services. It checks repository
-permissions, fetches the remote, rejects divergence, then atomically pushes `main`
-and its annotated version tag. It creates the GitHub Release from the matching
-changelog section and verifies the remote branch. It never force-pushes or
-changes deployment configuration.
-
-Inspect the [quality workflow](https://github.com/ZAIQuQ/Workmoire/actions/workflows/ci.yml)
-after publication. If a GitHub check fails, fix it and publish a new patch version;
-do not move an existing release tag. Record the deployed version, GitHub commit,
-release URL and check result when handing off the work. If authentication or
-network access blocks publication, report that exact blocker; do not describe
-local commits as synchronized.
+Omit the sharing argument when that service is absent. Publication requires a clean checkout, a successful `main` quality run for the exact commit, matching deployed revisions, and healthy services. Release tags stay immutable.
 
 ## Version UI
 

@@ -6,9 +6,9 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 
 - Check git status and review the complete staged file list.
 - Confirm data/, databases, uploads, backups, logs, .env, SSH files, server addresses, and personal content are ignored or absent.
-- Run make compile (including `bash -n backup.sh`), make test, and node --check workspace/static/app.js.
+- Run `make preflight` on the committed candidate with Node 22. It covers generated assets, source boundaries, compilation, backend tests, and command tests.
 - Compile tests/browser_server.py and syntax-check tests/browser.spec.cjs so the browser gate remains executable.
-- For browser changes, run npm run test:browser in its isolated Playwright environment against synthetic temporary data. Syntax checks alone do not prove that navigation or page startup works.
+- Exercise changed browser paths locally. GitHub runs the complete standard and autosave browser groups against isolated synthetic servers before deployment.
 - After restarting, allow a bounded startup interval and retry health probes before deciding that the deployment failed; never treat systemd active state alone as proof of readiness.
 - Run an HTTP smoke test for /healthz, /api/session, login/setup, content CRUD, and file upload when applicable.
 - Verify first-run protection on synthetic servers: a non-loopback bind without `WORKSPACE_SETUP_TOKEN` must reject setup, a loopback bind may allow local setup, and a configured token must reject incorrect values and accept the correct one. Check the bounded server's request timeout and queue attributes.
@@ -51,7 +51,7 @@ Use this checklist for a source release or a Tencent Cloud deployment.
 ## GitHub
 
 - Use a private-safe commit and a focused message.
-- Use the standing authorization to synchronize verified deployments to `ZAIQuQ/Workmoire/main`; update version/changelog and both README languages, push the commit and immutable version tag, create its Release, and inspect CI. Do not treat local commits as publication.
+- Use the standing authorization to prepare the candidate on `ZAIQuQ/Workmoire/main` and wait for the exact commit’s GitHub quality checks. Once deployed and verified, publish the immutable tag and Release. The tag reuses the successful main run.
 - Verify the deployed `REVISION`, package version and release tag agree. If authorization is configured but credentials are missing, prepare all source/deployment work and request a browser login without collecting tokens in chat.
 - Never put credentials in the remote URL or commit history.
 - If a repository secret was exposed, rotate it before continuing.

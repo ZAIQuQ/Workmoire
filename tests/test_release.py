@@ -4,7 +4,24 @@ import unittest
 import urllib.error
 from unittest.mock import patch
 import app_release as release
+from scripts import publish_release
 import test_documents as support
+
+
+class ReleaseQualityTests(unittest.TestCase):
+    def test_release_requires_successful_main_push_for_exact_commit(self):
+        head = 'a' * 40
+        candidate = {'databaseId': 1, 'conclusion': 'success', 'url': 'https://example.org/quality'}
+        with patch.object(publish_release.subprocess, 'check_output', return_value=json.dumps([candidate])) as command:
+            self.assertEqual(publish_release.quality_run(head), candidate['url'])
+            arguments = command.call_args.args[0]
+            for option, expected in (('--workflow', 'ci.yml'), ('--branch', 'main'),
+                                     ('--event', 'push'), ('--commit', head)):
+                self.assertEqual(arguments[arguments.index(option) + 1], expected)
+        for runs in ([], [{**candidate, 'conclusion': ''}], [{**candidate, 'conclusion': 'failure'}]):
+            with patch.object(publish_release.subprocess, 'check_output', return_value=json.dumps(runs)):
+                with self.assertRaises(RuntimeError):
+                    publish_release.quality_run(head)
 
 
 class ReleaseHttpTests(unittest.TestCase):
